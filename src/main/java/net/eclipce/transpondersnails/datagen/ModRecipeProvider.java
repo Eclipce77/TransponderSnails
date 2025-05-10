@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class ModRecipeProvider extends RecipeProvider implements IConditionBuilder {
-    private static final List<ItemLike> KAIROSEKI_SMELTABLES = List.of(ModItems.RAWKAIROSEKI.get(),
-            ModBlocks.KAIROSEKI_ORE.get(), ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get());
+    //private static final List<ItemLike> KAIROSEKI_SMELTABLES = List.of(ModItems.RAWKAIROSEKI.get(),
+            //ModBlocks.KAIROSEKI_ORE.get(), ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get());
 
     public ModRecipeProvider(PackOutput pOutput) {
         super(pOutput);
@@ -24,21 +24,17 @@ public class ModRecipeProvider extends RecipeProvider implements IConditionBuild
 
     @Override
     protected void buildRecipes(Consumer<FinishedRecipe> pWriter) {
-        oreSmelting(pWriter, KAIROSEKI_SMELTABLES, RecipeCategory.MISC, ModItems.KAIROSEKIINGOT.get(), 0.25f, 400, "kairoseki");
-        oreBlasting(pWriter, KAIROSEKI_SMELTABLES, RecipeCategory.MISC, ModItems.KAIROSEKIINGOT.get(), 0.25f, 200, "kairoseki");
-
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, ModBlocks.KAIROSEKI_BLOCK.get())
-                .pattern("SSS")
-                .pattern("SSS")
-                .pattern("SSS")
-                .define('S', ModItems.KAIROSEKIINGOT.get())
-                .unlockedBy(getHasName(ModItems.KAIROSEKIINGOT.get()), has(ModItems.KAIROSEKIINGOT.get()))
-                .save(pWriter);
-        ShapelessRecipeBuilder.shapeless(RecipeCategory.MISC, ModItems.KAIROSEKIINGOT.get(), 9)
-                .requires(ModBlocks.KAIROSEKI_BLOCK.get())
-                .unlockedBy(getHasName(ModBlocks.KAIROSEKI_BLOCK.get()), has(ModBlocks.KAIROSEKI_BLOCK.get()))
-                .save(pWriter);
+        //ShapedRecipeBuilder.shaped(RecipeCategory.MISC, ModBlocks.KAIROSEKI_BLOCK.get())
+                //.pattern("SSS")
+                //.pattern("SSS")
+                //.pattern("SSS")
+                //.define('S', ModItems.KAIROSEKIINGOT.get())
+                //.unlockedBy(getHasName(ModItems.KAIROSEKIINGOT.get()), has(ModItems.KAIROSEKIINGOT.get()))
+                //.save(pWriter);
+        //ShapelessRecipeBuilder.shapeless(RecipeCategory.MISC, ModItems.KAIROSEKIINGOT.get(), 9)
+                //.requires(ModBlocks.KAIROSEKI_BLOCK.get())
+                //.unlockedBy(getHasName(ModBlocks.KAIROSEKI_BLOCK.get()), has(ModBlocks.KAIROSEKI_BLOCK.get()))
+                //.save(pWriter);
     }
 
     protected static void oreSmelting(Consumer<FinishedRecipe> pFinishedRecipeConsumer, List<ItemLike> pIngredients, RecipeCategory pCategory, ItemLike pResult, float pExperience, int pCookingTIme, String pGroup) {

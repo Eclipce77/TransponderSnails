@@ -19,19 +19,7 @@ public class ModItemTagGenerator extends ItemTagsProvider {
 
     @Override
     protected void addTags(HolderLookup.Provider pProvider) {
-        this.tag(ItemTags.MUSIC_DISCS)
-                .add(ModItems.SOGEKING_THEME_SONG.get(),
-                        ModItems.LUFFY_BAKA_SONG.get(),
-                        ModItems.BINKS_SAKE.get(),
-                        ModItems.FRANKYS_THEME.get(),
-                        ModItems.WE_ARE.get());
-
-        this.tag(ItemTags.CREEPER_DROP_MUSIC_DISCS)
-                .add(ModItems.SOGEKING_THEME_SONG.get(),
-                        ModItems.LUFFY_BAKA_SONG.get(),
-                        ModItems.BINKS_SAKE.get(),
-                        ModItems.FRANKYS_THEME.get(),
-                        ModItems.WE_ARE.get());
+        //this.tag(ItemTags.);
 
     }
 }

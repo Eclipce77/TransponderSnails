@@ -15,11 +15,12 @@ public class ModBlockStateProvider extends BlockStateProvider {
 
     @Override
     protected void registerStatesAndModels() {
-        blockWithItem(ModBlocks.KAIROSEKI_BLOCK);
-        blockWithItem(ModBlocks.KAIROSEKI_ORE);
-        blockWithItem(ModBlocks.DEEPSLATE_KAIROSEKI_ORE);
-
         blockWithItem(ModBlocks.DEN_DEN_MUSHI);
+        blockWithItem(ModBlocks.TRANSPONDER_SNAIL);
+        blockWithItem(ModBlocks.HORNED_TRANSPONDER_SNAIL);
+        blockWithItem(ModBlocks.VISUAL_TRANSPONDER_SNAIL);
+        blockWithItem(ModBlocks.SURVEILLANCE_TRANSPONDER_SNAIL);
+        blockWithItem(ModBlocks.TRANSMISSION_TRANSPONDER_SNAIL);
     }
 
     private void blockWithItem(RegistryObject<Block> blockRegistryObject) {

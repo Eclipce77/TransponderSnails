@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Mod.EventBusSubscriber
 public class TransponderSnails {
     // Define mod id in a common place for everything to reference
-    public static final String MOD_ID = "one_piece_mod";
+    public static final String MOD_ID = "transpondersnails";
     // Directly reference a slf4j logger
     public static final Logger LOGGER = LogUtils.getLogger();
 

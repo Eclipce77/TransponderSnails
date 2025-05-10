@@ -23,13 +23,6 @@ public class ModBlockLootTables extends BlockLootSubProvider {
 
     @Override
     protected void generate() {
-        this.dropSelf(ModBlocks.KAIROSEKI_BLOCK.get());
-
-        this.add(ModBlocks.KAIROSEKI_ORE.get(),
-                block -> createRareOreDrops(ModBlocks.KAIROSEKI_ORE.get(), ModItems.RAWKAIROSEKI.get()));
-        this.add(ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get(),
-                block -> createRareOreDrops(ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get(), ModItems.RAWKAIROSEKI.get()));
-
         this.dropSelf(ModBlocks.DEN_DEN_MUSHI.get());
 
     }

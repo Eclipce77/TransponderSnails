@@ -1,0 +1,20 @@
+{
+  "den_den_mushi_ca_cha": {
+    "subtitle": "Ca_Cha",
+    "sounds": [
+      {
+        "name": "transpondersnails:den_den_mushi_ca_cha",
+        "stream": false
+      }
+    ]
+  },
+  "den_den_mushi_ringing": {
+    "subtitle": "Ca_Cha",
+    "sounds": [
+      {
+        "name": "transpondersnails:den_den_mushi_ringing",
+        "stream": false
+      }
+    ]
+  }
+}

@@ -18,20 +18,6 @@ public class ModBlockTagGenerator extends BlockTagsProvider {
 
     @Override
     protected void addTags(HolderLookup.Provider pProvider) {
-        this.tag(BlockTags.MINEABLE_WITH_PICKAXE)
-                .add(ModBlocks.KAIROSEKI_BLOCK.get(),
-                        ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get(),
-                        ModBlocks.KAIROSEKI_ORE.get());
-
-        this.tag(BlockTags.NEEDS_STONE_TOOL);
-
-        this.tag(BlockTags.NEEDS_IRON_TOOL);
-
-        this.tag(BlockTags.NEEDS_DIAMOND_TOOL)
-                .add(ModBlocks.KAIROSEKI_BLOCK.get(),
-                        ModBlocks.DEEPSLATE_KAIROSEKI_ORE.get(),
-                        ModBlocks.KAIROSEKI_ORE.get());
-
         this.tag(BlockTags.CORAL_BLOCKS)
                 .add(ModBlocks.DEN_DEN_MUSHI.get());
 

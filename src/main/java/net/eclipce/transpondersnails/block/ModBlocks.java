@@ -19,15 +19,19 @@ public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(ForgeRegistries.BLOCKS, TransponderSnails.MOD_ID);
 
-    public static final RegistryObject<Block> KAIROSEKI_ORE = registerBlock("kairoseki_ore",
-            () -> new Block(BlockBehaviour.Properties.copy(Blocks.STONE).sound(SoundType.STONE)));
-    public static final RegistryObject<Block> KAIROSEKI_BLOCK = registerBlock("kairoseki_block",
-            () -> new Block(BlockBehaviour.Properties.copy(Blocks.DIAMOND_BLOCK)));
-    public static final RegistryObject<Block> DEEPSLATE_KAIROSEKI_ORE = registerBlock("deepslate_kairoseki_ore",
-            () -> new Block(BlockBehaviour.Properties.copy(Blocks.DEEPSLATE)));
-
     public static final RegistryObject<Block> DEN_DEN_MUSHI = registerBlock("den_den_mushi",
             () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+    public static final RegistryObject<Block> TRANSPONDER_SNAIL = registerBlock("transponder_snail",
+            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+    public static final RegistryObject<Block> HORNED_TRANSPONDER_SNAIL = registerBlock("horned_transponder_snail",
+            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+    public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = registerBlock("visual_transponder_snail",
+            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+    public static final RegistryObject<Block> SURVEILLANCE_TRANSPONDER_SNAIL = registerBlock("surveillance_transponder_snail",
+            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+    public static final RegistryObject<Block> TRANSMISSION_TRANSPONDER_SNAIL = registerBlock("den_den_mushi",
+            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
 
     private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
