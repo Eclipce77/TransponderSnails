@@ -19,8 +19,6 @@ public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(ForgeRegistries.BLOCKS, TransponderSnails.MOD_ID);
 
-    public static final RegistryObject<Block> DEN_DEN_MUSHI = registerBlock("den_den_mushi",
-            () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
     public static final RegistryObject<Block> TRANSPONDER_SNAIL = registerBlock("transponder_snail",
             () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
     public static final RegistryObject<Block> HORNED_TRANSPONDER_SNAIL = registerBlock("horned_transponder_snail",

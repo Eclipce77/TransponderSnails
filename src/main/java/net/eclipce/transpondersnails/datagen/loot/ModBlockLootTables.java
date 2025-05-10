@@ -23,7 +23,11 @@ public class ModBlockLootTables extends BlockLootSubProvider {
 
     @Override
     protected void generate() {
-        this.dropSelf(ModBlocks.DEN_DEN_MUSHI.get());
+        this.dropSelf(ModBlocks.TRANSPONDER_SNAIL.get());
+        this.dropSelf(ModBlocks.HORNED_TRANSPONDER_SNAIL.get());
+        this.dropSelf(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+        this.dropSelf(ModBlocks.SURVEILLANCE_TRANSPONDER_SNAIL.get());
+        this.dropSelf(ModBlocks.TRANSMISSION_TRANSPONDER_SNAIL.get());
 
     }
 

@@ -19,7 +19,11 @@ public class ModBlockTagGenerator extends BlockTagsProvider {
     @Override
     protected void addTags(HolderLookup.Provider pProvider) {
         this.tag(BlockTags.CORAL_BLOCKS)
-                .add(ModBlocks.DEN_DEN_MUSHI.get());
+                .add(ModBlocks.TRANSPONDER_SNAIL.get())
+                .add(ModBlocks.HORNED_TRANSPONDER_SNAIL.get())
+                .add(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get())
+                .add(ModBlocks.SURVEILLANCE_TRANSPONDER_SNAIL.get())
+                .add(ModBlocks.TRANSMISSION_TRANSPONDER_SNAIL.get());
 
     }
 }

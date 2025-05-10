@@ -18,6 +18,8 @@ public class ModItemModelProvider extends ItemModelProvider {
     @Override
     protected void registerModels() {
         simpleItem(ModItems.DEN_DEN_MUSHI);
+        simpleItem(ModItems.BABY_TRANSPONDER_SNAIL);
+        simpleItem(ModItems.BLACK_TRANSPONDER_SNAIL);
     }
 
     private ItemModelBuilder simpleItem(RegistryObject<Item> item) {
