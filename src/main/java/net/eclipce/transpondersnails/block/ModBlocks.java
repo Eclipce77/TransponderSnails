@@ -27,7 +27,7 @@ public class ModBlocks {
             () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
     public static final RegistryObject<Block> SURVEILLANCE_TRANSPONDER_SNAIL = registerBlock("surveillance_transponder_snail",
             () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
-    public static final RegistryObject<Block> TRANSMISSION_TRANSPONDER_SNAIL = registerBlock("den_den_mushi",
+    public static final RegistryObject<Block> TRANSMISSION_TRANSPONDER_SNAIL = registerBlock("transmission_transponder_snail",
             () -> new Block(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
 

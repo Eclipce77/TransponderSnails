@@ -3,7 +3,6 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
 version = mod_version
@@ -121,6 +120,16 @@ repositories {
     // flatDir {
     //     dir 'libs'
     // }
+
+    maven { url = 'https://maven.maxhenkel.de/repository/public' }
+
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
 }
 
 dependencies {
@@ -145,6 +154,11 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
+    implementation "de.maxhenkel.voicechat:voicechat-api:2.5.27"
+
+    // For Forge
+    runtimeOnly fg.deobf("maven.modrinth:simple-voice-chat:forge-2.5.30")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

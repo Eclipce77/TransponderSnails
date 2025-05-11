@@ -47,7 +47,7 @@ description='''Transponder Snails from the anime One Piece in Minecraft'''
     # Does this dependency have to exist - if not, ordering below must be specified
     mandatory=true #mandatory
     # The version range of the dependency
-    versionRange="$[1.20.1-47.3.12,)" #mandatory
+    versionRange="[1.20.1-47.3.12,)" #mandatory
     # An ordering relationship for the dependency - BEFORE or AFTER required if the dependency is not mandatory
     # BEFORE - This mod is loaded BEFORE the dependency
     # AFTER - This mod is loaded AFTER the dependency
@@ -60,6 +60,12 @@ description='''Transponder Snails from the anime One Piece in Minecraft'''
     mandatory=true
     # This version range declares a minimum of the current minecraft version up to but not including the next major version
     versionRange="1.20.1"
+    ordering="NONE"
+    side="BOTH"
+[[dependencies.transpondersnails]]
+    modId="voicechat"
+    mandatory=true
+    versionRange="[1.20.1-2.5.27,)"
     ordering="NONE"
     side="BOTH"
 
