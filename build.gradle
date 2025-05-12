@@ -130,6 +130,13 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
+
+    maven {
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
 }
 
 dependencies {
@@ -157,8 +164,7 @@ dependencies {
 
     implementation "de.maxhenkel.voicechat:voicechat-api:2.5.27"
 
-    // For Forge
-    runtimeOnly fg.deobf("maven.modrinth:simple-voice-chat:forge-2.5.30")
+    implementation fg.deobf("curse.maven:simplevoicechat-416089:6439524")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

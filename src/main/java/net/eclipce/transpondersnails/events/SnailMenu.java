@@ -1,4 +1,4 @@
 package net.eclipce.transpondersnails.events;
 
-public class SnailEndCall {
+public class SnailMenu {
 }
