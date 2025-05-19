@@ -1,15 +1,24 @@
 {
-  "den_den_mushi_ca_cha": {
-    "subtitle": "Ca_Cha",
+  "den_den_mushi_answer": {
+    "subtitle": "Snail Answer",
     "sounds": [
       {
-        "name": "transpondersnails:den_den_mushi_ca_cha",
+        "name": "transpondersnails:den_den_mushi_answer",
+        "stream": false
+      }
+    ]
+  },
+  "den_den_mushi_hang_up": {
+    "subtitle": "Snail Hang Up",
+    "sounds": [
+      {
+        "name": "transpondersnails:den_den_mushi_hang_up",
         "stream": false
       }
     ]
   },
   "den_den_mushi_ringing": {
-    "subtitle": "Ca_Cha",
+    "subtitle": "Snail Ringing",
     "sounds": [
       {
         "name": "transpondersnails:den_den_mushi_ringing",

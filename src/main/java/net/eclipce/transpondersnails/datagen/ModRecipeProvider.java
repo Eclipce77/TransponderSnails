@@ -47,7 +47,7 @@ public class ModRecipeProvider extends RecipeProvider implements IConditionBuild
 
     protected static void oreCooking(Consumer<FinishedRecipe> pFinishedRecipeConsumer, RecipeSerializer<? extends AbstractCookingRecipe> pCookingSerializer, List<ItemLike> pIngredients, RecipeCategory pCategory, ItemLike pResult, float pExperience, int pCookingTime, String pGroup, String pRecipeName) {
         for(ItemLike itemlike : pIngredients) {
-            SimpleCookingRecipeBuilder.generic(Ingredient.of(new ItemLike[]{itemlike}), pCategory, pResult,
+            SimpleCookingRecipeBuilder.generic(Ingredient.of(itemlike), pCategory, pResult,
                     pExperience, pCookingTime, pCookingSerializer)
                     .group(pGroup).unlockedBy(getHasName(itemlike), has(itemlike))
                     .save(pFinishedRecipeConsumer, TransponderSnails.MOD_ID + ":" + getItemName(pResult) + pRecipeName + "_" + getItemName(itemlike));

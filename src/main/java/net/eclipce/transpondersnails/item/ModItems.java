@@ -1,9 +1,7 @@
 package net.eclipce.transpondersnails.item;
 
 import net.eclipce.transpondersnails.TransponderSnails;
-import net.eclipce.transpondersnails.sound.ModSounds;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.RecordItem;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;

@@ -12,7 +12,8 @@ public class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS =
             DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, TransponderSnails.MOD_ID);
 
-    public static final RegistryObject<SoundEvent> DEN_DEN_MUSHI_CA_CHA = registerSoundEvents("den_den_mushi_ca_cha");
+    public static final RegistryObject<SoundEvent> DEN_DEN_MUSHI_ANSWER = registerSoundEvents("den_den_mushi_answer");
+    public static final RegistryObject<SoundEvent> DEN_DEN_MUSHI_HANG_UP = registerSoundEvents("den_den_mushi_hang_up");
     public static final RegistryObject<SoundEvent> DEN_DEN_MUSHI_RINGING = registerSoundEvents("den_den_mushi_ringing");
 
     private static RegistryObject<SoundEvent> registerSoundEvents(String name) {
