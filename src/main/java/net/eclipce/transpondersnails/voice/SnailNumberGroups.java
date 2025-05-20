@@ -115,7 +115,7 @@ public class SnailNumberGroups implements VoicechatPlugin {
                         .setName(numberString)
                         .setType(Group.Type.OPEN)
                         .setPersistent(true)
-                        .setHidden(false)
+                        .setHidden(true)
                         .build();
             }
         }
