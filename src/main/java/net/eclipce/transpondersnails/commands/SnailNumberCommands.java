@@ -17,6 +17,9 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.Collection;
 import java.util.OptionalInt;
 
+import static com.mojang.text2speech.Narrator.LOGGER;
+import static net.eclipce.transpondersnails.voice.SnailNumberGroups.syncVoiceGroups;
+
 /**
  * /snailnumber set <player> <number>   — admin override a player's snail number
  * /snailnumber reset <player>          — admin clear a player's snail number
@@ -45,17 +48,26 @@ public class SnailNumberCommands {
 
                                                             ServerLevel level = (ServerLevel) ctx.getSource().getLevel();
                                                             SnailNumberRegistry registry = SnailNumberRegistry.get(level);
-                                                            registry.forceSetNumber(target.getUUID(), number);
 
-                                                            ctx.getSource().sendSuccess(
-                                                                    () -> Component.literal(
-                                                                            "Snail Number for "
-                                                                                    + target.getName().getString()
-                                                                                    + " set to "
-                                                                                    + String.format("%04d", number)
-                                                                    ), true
-                                                            );
-                                                            return 1;
+                                                            boolean success = registry.forceSetNumber(target.getUUID(), number);
+                                                            if (success) {
+                                                                ctx.getSource().sendSuccess(
+                                                                        () -> Component.literal(
+                                                                                "Snail Number for "
+                                                                                        + target.getName().getString()
+                                                                                        + " set to "
+                                                                                        + String.format("%04d", number)
+                                                                        ), true
+                                                                );
+                                                                return 1;
+                                                            } else {
+                                                                ctx.getSource().sendFailure(
+                                                                        Component.literal(
+                                                                                "Cannot set number: that number is already in use or invalid."
+                                                                        )
+                                                                );
+                                                                return 0;
+                                                            }
                                                         })
                                         )
                                 )

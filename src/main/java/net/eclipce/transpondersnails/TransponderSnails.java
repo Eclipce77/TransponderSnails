@@ -5,6 +5,7 @@ import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.sound.ModSounds;
+import net.eclipce.transpondersnails.voice.SnailNumberGroups;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
@@ -46,6 +47,7 @@ public class TransponderSnails {
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(SnailNumberGroups.class);
 
         // Register the item to a creative tab
         modEventBus.addListener(this::addCreative);

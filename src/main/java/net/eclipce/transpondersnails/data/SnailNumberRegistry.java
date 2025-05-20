@@ -8,11 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.saveddata.SavedData;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * World‐saved registry mapping player UUIDs to their immutable Snail Number.
@@ -110,10 +106,15 @@ public class SnailNumberRegistry extends SavedData {
      * Will remove any previous mapping for that player, and evict
      * any other player who had `num`.
      */
-    public void forceSetNumber(UUID playerUuid, int num) {
+    public boolean forceSetNumber(UUID playerUuid, int num) {
         // Disallow 0–100
         if (num < 101) {
-            return;
+            return false;
+        }
+        // If some other player already has this number, reject
+        UUID existingHolder = numberToPlayer.get(num);
+        if (existingHolder != null && !existingHolder.equals(playerUuid)) {
+            return false;
         }
         // Remove old for this player
         Integer old = playerToNumber.remove(playerUuid);
@@ -129,6 +130,7 @@ public class SnailNumberRegistry extends SavedData {
         playerToNumber.put(playerUuid, num);
         numberToPlayer.put(num, playerUuid);
         setDirty();
+        return true;
     }
 
     /**
@@ -160,4 +162,21 @@ public class SnailNumberRegistry extends SavedData {
     public boolean hasNumber(Player player) {
         return playerToNumber.containsKey(player.getUUID());
     }
+
+    public Collection<Integer> getAllNumbers() {
+        return playerToNumber.values();
+    }
+
+    public OptionalInt getNumberByUuid(UUID groupUuid) {
+        // Iterate all numbers, regenerate the UUID, and compare
+        for (int num : playerToNumber.values()) {
+            String str = String.format("%04d", num);
+            UUID generated = UUID.nameUUIDFromBytes(str.getBytes());
+            if (generated.equals(groupUuid)) {
+                return OptionalInt.of(num);
+            }
+        }
+        return OptionalInt.empty();
+    }
+
 }
