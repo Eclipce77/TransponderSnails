@@ -24,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @ForgeVoicechatPlugin
 @Mod.EventBusSubscriber(
         modid = TransponderSnails.MOD_ID,
-        bus = Mod.EventBusSubscriber.Bus.MOD
-        //value = Dist.DEDICATED_SERVER
+        bus = Mod.EventBusSubscriber.Bus.MOD,
+        value = Dist.DEDICATED_SERVER
 )
 public class TransponderSnailAudioPlugin implements de.maxhenkel.voicechat.api.VoicechatPlugin {
 

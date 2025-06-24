@@ -162,11 +162,11 @@ public class SnailNumberCommands {
                                             int callerNumber = callerOpt.getAsInt();
 
                                             // 2) Prevent dialing yourself
-                                           // if (callerNumber == targetNumber) {
-                                                //ctx.getSource().sendFailure(
-                                                        //Component.literal("You cannot dial your own snail number."));
-                                                //return 0;
-                                            //}
+                                            if (callerNumber == targetNumber) {
+                                                ctx.getSource().sendFailure(
+                                                        Component.literal("You cannot dial your own snail number."));
+                                                return 0;
+                                            }
 
                                             // 3) Find target UUID
                                             Optional<UUID> targetUuid = registry.getPlayerByNumber(targetNumber);
