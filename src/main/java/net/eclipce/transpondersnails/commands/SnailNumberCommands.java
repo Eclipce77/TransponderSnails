@@ -2,23 +2,28 @@ package net.eclipce.transpondersnails.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
+import net.eclipce.transpondersnails.voice.CallManager;
+import net.eclipce.transpondersnails.voice.TransponderSnailAudioPlugin;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.UUID;
 
 import static com.mojang.text2speech.Narrator.LOGGER;
-import static net.eclipce.transpondersnails.voice.SnailNumberGroups.syncVoiceGroups;
 
 /**
  * /snailnumber set <player> <number>   — admin override a player's snail number
@@ -134,6 +139,119 @@ public class SnailNumberCommands {
                                                 count++;
                                             }
                                             return count;
+                                        })
+                                )
+                        )
+
+                        .then(Commands.literal("dial")
+                                .then(Commands.argument("number", IntegerArgumentType.integer(101, 9999))
+                                        .executes(ctx -> {
+                                            ServerPlayer caller = ctx.getSource().getPlayerOrException();
+                                            int targetNumber = IntegerArgumentType.getInteger(ctx, "number");
+
+                                            ServerLevel level = (ServerLevel) caller.level();
+                                            SnailNumberRegistry registry = SnailNumberRegistry.get(level);
+
+                                            // 1) Caller must have set their own snail number
+                                            OptionalInt callerOpt = registry.getNumber(caller);
+                                            if (callerOpt.isEmpty()) {
+                                                ctx.getSource().sendFailure(
+                                                        Component.literal("You must set your snail number first."));
+                                                return 0;
+                                            }
+                                            int callerNumber = callerOpt.getAsInt();
+
+                                            // 2) Prevent dialing yourself
+                                           // if (callerNumber == targetNumber) {
+                                                //ctx.getSource().sendFailure(
+                                                        //Component.literal("You cannot dial your own snail number."));
+                                                //return 0;
+                                            //}
+
+                                            // 3) Find target UUID
+                                            Optional<UUID> targetUuid = registry.getPlayerByNumber(targetNumber);
+                                            if (targetUuid.isEmpty()) {
+                                                ctx.getSource().sendFailure(
+                                                        Component.literal("No player has snail number " + String.format("%04d", targetNumber)));
+                                                return 0;
+                                            }
+
+                                            ServerPlayer receiver = level.getServer()
+                                                    .getPlayerList()
+                                                    .getPlayer(targetUuid.get());
+                                            if (receiver == null) {
+                                                ctx.getSource().sendFailure(
+                                                        Component.literal("Player with snail number "
+                                                                + String.format("%04d", targetNumber)
+                                                                + " is not online."));
+                                                return 0;
+                                            }
+
+                                            // 4) Initiate the “call” by opening the audio channels
+                                            UUID callId = UUID.randomUUID();
+                                            TransponderSnailAudioPlugin.openCallChannel(caller, receiver, callId);
+                                            CallManager.startRinging(caller, receiver, callId, targetNumber);
+
+
+                                            ctx.getSource().sendSuccess(
+                                                    () -> Component.literal("Dialing Snail #"
+                                                            + String.format("%04d", targetNumber)
+                                                            + " (call id: " + callId + ")…"),
+                                                    false
+                                            );
+                                            return 1;
+                                        })
+                                )
+                        )
+
+                        // accept <callId>
+                        .then(Commands.literal("accept")
+                                .then(Commands.argument("callId", StringArgumentType.word())
+                                        .executes(ctx -> {
+                                            String idStr = StringArgumentType.getString(ctx, "callId");
+                                            UUID callId;
+                                            try {
+                                                callId = UUID.fromString(idStr);
+                                            } catch (IllegalArgumentException e) {
+                                                ctx.getSource().sendFailure(Component.literal("Invalid call ID."));
+                                                return 0;
+                                            }
+                                            if (CallManager.acceptCall(callId)) {
+                                                ctx.getSource().sendSuccess(
+                                                        () -> Component.literal("Call accepted."),
+                                                        false
+                                                );
+                                                return 1;
+                                            } else {
+                                                ctx.getSource().sendFailure(Component.literal("No active call “" + callId + "”."));
+                                                return 0;
+                                            }
+                                        })
+                                )
+                        )
+
+                        // decline <callId>
+                        .then(Commands.literal("decline")
+                                .then(Commands.argument("callId", StringArgumentType.word())
+                                        .executes(ctx -> {
+                                            String idStr = StringArgumentType.getString(ctx, "callId");
+                                            UUID callId;
+                                            try {
+                                                callId = UUID.fromString(idStr);
+                                            } catch (IllegalArgumentException e) {
+                                                ctx.getSource().sendFailure(Component.literal("Invalid call ID."));
+                                                return 0;
+                                            }
+                                            if (CallManager.declineCall(callId)) {
+                                                ctx.getSource().sendSuccess(
+                                                        () -> Component.literal("Call declined."),
+                                                        false
+                                                );
+                                                return 1;
+                                            } else {
+                                                ctx.getSource().sendFailure(Component.literal("No active call “" + callId + "”."));
+                                                return 0;
+                                            }
                                         })
                                 )
                         )
