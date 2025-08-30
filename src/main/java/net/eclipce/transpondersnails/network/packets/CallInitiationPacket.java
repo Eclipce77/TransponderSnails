@@ -75,7 +75,7 @@ public class CallInitiationPacket {
             }
 
             // Attempt to initiate the call using the call manager
-            boolean success = callManager.initiateCallBySnailNumber(player, targetSnailNumber);
+            boolean success = callManager.initiateCall(player, targetSnailNumber);
 
             if (success) {
                 // Clear the dialed number after successful call initiation
