@@ -9,5 +9,10 @@
   "item.transpondersnails.baby_transponder_snail": "Baby Transponder Snail",
   "item.transpondersnails.black_transponder_snail": "Black Transponder Snail",
 
-  "creativetab.transpondersnails_tab": "Transponder Snails"
+  "item.transpondersnails.rotary_dial": "Rotary Dial",
+  "item.transpondersnails.copper_wire": "Copper Wire",
+  "item.transpondersnails.transmitter": "Transmitter",
+  "item.transpondersnails.microphone_capsule": "Microphone Capsule",
+
+  "creativetab.transpondersnails": "Transponder Snails"
 }

@@ -1,27 +1,68 @@
 {
-  "den_den_mushi_answer": {
-    "subtitle": "Snail Answer",
+  "snail_connected": {
+    "subtitle": "Snail (Connected)",
     "sounds": [
       {
-        "name": "transpondersnails:den_den_mushi_answer",
+        "name": "transpondersnails:snail_connected",
         "stream": false
       }
     ]
   },
-  "den_den_mushi_hang_up": {
-    "subtitle": "Snail Hang Up",
+  "snail_disconnected": {
+    "subtitle": "Snail (Disconnected)",
     "sounds": [
       {
-        "name": "transpondersnails:den_den_mushi_hang_up",
+        "name": "transpondersnails:snail_disconnected",
         "stream": false
       }
     ]
   },
-  "den_den_mushi_ringing": {
-    "subtitle": "Snail Ringing",
+  "snail_ringing": {
+    "subtitle": "Snail (Ringing)",
     "sounds": [
       {
-        "name": "transpondersnails:den_den_mushi_ringing",
+        "name": "transpondersnails:snail_ringing",
+        "stream": false
+      }
+    ]
+  },
+  "snail_busy": {
+    "subtitle": "Snail (Busy)",
+    "sounds": [
+      {
+        "name": "transpondersnails:snail_busy",
+        "stream": false
+      }
+    ]
+  },
+  "snail_pick_up": {
+    "sounds": [
+      {
+        "name": "transpondersnails:snail_pick_up",
+        "stream": false
+      }
+    ]
+  },
+  "snail_hang_up": {
+    "sounds": [
+      {
+        "name": "transpondersnails:snail_hang_up",
+        "stream": false
+      }
+    ]
+  },
+  "dial_button": {
+    "sounds": [
+      {
+        "name": "transpondersnails:dial_button",
+        "stream": false
+      }
+    ]
+  },
+  "clear_button": {
+    "sounds": [
+      {
+        "name": "transpondersnails:clear_button",
         "stream": false
       }
     ]

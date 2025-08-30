@@ -14,24 +14,21 @@ public class ModCreativeModeTabs {
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, TransponderSnails.MOD_ID);
 
-    public static final RegistryObject<CreativeModeTab> ONE_PIECE_MOD_TAB = CREATIVE_MODE_TABS.register( "transpondersnails_tab",
-            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.DEN_DEN_MUSHI.get()))
-                    .title(Component.translatable("creativetab.transpondersnails_tab"))
+    public static final RegistryObject<CreativeModeTab> TRANSPONDERSNAILS_TAB = CREATIVE_MODE_TABS.register( "transpondersnails_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.TRANSPONDER_SNAIL.get()))
+                    .title(Component.translatable("creativetab.transpondersnails"))
                     .displayItems((pParameters, pOutput) -> {
                         pOutput.accept(ModItems.DEN_DEN_MUSHI.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModItems.BABY_TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModBlocks.HORNED_TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModBlocks.SURVEILLANCE_TRANSPONDER_SNAIL.get());
-                        pOutput.accept(ModBlocks.TRANSMISSION_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModItems.ROTARY_DIAL.get());
+                        pOutput.accept(ModItems.COPPER_WIRE.get());
+                        pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
+                        pOutput.accept(ModItems.TRANSMITTER.get());
                     })
                     .build());
 
     public static void register(IEventBus eventBus) {
         CREATIVE_MODE_TABS.register(eventBus);
     }
-
 
 }

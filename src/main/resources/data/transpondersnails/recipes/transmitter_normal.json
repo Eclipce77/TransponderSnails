@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NCN",
+    "NPN",
+    "NNN"
+  ],
+  "key": {
+    "N": {
+      "item": "minecraft:gold_nugget"
+    },
+    "P": {
+      "item": "minecraft:compass"
+    },
+    "C": {
+      "item": "transpondersnails:copper_wire"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:transmitter"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "transpondersnails:block/transponder_snail",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "transpondersnails:block/transponder_snail"
+    },
+    "facing=south": {
+      "model": "transpondersnails:block/transponder_snail",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "transpondersnails:block/transponder_snail",
+      "y": 270
+    }
+  }
+}

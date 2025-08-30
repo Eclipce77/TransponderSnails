@@ -1,182 +1,298 @@
 package net.eclipce.transpondersnails.data;
 
-import net.eclipce.transpondersnails.TransponderSnails;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraftforge.server.ServerLifecycleHooks;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * World‐saved registry mapping player UUIDs to their immutable Snail Number.
- * Enforces:
- * 1) Uniqueness
- * 2) Immutable once set (unless via admin)
- * 3) Range restriction: no numbers 0–100
+ * Server-side registry that manages the assignment and tracking of unique snail numbers.
+ * Each Transponder Snail gets assigned a unique 4-digit number (1000-9999) that persists
+ * across server restarts and is tied to the snail's UUID, not the player.
  */
 public class SnailNumberRegistry extends SavedData {
+    private static final String DATA_NAME = "transponder_snails_registry";
+    private static final int MIN_SNAIL_NUMBER = 1000;
+    private static final int MAX_SNAIL_NUMBER = 9999;
+    private static final int TOTAL_POSSIBLE_NUMBERS = MAX_SNAIL_NUMBER - MIN_SNAIL_NUMBER + 1; // 9000 total numbers
 
-    private static final String DATA_NAME = TransponderSnails.MOD_ID + "_snail_numbers";
+    // Main mappings
+    private final Map<UUID, Integer> snailToNumber = new HashMap<>(); // UUID -> Snail Number
+    private final Map<Integer, UUID> numberToSnail = new HashMap<>(); // Snail Number -> UUID (reverse lookup)
+    private final Set<Integer> assignedNumbers = new HashSet<>(); // Quick lookup for assigned numbers
 
-    // player → number
-    private final Map<UUID, Integer> playerToNumber = new HashMap<>();
-    // number → player
-    private final Map<Integer, UUID> numberToPlayer = new HashMap<>();
+    // Cached instance for quick access
+    private static SnailNumberRegistry instance = null;
 
-    public SnailNumberRegistry() {
+    // Private constructor - use getInstance() instead
+    private SnailNumberRegistry() {
         super();
     }
 
-    private SnailNumberRegistry(CompoundTag tag) {
-        super();
-        fromTag(tag);
-    }
-
-    /** Fetches (or creates) the registry for this world */
-    public static SnailNumberRegistry get(ServerLevel level) {
-        return level.getDataStorage()
-                .computeIfAbsent(
-                        SnailNumberRegistry::load,      // ← supplier for a fresh instance
-                        SnailNumberRegistry::new,     // ← function to rehydrate from NBT
-                        DATA_NAME                      // ← storage key
-                );
-    }
-
-    @Override
-    public CompoundTag save(CompoundTag tag) {
-        ListTag list = new ListTag();
-        playerToNumber.forEach((uuid, num) -> {
-            CompoundTag entry = new CompoundTag();
-            entry.putUUID("player", uuid);
-            entry.putInt("number", num);
-            list.add(entry);
-        });
-        tag.put("entries", list);
-        return tag;
-    }
-
-    private static SnailNumberRegistry load(CompoundTag tag) {
-        return new SnailNumberRegistry(tag);
-    }
-
-    private void fromTag(CompoundTag tag) {
-        ListTag list = tag.getList("entries", Tag.TAG_COMPOUND);
-        for (int i = 0; i < list.size(); i++) {
-            CompoundTag entry = list.getCompound(i);
-            UUID uuid = entry.getUUID("player");
-            int num = entry.getInt("number");
-            playerToNumber.put(uuid, num);
-            numberToPlayer.put(num, uuid);
+    /**
+     * Gets the global instance of the SnailNumberRegistry
+     * @return The registry instance, or null if server isn't running
+     */
+    @Nullable
+    public static SnailNumberRegistry getInstance() {
+        if (ServerLifecycleHooks.getCurrentServer() == null) {
+            return null; // Server not running
         }
+
+        if (instance == null) {
+            ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
+            instance = overworld.getDataStorage().computeIfAbsent(
+                    SnailNumberRegistry::load,
+                    SnailNumberRegistry::new,
+                    DATA_NAME
+            );
+        }
+
+        return instance;
     }
 
     /**
-     * Attempts to register `num` for `player`.
-     * @return true on success, false if:
-     *   - player already has a number
-     *   - number < 101
-     *   - number already in use
+     * Assigns a snail number to the given UUID if it doesn't already have one
+     * @param snailUUID The unique identifier of the transponder snail
+     * @return The assigned snail number, or -1 if assignment failed
      */
-    public boolean registerNumber(Player player, int num) {
-        UUID uuid = player.getUUID();
-        // 1) Immutable once set
-        if (playerToNumber.containsKey(uuid)) {
-            return false;
+    public synchronized int assignNumberToSnail(@NotNull UUID snailUUID) {
+        // Check if this snail already has a number
+        if (snailToNumber.containsKey(snailUUID)) {
+            return snailToNumber.get(snailUUID);
         }
-        // 2) Disallow 0–100
-        if (num < 101) {
-            return false;
+
+        // Check if we've run out of available numbers
+        if (assignedNumbers.size() >= TOTAL_POSSIBLE_NUMBERS) {
+            System.err.println("SnailNumberRegistry: All snail numbers have been assigned! Cannot assign to UUID: " + snailUUID);
+            return -1; // No more numbers available
         }
-        // 3) Unique
-        if (numberToPlayer.containsKey(num)) {
-            return false;
+
+        // Generate a new unique number
+        int newNumber = generateUniqueNumber();
+        if (newNumber == -1) {
+            System.err.println("SnailNumberRegistry: Failed to generate unique number for UUID: " + snailUUID);
+            return -1;
         }
-        // 4) Register
-        playerToNumber.put(uuid, num);
-        numberToPlayer.put(num, uuid);
+
+        // Assign the number
+        snailToNumber.put(snailUUID, newNumber);
+        numberToSnail.put(newNumber, snailUUID);
+        assignedNumbers.add(newNumber);
+
+        // Mark data as dirty to ensure it saves
         setDirty();
-        return true;
+
+        System.out.println("SnailNumberRegistry: Assigned number " + newNumber + " to snail " + snailUUID);
+        return newNumber;
     }
 
     /**
-     * Admin/OP override to force-set (or change) a player's number.
-     * Will remove any previous mapping for that player, and evict
-     * any other player who had `num`.
+     * Gets the snail number for the given UUID
+     * @param snailUUID The snail's unique identifier
+     * @return The assigned number, or -1 if not found
      */
-    public boolean forceSetNumber(UUID playerUuid, int num) {
-        // Disallow 0–100
-        if (num < 101) {
-            return false;
-        }
-        // If some other player already has this number, reject
-        UUID existingHolder = numberToPlayer.get(num);
-        if (existingHolder != null && !existingHolder.equals(playerUuid)) {
-            return false;
-        }
-        // Remove old for this player
-        Integer old = playerToNumber.remove(playerUuid);
-        if (old != null) {
-            numberToPlayer.remove(old);
-        }
-        // Evict any other holder of this num
-        UUID prior = numberToPlayer.remove(num);
-        if (prior != null) {
-            playerToNumber.remove(prior);
-        }
-        // Assign new
-        playerToNumber.put(playerUuid, num);
-        numberToPlayer.put(num, playerUuid);
-        setDirty();
-        return true;
+    public int getSnailNumber(@NotNull UUID snailUUID) {
+        return snailToNumber.getOrDefault(snailUUID, -1);
     }
 
     /**
-     * Removes a player's Snail Number (admin only).
-     * @return true if a number was removed, false if none existed
+     * Gets the snail UUID for the given number
+     * @param snailNumber The snail number to look up
+     * @return The UUID of the snail with that number, or null if not found
      */
-    public boolean removeNumber(UUID playerUuid) {
-        Integer old = playerToNumber.remove(playerUuid);
-        if (old != null) {
-            numberToPlayer.remove(old);
+    @Nullable
+    public UUID getSnailByNumber(int snailNumber) {
+        return numberToSnail.get(snailNumber);
+    }
+
+    /**
+     * Checks if a snail number is currently assigned
+     * @param snailNumber The number to check
+     * @return True if the number is assigned to a snail
+     */
+    public boolean isNumberAssigned(int snailNumber) {
+        return assignedNumbers.contains(snailNumber);
+    }
+
+    /**
+     * Gets the total number of assigned snail numbers
+     * @return The count of currently assigned numbers
+     */
+    public int getAssignedCount() {
+        return assignedNumbers.size();
+    }
+
+    /**
+     * Gets the total number of available snail numbers
+     * @return The count of unassigned numbers
+     */
+    public int getAvailableCount() {
+        return TOTAL_POSSIBLE_NUMBERS - assignedNumbers.size();
+    }
+
+    /**
+     * Removes a snail number assignment (for debugging/admin use)
+     * WARNING: This should rarely be used as it can break existing calls
+     * @param snailUUID The UUID of the snail to unassign
+     * @return True if a number was removed, false if the UUID wasn't assigned
+     */
+    public synchronized boolean removeSnailAssignment(@NotNull UUID snailUUID) {
+        Integer number = snailToNumber.remove(snailUUID);
+        if (number != null) {
+            numberToSnail.remove(number);
+            assignedNumbers.remove(number);
             setDirty();
+            System.out.println("SnailNumberRegistry: Removed assignment of number " + number + " from snail " + snailUUID);
             return true;
         }
         return false;
     }
 
-    /** Lookup for a player's own number */
-    public OptionalInt getNumber(Player player) {
-        Integer num = playerToNumber.get(player.getUUID());
-        return num == null ? OptionalInt.empty() : OptionalInt.of(num);
-    }
+    /**
+     * Generates a unique snail number that isn't already assigned
+     * @return A unique number between MIN_SNAIL_NUMBER and MAX_SNAIL_NUMBER, or -1 if none available
+     */
+    private int generateUniqueNumber() {
+        // If we're getting close to capacity, use a more systematic approach
+        if (assignedNumbers.size() > TOTAL_POSSIBLE_NUMBERS * 0.8) {
+            // Find the first available number systematically
+            for (int number = MIN_SNAIL_NUMBER; number <= MAX_SNAIL_NUMBER; number++) {
+                if (!assignedNumbers.contains(number)) {
+                    return number;
+                }
+            }
+            return -1; // No numbers available
+        }
 
-    /** Lookup for which player holds a given number */
-    public Optional<UUID> getPlayerByNumber(int num) {
-        return Optional.ofNullable(numberToPlayer.get(num));
-    }
+        // Use random generation for better distribution when plenty of numbers available
+        int attempts = 0;
+        int maxAttempts = 1000; // Prevent infinite loops
 
-    /** Does the player already have a set number? */
-    public boolean hasNumber(Player player) {
-        return playerToNumber.containsKey(player.getUUID());
-    }
+        while (attempts < maxAttempts) {
+            int number = ThreadLocalRandom.current().nextInt(MIN_SNAIL_NUMBER, MAX_SNAIL_NUMBER + 1);
+            if (!assignedNumbers.contains(number)) {
+                return number;
+            }
+            attempts++;
+        }
 
-    public Collection<Integer> getAllNumbers() {
-        return playerToNumber.values();
-    }
-
-    public OptionalInt getNumberByUuid(UUID groupUuid) {
-        // Iterate all numbers, regenerate the UUID, and compare
-        for (int num : playerToNumber.values()) {
-            String str = String.format("%04d", num);
-            UUID generated = UUID.nameUUIDFromBytes(str.getBytes());
-            if (generated.equals(groupUuid)) {
-                return OptionalInt.of(num);
+        // Fallback to systematic search if random fails
+        for (int number = MIN_SNAIL_NUMBER; number <= MAX_SNAIL_NUMBER; number++) {
+            if (!assignedNumbers.contains(number)) {
+                return number;
             }
         }
-        return OptionalInt.empty();
+
+        return -1; // No numbers available
     }
 
+    // SavedData implementation for persistence
+    @Override
+    public @NotNull CompoundTag save(@NotNull CompoundTag compound) {
+        // Save the UUID -> Number mappings
+        ListTag assignmentsList = new ListTag();
+        for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet()) {
+            CompoundTag assignmentTag = new CompoundTag();
+            assignmentTag.putString("uuid", entry.getKey().toString());
+            assignmentTag.putInt("number", entry.getValue());
+            assignmentsList.add(assignmentTag);
+        }
+        compound.put("assignments", assignmentsList);
+
+        // Save statistics for debugging
+        compound.putInt("total_assigned", assignedNumbers.size());
+        compound.putInt("registry_version", 1); // For future compatibility
+
+        System.out.println("SnailNumberRegistry: Saved " + assignedNumbers.size() + " snail number assignments");
+        return compound;
+    }
+
+    /**
+     * Loads the registry data from NBT
+     */
+    public static SnailNumberRegistry load(CompoundTag compound) {
+        SnailNumberRegistry registry = new SnailNumberRegistry();
+
+        // Load assignments
+        if (compound.contains("assignments", Tag.TAG_LIST)) {
+            ListTag assignmentsList = compound.getList("assignments", Tag.TAG_COMPOUND);
+
+            for (int i = 0; i < assignmentsList.size(); i++) {
+                CompoundTag assignmentTag = assignmentsList.getCompound(i);
+
+                try {
+                    UUID snailUUID = UUID.fromString(assignmentTag.getString("uuid"));
+                    int number = assignmentTag.getInt("number");
+
+                    // Validate the number is in valid range
+                    if (number >= MIN_SNAIL_NUMBER && number <= MAX_SNAIL_NUMBER) {
+                        registry.snailToNumber.put(snailUUID, number);
+                        registry.numberToSnail.put(number, snailUUID);
+                        registry.assignedNumbers.add(number);
+                    } else {
+                        System.err.println("SnailNumberRegistry: Loaded invalid snail number " + number + " for UUID " + snailUUID + ", skipping");
+                    }
+
+                } catch (IllegalArgumentException e) {
+                    System.err.println("SnailNumberRegistry: Failed to load assignment entry at index " + i + ": " + e.getMessage());
+                }
+            }
+        }
+
+        System.out.println("SnailNumberRegistry: Loaded " + registry.assignedNumbers.size() + " snail number assignments");
+        return registry;
+    }
+
+    /**
+     * Debug method to print current registry state
+     */
+    public void debugPrintState() {
+        System.out.println("=== SnailNumberRegistry Debug Info ===");
+        System.out.println("Assigned numbers: " + assignedNumbers.size() + "/" + TOTAL_POSSIBLE_NUMBERS);
+        System.out.println("Available numbers: " + getAvailableCount());
+
+        if (assignedNumbers.size() <= 20) { // Only print details if not too many
+            System.out.println("Current assignments:");
+            for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet()) {
+                System.out.println("  " + entry.getKey() + " -> #" + entry.getValue());
+            }
+        }
+        System.out.println("=====================================");
+    }
+
+    /**
+     * Clears all snail number assignments (DANGEROUS - for admin use only)
+     * WARNING: This will break all existing calls and make all snails lose their numbers
+     * @return The number of assignments that were cleared
+     */
+    public synchronized int clearAllAssignments() {
+        int clearedCount = assignedNumbers.size();
+
+        // Clear all mappings
+        snailToNumber.clear();
+        numberToSnail.clear();
+        assignedNumbers.clear();
+
+        // Mark data as dirty to ensure it saves
+        setDirty();
+
+        System.out.println("SnailNumberRegistry: CLEARED ALL ASSIGNMENTS - " + clearedCount + " numbers freed");
+        return clearedCount;
+    }
+
+    /**
+     * Resets the instance cache - should only be called when server stops
+     */
+    public static void resetInstance() {
+        instance = null;
+    }
 }

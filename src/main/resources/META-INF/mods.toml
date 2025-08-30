@@ -17,7 +17,7 @@ license="MIT"
 # The modid of the mod
 modId="transpondersnails" #mandatory
 # The version number of the mod
-version="0.1-1.20.1" #mandatory
+version="1.20.1-0.1" #mandatory
 # A display name for the mod
 displayName="Transponder Snails" #mandatory
 # A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
@@ -39,7 +39,7 @@ authors="Eclipce" #optional
 #displayTest="MATCH_VERSION" # MATCH_VERSION is the default if nothing is specified (#optional)
 
 # The description text for the mod (multi line!) (#mandatory)
-description='''Transponder Snails from the anime One Piece in Minecraft'''
+description='''Transponder Snails from One Piece in Minecraft'''
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.transpondersnails]] #optional
     # the modid of the dependency
@@ -66,7 +66,7 @@ description='''Transponder Snails from the anime One Piece in Minecraft'''
     modId="voicechat"
     mandatory=true
     versionRange="[1.20.1-2.5.27,)"
-    ordering="NONE"
+    ordering="AFTER"
     side="BOTH"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares

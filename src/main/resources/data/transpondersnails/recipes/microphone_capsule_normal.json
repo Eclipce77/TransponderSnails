@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NPN",
+    "NIN",
+    "NCN"
+  ],
+  "key": {
+    "N": {
+      "item": "minecraft:gold_nugget"
+    },
+    "I": {
+      "item": "minecraft:iron_nugget"
+    },
+    "C": {
+      "item": "transpondersnails:copper_wire"
+    },
+    "P": {
+      "item": "minecraft:light_weighted_pressure_plate"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:microphone_capsule"
+  }
+}
