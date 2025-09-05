@@ -39,14 +39,6 @@ public class CallInitiationPacket {
                 return;
             }
 
-            // Get the call manager
-            TransponderCallManager callManager = TransponderSnails.getCallManager();
-            if (callManager == null) {
-                player.sendSystemMessage(Component.literal("Call system is not available!")
-                        .withStyle(net.minecraft.ChatFormatting.RED));
-                return;
-            }
-
             System.out.println("CallInitiationPacket: Player " + player.getName().getString() +
                     " (snail #" + callerSnailNumber + ") attempting to call snail #" + targetSnailNumber);
 
@@ -60,13 +52,6 @@ public class CallInitiationPacket {
                 }
             }
 
-            // Check if caller is already in a call
-            if (callManager.isInCall(player.getUUID())) {
-                player.sendSystemMessage(Component.literal("You are already in a call!")
-                        .withStyle(net.minecraft.ChatFormatting.RED));
-                return;
-            }
-
             // Check if trying to call own number
             if (targetSnailNumber == callerSnailNumber) {
                 player.sendSystemMessage(Component.literal("You cannot call your own snail!")
@@ -74,14 +59,24 @@ public class CallInitiationPacket {
                 return;
             }
 
-            // Attempt to initiate the call using the call manager
-            boolean success = callManager.initiateCall(player, targetSnailNumber);
+            // Get the call manager and initiate the call
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager == null) {
+                player.sendSystemMessage(Component.literal("Voice chat system not available!")
+                        .withStyle(net.minecraft.ChatFormatting.RED));
+                return;
+            }
+
+            // Use the call manager to initiate the call
+            boolean success = callManager.initiateCallBySnailNumber(player, callerSnailNumber, targetSnailNumber);
 
             if (success) {
                 // Clear the dialed number after successful call initiation
                 if (player.containerMenu instanceof net.eclipce.transpondersnails.screen.DialingMenu dialingMenu) {
                     if (dialingMenu.getBlockEntity() != null) {
                         dialingMenu.getBlockEntity().clearDialedNumber();
+                    } else {
+                        dialingMenu.clearDialedNumber();
                     }
                 }
 

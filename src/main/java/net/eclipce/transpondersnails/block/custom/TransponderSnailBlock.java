@@ -22,6 +22,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
@@ -42,9 +43,16 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 
+    // Block properties for visual states
+    public static final BooleanProperty HAS_SOUND = BooleanProperty.create("has_sound");
+    public static final BooleanProperty IN_CALL = BooleanProperty.create("in_call");
+
     public TransponderSnailBlock(Properties pProperties) {
         super(pProperties);
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+        this.registerDefaultState(this.stateDefinition.any()
+                .setValue(FACING, Direction.NORTH)
+                .setValue(HAS_SOUND, false)
+                .setValue(IN_CALL, false));
     }
 
     @Override
@@ -64,7 +72,7 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
+        builder.add(FACING, HAS_SOUND, IN_CALL);
     }
 
     @Override
@@ -84,12 +92,11 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     }
 
     @Override
-    public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
-        if (!pLevel.isClientSide()) {
-            BlockEntity entity = pLevel.getBlockEntity(pPos);
-            if(entity instanceof TransponderSnailBlockEntity) {
-                NetworkHooks.openScreen(((ServerPlayer)pPlayer), (TransponderSnailBlockEntity)entity, pPos);
-                return InteractionResult.CONSUME;
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof TransponderSnailBlockEntity snailEntity) {
+                return snailEntity.onUse(serverPlayer);
             }
         }
         return InteractionResult.SUCCESS;
@@ -98,7 +105,6 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pPos, BlockState pState) {
-
         return new TransponderSnailBlockEntity(pPos, pState);
     }
 
@@ -126,7 +132,6 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level pLevel, BlockState pState, BlockEntityType<T> pBlockEntityType) {
-
         return null;
     }
 
@@ -137,12 +142,12 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             if (blockEntity instanceof TransponderSnailBlockEntity snailBlockEntity) {
                 UUID activeCall = snailBlockEntity.getActiveCallId();
                 if (activeCall != null) {
-
+                    // Handle active call cleanup if needed
                 }
             }
         }
 
-        super.onRemove(pState, pLevel, pPos ,pNewState, pIsMoving);
+        super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
     }
 
     /**
@@ -204,5 +209,98 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
         }
 
         super.playerDestroy(level, player, pos, state, blockEntity, tool);
+    }
+
+    // =================== NEW: BLOCK STATE MANAGEMENT FOR VISUAL UPDATES ===================
+
+    /**
+     * Updates the visual state of the block based on sound and call status
+     * This is the method that your TransponderSnailBlockEntity calls
+     */
+    public static void updateVisualState(Level level, BlockPos pos, boolean hasSound, boolean inCall) {
+        if (level.isClientSide()) {
+            return; // Only update on server side
+        }
+
+        BlockState currentState = level.getBlockState(pos);
+        if (!(currentState.getBlock() instanceof TransponderSnailBlock)) {
+            return;
+        }
+
+        // Check if state actually needs to change
+        boolean currentHasSound = currentState.getValue(HAS_SOUND);
+        boolean currentInCall = currentState.getValue(IN_CALL);
+
+        if (currentHasSound != hasSound || currentInCall != inCall) {
+            BlockState newState = currentState
+                    .setValue(HAS_SOUND, hasSound)
+                    .setValue(IN_CALL, inCall);
+
+            // Update the block state - this will trigger a render update
+            level.setBlock(pos, newState, Block.UPDATE_ALL);
+
+            System.out.println("TransponderSnailBlock: Updated visual state at " + pos +
+                    " - Sound: " + hasSound + ", Call: " + inCall);
+        }
+    }
+
+    /**
+     * Convenience method to update only sound state
+     */
+    public static void updateSoundState(Level level, BlockPos pos, boolean hasSound) {
+        BlockState currentState = level.getBlockState(pos);
+        if (currentState.getBlock() instanceof TransponderSnailBlock) {
+            boolean currentInCall = currentState.getValue(IN_CALL);
+            updateVisualState(level, pos, hasSound, currentInCall);
+        }
+    }
+
+    /**
+     * Convenience method to update only call state
+     */
+    public static void updateCallState(Level level, BlockPos pos, boolean inCall) {
+        BlockState currentState = level.getBlockState(pos);
+        if (currentState.getBlock() instanceof TransponderSnailBlock) {
+            boolean currentHasSound = currentState.getValue(HAS_SOUND);
+            updateVisualState(level, pos, currentHasSound, inCall);
+        }
+    }
+
+    /**
+     * Gets the current visual state for debugging
+     */
+    public static String getVisualStateString(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof TransponderSnailBlock)) {
+            return "Not a Transponder Snail block";
+        }
+
+        boolean hasSound = state.getValue(HAS_SOUND);
+        boolean inCall = state.getValue(IN_CALL);
+        Direction facing = state.getValue(FACING);
+
+        return String.format("Sound: %s, Call: %s, Facing: %s", hasSound, inCall, facing);
+    }
+
+    /**
+     * Check if block currently has the "sound" visual state
+     */
+    public static boolean hasVisualSoundState(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof TransponderSnailBlock) {
+            return state.getValue(HAS_SOUND);
+        }
+        return false;
+    }
+
+    /**
+     * Check if block currently has the "in call" visual state
+     */
+    public static boolean hasVisualCallState(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof TransponderSnailBlock) {
+            return state.getValue(IN_CALL);
+        }
+        return false;
     }
 }

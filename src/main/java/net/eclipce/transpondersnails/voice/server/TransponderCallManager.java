@@ -1,585 +1,736 @@
 package net.eclipce.transpondersnails.voice.server;
 
-import de.maxhenkel.voicechat.api.*;
-import de.maxhenkel.voicechat.api.events.EventRegistration;
-import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
+import de.maxhenkel.voicechat.api.VoicechatServerApi;
+import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
+import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-@ForgeVoicechatPlugin
-public class TransponderCallManager implements VoicechatPlugin {
+/**
+ * Transponder Call Manager with CallSession integration for blockstate management
+ */
+public class TransponderCallManager {
 
-    @Override
-    public String getPluginId() {
-        return "transpondersnails";
-    }
+    private final VoicechatServerApi voiceChatApi;
+    private final CallSoundManager soundManager;
+    private final ScheduledExecutorService scheduler;
 
-    @Override
-    public void initialize(VoicechatApi api) {
-        VoicechatPlugin.super.initialize(api);
-    }
+    // Active calls - now using full CallSession objects
+    private final Map<UUID, CallSession> activeCalls = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> playerToCallId = new ConcurrentHashMap<>();
+    private final Map<Integer, UUID> snailToCallId = new ConcurrentHashMap<>();
 
-    @Override
-    public void registerEvents(EventRegistration registration) {
-        registration.registerEvent(VoicechatServerStartedEvent.class, this::onServerStarted);
-    }
+    // Snail block tracking
+    private final Map<Integer, TransponderSnailBlockEntity> registeredSnailBlocks = new ConcurrentHashMap<>();
 
-    private final Map<UUID, TransponderCall> activeCalls = new ConcurrentHashMap<>(); // callId -> call
-    private final Map<UUID, UUID> playerToCall = new ConcurrentHashMap<>(); // playerId -> callId
-    private final Map<UUID, UUID> callRequests = new ConcurrentHashMap<>(); // caller -> callId
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    // Call icon tracking
+    private final Set<UUID> playersInCall = ConcurrentHashMap.newKeySet();
 
-    private VoicechatServerApi voicechatApi;
-    private AudioChannelManager audioChannelManager;
-    private PlayerAudioForwarder audioForwarder;
-    private CallSoundManager soundManager;
+    // Track which snails are currently ringing
+    private final Map<Integer, UUID> ringingSnails = new ConcurrentHashMap<>();
 
-    // Constructor for direct instantiation
-    public TransponderCallManager(VoicechatServerApi api) {
-        initialize(api);
-    }
-
-    private void onServerStarted(VoicechatServerStartedEvent event) {
-        initialize(event.getVoicechat()); // Fixed: use getVoicechat() instead of getServerApi()
-    }
-
-    private void initialize(VoicechatServerApi api) {
-        this.voicechatApi = api;
-        this.audioChannelManager = new AudioChannelManager(api);
-        this.audioForwarder = new PlayerAudioForwarder(api);
+    public TransponderCallManager(VoicechatServerApi voiceChatApi) {
+        this.voiceChatApi = voiceChatApi;
         this.soundManager = new CallSoundManager();
+        this.scheduler = Executors.newScheduledThreadPool(1);
 
-        System.out.println("TransponderCallManager: Initialized with audio management systems");
+        scheduler.scheduleAtFixedRate(this::cleanupInactiveCalls, 30, 30, TimeUnit.SECONDS);
+
+        System.out.println("TransponderCallManager: Initialized with CallSession integration");
+    }
+
+    // =================== CALLSESSION BLOCKSTATE INTEGRATION ===================
+
+    /**
+     * Update block entities when call session state changes
+     */
+    private void updateBlockEntitiesForCall(CallSession callSession) {
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            TransponderSnailBlockEntity blockEntity = getRegisteredSnailBlock(snailNumber);
+            if (blockEntity != null) {
+                blockEntity.setCallSession(callSession);
+            }
+        }
     }
 
     /**
-     * Create a new call with full audio support
+     * Clear call session from block entities when call ends
      */
-    public UUID createCall(ServerPlayer initiator, List<ServerPlayer> invitees, CallType callType) {
-        if (voicechatApi == null || audioChannelManager == null || audioForwarder == null) {
-            System.err.println("TransponderCallManager: Cannot create call - components not initialized");
-            return null;
+    private void clearCallSessionFromBlockEntities(CallSession callSession) {
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            TransponderSnailBlockEntity blockEntity = getRegisteredSnailBlock(snailNumber);
+            if (blockEntity != null) {
+                blockEntity.clearCallSession();
+            }
         }
+    }
 
-        UUID callId = UUID.randomUUID();
+    /**
+     * Create appropriate participant for a snail
+     */
+    private CallSession.CallParticipant createParticipantForSnail(int snailNumber, @Nullable ServerPlayer player) {
+        TransponderSnailBlockEntity blockEntity = getRegisteredSnailBlock(snailNumber);
 
+        if (blockEntity != null) {
+            // It's a block snail
+            if (player != null) {
+                return CallSession.CallParticipant.blockWithPlayer(
+                        player.getUUID(), snailNumber, blockEntity.getBlockPos());
+            } else {
+                return CallSession.CallParticipant.block(snailNumber, blockEntity.getBlockPos());
+            }
+        } else {
+            // It's a handheld snail (implement this when you have handheld snails)
+            if (player != null) {
+                return CallSession.CallParticipant.handheld(player.getUUID(), snailNumber);
+            } else {
+                // This shouldn't happen for handheld snails
+                throw new IllegalStateException("Handheld snail without player");
+            }
+        }
+    }
+
+    // =================== CALL ICON MANAGEMENT ===================
+
+    public boolean isPlayerInCallForIcon(UUID playerId) {
+        return playersInCall.contains(playerId);
+    }
+
+    private void addPlayerToCallIcon(UUID playerId) {
+        playersInCall.add(playerId);
+        System.out.println("TransponderCallManager: Added player " + playerId + " to call icon tracking");
+    }
+
+    private void removePlayerFromCallIcon(UUID playerId) {
+        playersInCall.remove(playerId);
+        System.out.println("TransponderCallManager: Removed player " + playerId + " from call icon tracking");
+    }
+
+    public Set<UUID> getPlayersWithCallIcon() {
+        return new HashSet<>(playersInCall);
+    }
+
+    // =================== SNAIL BLOCK REGISTRATION ===================
+
+    public void registerSnailBlock(int snailNumber, TransponderSnailBlockEntity blockEntity) {
+        registeredSnailBlocks.put(snailNumber, blockEntity);
+        System.out.println("TransponderCallManager: Registered snail block #" + snailNumber);
+    }
+
+    public void unregisterSnailBlock(int snailNumber) {
+        registeredSnailBlocks.remove(snailNumber);
+        stopRingingAtSnail(snailNumber);
+        endCallBySnailNumber(snailNumber);
+        System.out.println("TransponderCallManager: Unregistered snail block #" + snailNumber);
+    }
+
+    @Nullable
+    public TransponderSnailBlockEntity getRegisteredSnailBlock(int snailNumber) {
+        return registeredSnailBlocks.get(snailNumber);
+    }
+
+    public boolean isSnailBlockRegistered(int snailNumber) {
+        return registeredSnailBlocks.containsKey(snailNumber);
+    }
+
+    // =================== ENHANCED CALL INITIATION ===================
+
+    public boolean initiateCallBySnailNumber(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber) {
         try {
-            // Create the call with audio management components
-            TransponderCall call = new TransponderCall(
-                    callId,
-                    callType,
-                    voicechatApi,
-                    VoiceChatConstants.SNAIL_VOLUME_CATEGORY,
-                    audioChannelManager,
-                    audioForwarder
-            );
+            System.out.println("TransponderCallManager: Initiating call from snail #" + callerSnailNumber + " to #" + targetSnailNumber);
 
-            // Add initiator as host
-            if (!call.addParticipant(initiator, ParticipantRole.HOST)) {
-                System.err.println("TransponderCallManager: Failed to add initiator to call");
-                return null;
-            }
-
-            // Store call and player mapping
-            activeCalls.put(callId, call);
-            playerToCall.put(initiator.getUUID(), callId);
-
-            // Send invites to other players
-            for (ServerPlayer invitee : invitees) {
-                sendCallInvite(initiator, invitee, callId);
-            }
-
-            System.out.println("TransponderCallManager: Created " + callType + " call " + callId + " with " + invitees.size() + " invitees");
-            return callId;
-
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Failed to create call: " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * Initiate a simple 2-person call
-     */
-    public boolean initiateCall(ServerPlayer caller, ServerPlayer callee) {
-        return initiateCall(caller, callee, null, CallType.PERSONAL);
-    }
-
-    /**
-     * Initiate a call from a specific location (block entity)
-     */
-    public boolean initiateCall(ServerPlayer caller, ServerPlayer callee, BlockPos snailLocation) {
-        return initiateCall(caller, callee, snailLocation, CallType.LOCATIONAL);
-    }
-
-    /**
-     * Initiate a handheld call with proximity audio
-     */
-    public boolean initiateHandheldCall(ServerPlayer caller, ServerPlayer callee) {
-        return initiateCall(caller, callee, caller.blockPosition(), CallType.HANDHELD);
-    }
-
-    /**
-     * Main initiate call method with audio support
-     */
-    private boolean initiateCall(ServerPlayer caller, ServerPlayer callee, BlockPos location, CallType callType) {
-        if (isInCall(caller.getUUID()) || isInCall(callee.getUUID())) {
-            caller.sendSystemMessage(Component.literal("Someone is already in a call!"));
-            if (soundManager != null) {
-                soundManager.playBusySound(caller);
-            }
-            return false;
-        }
-
-        try {
-            UUID callId = createCall(caller, List.of(callee), callType);
-
-            if (callId == null) {
-                caller.sendSystemMessage(Component.literal("Failed to create call!"));
+            // Basic validation
+            if (callerSnailNumber == targetSnailNumber) {
+                caller.sendSystemMessage(Component.literal("Cannot call your own snail!"));
                 return false;
             }
 
-            // Set location for locational or handheld calls
-            if (location != null) {
-                TransponderCall call = activeCalls.get(callId);
-                if (call != null) {
-                    call.setLocation(caller.serverLevel(), location);
-                }
+            if (isInCall(caller.getUUID())) {
+                caller.sendSystemMessage(Component.literal("You are already in a call!"));
+                return false;
             }
 
-            // Play calling sound for initiator
-            if (soundManager != null) {
-                soundManager.playCallerRingTone(caller);
+            if (!snailExists(targetSnailNumber)) {
+                caller.sendSystemMessage(Component.literal("Snail #" + targetSnailNumber + " does not exist!"));
+                return false;
             }
 
-            System.out.println("TransponderCallManager: Initiated " + callType + " call from " +
-                    caller.getName().getString() + " to " + callee.getName().getString());
+            if (isSnailInCall(targetSnailNumber)) {
+                handleTargetBusy(caller, callerSnailNumber, targetSnailNumber);
+                return false;
+            }
+
+            // Create CallSession with proper participants
+            UUID callId = UUID.randomUUID();
+            CallSession.CallParticipant callerParticipant = createParticipantForSnail(callerSnailNumber, caller);
+            CallSession callSession = new CallSession(callId, callerSnailNumber, callerParticipant);
+
+            // Set initial state to INITIATING
+            callSession.setState(CallSession.CallState.INITIATING);
+            updateBlockEntitiesForCall(callSession);
+
+            // Add target as participant
+            CallSession.CallParticipant targetParticipant = createParticipantForSnail(targetSnailNumber, null);
+            callSession.addParticipant(targetSnailNumber, targetParticipant);
+
+            // Register the call
+            activeCalls.put(callId, callSession);
+            playerToCallId.put(caller.getUUID(), callId);
+            snailToCallId.put(callerSnailNumber, callId);
+            snailToCallId.put(targetSnailNumber, callId);
+
+            // Change state to RINGING and start ringing
+            callSession.setState(CallSession.CallState.RINGING);
+            updateBlockEntitiesForCall(callSession);
+            startRinging(callSession);
+
             return true;
 
         } catch (Exception e) {
-            System.err.println("TransponderCallManager: Failed to initiate call: " + e.getMessage());
+            System.err.println("TransponderCallManager: Error initiating call: " + e.getMessage());
             e.printStackTrace();
+            caller.sendSystemMessage(Component.literal("Failed to initiate call!"));
             return false;
         }
     }
 
     /**
-     * Send call invitation with sound effects
+     * Enhanced start ringing with CallSession integration
      */
-    private void sendCallInvite(ServerPlayer caller, ServerPlayer invitee, UUID callId) {
-        callRequests.put(invitee.getUUID(), callId);
-        invitee.sendSystemMessage(Component.literal(
-                caller.getName().getString() + " is calling you! Use /call accept or right-click your Transponder Snail to answer."
-        ));
+    private void startRinging(CallSession callSession) {
+        int targetSnailNumber = -1;
+        int callerSnailNumber = -1;
 
-        // Play ringing sound for recipient
-        if (soundManager != null) {
-            soundManager.playRecipientRingTone(invitee);
+        // Find caller and target from participants
+        for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+            if (participant.hasActivePlayer()) {
+                callerSnailNumber = participant.getSnailNumber();
+            } else {
+                targetSnailNumber = participant.getSnailNumber();
+            }
         }
 
-        // Auto-timeout after configured time
-        scheduleCallTimeout(invitee.getUUID(), callId, VoiceChatConstants.CALL_TIMEOUT_MS);
+        if (targetSnailNumber == -1) {
+            System.err.println("TransponderCallManager: Could not find target snail in call session");
+            return;
+        }
+
+        // Mark target snail as ringing
+        ringingSnails.put(targetSnailNumber, callSession.getCallId());
+
+        TransponderSnailBlockEntity targetBlock = getRegisteredSnailBlock(targetSnailNumber);
+        if (targetBlock != null) {
+            // Pass the CallSession to the block entity
+            targetBlock.onIncomingCall(callSession.getCallId(), callerSnailNumber, callSession);
+
+            // Start spatial ringtone
+            BlockPos targetPos = targetBlock.getBlockPos();
+            ServerLevel level = (ServerLevel) targetBlock.getLevel();
+            soundManager.playLocationalRingToneAtPosition(level, targetPos);
+
+            System.out.println("TransponderCallManager: Started ringtone at TARGET snail #" + targetSnailNumber + " position " + targetPos);
+        }
+
+        // Set timeout
+        scheduler.schedule(() -> {
+            if (callSession.getState() == CallSession.CallState.RINGING) {
+                handleCallTimeout(callSession);
+            }
+        }, VoiceChatConstants.RING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Accept a call invitation with full audio setup
-     */
-    public boolean acceptCall(ServerPlayer player) {
-        UUID playerId = player.getUUID();
-        UUID callId = callRequests.get(playerId);
+    // =================== ENHANCED CALL ACCEPTANCE/REJECTION ===================
 
-        if (callId == null) {
-            player.sendSystemMessage(Component.literal("No incoming call!"));
-            return false;
-        }
-
-        TransponderCall call = activeCalls.get(callId);
-        if (call == null) {
-            callRequests.remove(playerId);
-            player.sendSystemMessage(Component.literal("Call no longer exists!"));
+    public boolean acceptCall(ServerPlayer player, UUID callId) {
+        CallSession callSession = activeCalls.get(callId);
+        if (callSession == null || callSession.getState() != CallSession.CallState.RINGING) {
             return false;
         }
 
         try {
-            // Stop ringing sounds
-            if (soundManager != null) {
-                soundManager.stopRingTone(player);
-            }
-
-            // Add participant to call with audio setup
-            if (call.addParticipant(player, ParticipantRole.PARTICIPANT)) {
-                callRequests.remove(playerId);
-                playerToCall.put(playerId, callId);
-
-                // Play connection sounds
-                if (soundManager != null) {
-                    soundManager.playCallConnectedSound(player);
-                    soundManager.playPickUpSound(player);
-                }
-
-                // Stop caller's ring tone and play connected sound
-                for (UUID participantId : call.getParticipants()) {
-                    if (!participantId.equals(playerId)) {
-                        ServerPlayer participant = getPlayerById(participantId);
-                        if (participant != null && soundManager != null) {
-                            soundManager.stopRingTone(participant);
-                            soundManager.playCallConnectedSound(participant);
-                        }
+            // Find target snail for pickup sound
+            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+                if (!participant.hasActivePlayer() && participant.isBlock()) {
+                    TransponderSnailBlockEntity targetBlock = getRegisteredSnailBlock(participant.getSnailNumber());
+                    if (targetBlock != null) {
+                        soundManager.playPickUpSoundAtSnail(player, targetBlock.getBlockPos());
+                        System.out.println("TransponderCallManager: Played pick up sound at target snail #" + participant.getSnailNumber());
                     }
+                    break;
                 }
-
-                System.out.println("TransponderCallManager: " + player.getName().getString() + " accepted call " + callId);
-                return true;
             }
+
+            // Stop ringing
+            stopRingingForCall(callSession);
+
+            // Connect the call
+            connectCall(callSession, player);
+
+            player.sendSystemMessage(Component.literal("Call connected!"));
+            return true;
 
         } catch (Exception e) {
             System.err.println("TransponderCallManager: Error accepting call: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        return false;
-    }
-
-    /**
-     * Leave a call with full cleanup
-     */
-    public void leaveCall(ServerPlayer player) {
-        UUID playerId = player.getUUID();
-        UUID callId = playerToCall.get(playerId);
-
-        if (callId == null) {
-            player.sendSystemMessage(Component.literal("Not in a call!"));
-            return;
-        }
-
-        try {
-            TransponderCall call = activeCalls.get(callId);
-            if (call != null) {
-                // Play hang up sound
-                if (soundManager != null) {
-                    soundManager.playHangUpSound(player);
-                }
-
-                // Remove participant (handles audio cleanup)
-                call.removeParticipant(player);
-                playerToCall.remove(playerId);
-
-                // End call if only one person left or host left
-                if (call.getParticipantCount() <= 1 || call.hostLeft()) {
-                    endCall(callId);
-                } else {
-                    // Notify remaining participants
-                    call.broadcastMessage(player.getName().getString() + " left the call");
-
-                    // Play end sound for remaining participants
-                    if (soundManager != null) {
-                        for (UUID participantId : call.getParticipants()) {
-                            ServerPlayer participant = getPlayerById(participantId);
-                            if (participant != null) {
-                                soundManager.playCallDisconnectedSound(participant);
-                            }
-                        }
-                    }
-                }
-            }
-
-            System.out.println("TransponderCallManager: " + player.getName().getString() + " left call " + callId);
-
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Error leaving call: " + e.getMessage());
-            e.printStackTrace();
+            return false;
         }
     }
 
-    /**
-     * End entire call with full cleanup
-     */
-    public void endCall(UUID callId) {
-        TransponderCall call = activeCalls.remove(callId);
-        if (call == null) {
-            return;
-        }
-
-        try {
-            // Play end sounds for all participants
-            if (soundManager != null) {
-                for (UUID participantId : call.getParticipants()) {
-                    ServerPlayer player = getPlayerById(participantId);
-                    if (player != null) {
-                        soundManager.playCallDisconnectedSound(player);
-                        soundManager.stopAllSoundsForPlayer(participantId);
-                    }
-                    playerToCall.remove(participantId);
-                }
-            }
-
-            call.broadcastMessage("Call ended");
-
-            // Full cleanup of audio resources
-            call.cleanup();
-
-            System.out.println("TransponderCallManager: Ended call " + callId);
-
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Error ending call: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Invite a player to an existing call
-     */
-    public boolean inviteToCall(ServerPlayer inviter, ServerPlayer invitee) {
-        UUID inviterId = inviter.getUUID();
-        UUID callId = playerToCall.get(inviterId);
-
-        if (callId == null) {
-            inviter.sendSystemMessage(Component.literal("You're not in a call!"));
+    public boolean rejectCall(ServerPlayer player, UUID callId) {
+        CallSession callSession = activeCalls.get(callId);
+        if (callSession == null) {
             return false;
         }
 
-        TransponderCall call = activeCalls.get(callId);
-        if (call == null) {
-            return false;
-        }
-
-        if (call.getParticipantCount() < 2) {
-            inviter.sendSystemMessage(Component.literal("Call must have at least 2 people to invite others!"));
-            return false;
-        }
-
-        if (isInCall(invitee.getUUID())) {
-            inviter.sendSystemMessage(Component.literal(invitee.getName().getString() + " is already in a call!"));
-            return false;
-        }
-
-        // Send invite
-        sendCallInvite(inviter, invitee, callId);
-        inviter.sendSystemMessage(Component.literal("Invited " + invitee.getName().getString() + " to the call"));
-
+        stopRingingForCall(callSession);
+        notifyCallRejected(callSession);
+        endCall(callId);
         return true;
     }
 
-    /**
-     * Mute/unmute a participant in a call
-     */
-    public boolean setParticipantMuted(ServerPlayer player, UUID targetPlayerId, boolean muted) {
-        UUID callId = playerToCall.get(player.getUUID());
-        if (callId == null) {
-            player.sendSystemMessage(Component.literal("You're not in a call!"));
-            return false;
+    // =================== ENHANCED CALL CONNECTION ===================
+
+    private void connectCall(CallSession callSession, ServerPlayer acceptingPlayer) {
+        callSession.setState(CallSession.CallState.CONNECTED);
+        updateBlockEntitiesForCall(callSession);
+
+        // Add accepting player to the call
+        if (!callSession.isParticipant(acceptingPlayer.getUUID())) {
+            // Find the participant without a player and add the player to it
+            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+                if (!participant.hasActivePlayer()) {
+                    // Create new participant with player
+                    CallSession.CallParticipant updatedParticipant = CallSession.CallParticipant.blockWithPlayer(
+                            acceptingPlayer.getUUID(), participant.getSnailNumber(), participant.getBlockPosition());
+                    callSession.removeParticipant(participant.getSnailNumber());
+                    callSession.addParticipant(participant.getSnailNumber(), updatedParticipant);
+                    break;
+                }
+            }
+            playerToCallId.put(acceptingPlayer.getUUID(), callSession.getCallId());
         }
 
-        TransponderCall call = activeCalls.get(callId);
-        if (call == null) {
-            return false;
+        // Add all participants to call icon tracking
+        for (UUID playerId : callSession.getActivePlayerParticipants()) {
+            addPlayerToCallIcon(playerId);
         }
 
-        return call.setParticipantMuted(targetPlayerId, muted);
+        // Create audio channels
+        createAudioChannels(callSession);
+
+        // Play connection sounds
+        playConnectionSounds(callSession);
+
+        // Notify block entities with CallSession
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            TransponderSnailBlockEntity block = getRegisteredSnailBlock(snailNumber);
+            if (block != null) {
+                block.onCallConnected(callSession.getCallId(), callSession);
+            }
+        }
+
+        System.out.println("TransponderCallManager: Call connected - " + callSession.getParticipantCount() + " participants");
     }
 
-    /**
-     * Update handheld call location (for moving players)
-     */
-    public void updateHandheldCallLocation(ServerPlayer player) {
-        UUID callId = playerToCall.get(player.getUUID());
-        if (callId == null) {
+    private void createAudioChannels(CallSession callSession) {
+        for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
+            try {
+                TransponderSnailBlockEntity block = null;
+                for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+                    TransponderSnailBlockEntity testBlock = getRegisteredSnailBlock(snailNumber);
+                    if (testBlock != null && testBlock.getBlockPos().equals(pos)) {
+                        block = testBlock;
+                        break;
+                    }
+                }
+
+                if (block != null) {
+                    LocationalAudioChannel channel = voiceChatApi.createLocationalAudioChannel(
+                            UUID.randomUUID(),
+                            voiceChatApi.fromServerLevel((ServerLevel) block.getLevel()),
+                            voiceChatApi.createPosition(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)
+                    );
+
+                    if (channel != null) {
+                        channel.setCategory(VoiceChatConstants.SNAIL_VOLUME_CATEGORY);
+                        channel.setDistance((float) VoiceChatConstants.LOCATIONAL_SNAIL_RANGE);
+                        callSession.addProximityChannel(pos, channel);
+                        System.out.println("TransponderCallManager: Created audio channel at " + pos);
+                    }
+                }
+
+            } catch (Exception e) {
+                System.err.println("TransponderCallManager: Failed to create audio channel: " + e.getMessage());
+            }
+        }
+    }
+
+    // =================== ENHANCED CALL TERMINATION ===================
+
+    public void endCall(UUID callId) {
+        CallSession callSession = activeCalls.remove(callId);
+        if (callSession == null) {
             return;
         }
 
-        TransponderCall call = activeCalls.get(callId);
-        if (call != null && call.getCallType() == CallType.HANDHELD) {
-            call.updateHandheldLocation(player);
+        try {
+            System.out.println("TransponderCallManager: Ending call " + callId.toString().substring(0, 8));
+
+            // Update state to ENDING
+            callSession.setState(CallSession.CallState.ENDING);
+            updateBlockEntitiesForCall(callSession);
+
+            stopRingingForCall(callSession);
+            cleanupCall(callSession);
+            notifyCallEnded(callSession);
+
+            // Brief delay, then set to ENDED
+            scheduler.schedule(() -> {
+                callSession.setState(CallSession.CallState.ENDED);
+                updateBlockEntitiesForCall(callSession);
+
+                // After another brief delay, clear the session completely
+                scheduler.schedule(() -> {
+                    clearCallSessionFromBlockEntities(callSession);
+                }, 1000, TimeUnit.MILLISECONDS);
+            }, 500, TimeUnit.MILLISECONDS);
+
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Error ending call: " + e.getMessage());
         }
     }
 
-    /**
-     * Get players near a snail who can hear the call
-     */
-    public List<ServerPlayer> getPlayersNearSnail(ServerLevel level, BlockPos pos, double range) {
-        List<ServerPlayer> nearbyPlayers = new ArrayList<>();
+    public void endCall(ServerPlayer player) {
+        UUID callId = playerToCallId.get(player.getUUID());
+        if (callId != null) {
+            CallSession callSession = activeCalls.get(callId);
+            if (callSession != null) {
+                // Play spatial hang up sound at the snail the player is near
+                playHangUpSoundForPlayer(player, callSession);
 
+                // Delay call termination to let hang up sound finish first
+                scheduler.schedule(() -> {
+                    endCall(callId);
+                }, 800, TimeUnit.MILLISECONDS);
+            } else {
+                endCall(callId);
+            }
+        }
+    }
+
+    public void endCallBySnailNumber(int snailNumber) {
+        UUID callId = snailToCallId.get(snailNumber);
+        if (callId != null) {
+            endCall(callId);
+        }
+    }
+
+    private void cleanupCall(CallSession callSession) {
+        // Remove from tracking maps
+        for (UUID playerId : callSession.getActivePlayerParticipants()) {
+            playerToCallId.remove(playerId);
+            removePlayerFromCallIcon(playerId);
+        }
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            snailToCallId.remove(snailNumber);
+            ringingSnails.remove(snailNumber);
+        }
+
+        // Clear proximity channels
+        callSession.getProximityChannels().clear();
+    }
+
+    // =================== RINGING MANAGEMENT ===================
+
+    private void stopRingingForCall(CallSession callSession) {
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            if (ringingSnails.containsKey(snailNumber)) {
+                ringingSnails.remove(snailNumber);
+                TransponderSnailBlockEntity targetBlock = getRegisteredSnailBlock(snailNumber);
+                if (targetBlock != null) {
+                    BlockPos targetPos = targetBlock.getBlockPos();
+                    soundManager.stopSnailPositionSounds(targetPos, CallSoundManager.SoundType.RING_TONE);
+                    System.out.println("TransponderCallManager: Stopped ringing at snail #" + snailNumber + " position " + targetPos);
+                }
+            }
+        }
+    }
+
+    private void stopRingingAtSnail(int snailNumber) {
+        UUID callId = ringingSnails.remove(snailNumber);
+        if (callId != null) {
+            TransponderSnailBlockEntity snailBlock = getRegisteredSnailBlock(snailNumber);
+            if (snailBlock != null) {
+                soundManager.stopSnailPositionSounds(snailBlock.getBlockPos(), CallSoundManager.SoundType.RING_TONE);
+                System.out.println("TransponderCallManager: Stopped ringing at snail #" + snailNumber);
+            }
+        }
+    }
+
+    // =================== SOUND MANAGEMENT ===================
+
+    private void playConnectionSounds(CallSession callSession) {
+        for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
+            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.SNAIL_INTERACTION_RANGE);
+            if (!nearbyPlayers.isEmpty()) {
+                soundManager.playCallConnectedSoundAtSnail(nearbyPlayers.get(0), pos);
+            }
+        }
+    }
+
+    private void playHangUpSoundForPlayer(ServerPlayer player, CallSession callSession) {
+        BlockPos playerPos = player.blockPosition();
+        BlockPos closestSnailPos = null;
+        double closestDistance = Double.MAX_VALUE;
+
+        for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
+            double distance = playerPos.distSqr(pos);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestSnailPos = pos;
+            }
+        }
+
+        if (closestSnailPos != null) {
+            soundManager.playHangUpSoundAtSnail(player, closestSnailPos);
+        }
+    }
+
+    private void handleTargetBusy(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber) {
+        TransponderSnailBlockEntity callerBlock = getRegisteredSnailBlock(callerSnailNumber);
+        if (callerBlock != null) {
+            soundManager.playBusySoundAtSnail(caller, callerBlock.getBlockPos());
+        }
+        caller.sendSystemMessage(Component.literal("Snail #" + targetSnailNumber + " is busy!"));
+    }
+
+    private void handleCallTimeout(CallSession callSession) {
+        stopRingingForCall(callSession);
+
+        for (UUID playerId : callSession.getActivePlayerParticipants()) {
+            ServerPlayer player = getPlayerById(playerId);
+            if (player != null) {
+                player.sendSystemMessage(Component.literal("Call timed out - no answer"));
+            }
+        }
+        endCall(callSession.getCallId());
+    }
+
+    private void notifyCallRejected(CallSession callSession) {
+        for (UUID playerId : callSession.getActivePlayerParticipants()) {
+            ServerPlayer player = getPlayerById(playerId);
+            if (player != null) {
+                player.sendSystemMessage(Component.literal("Call was rejected"));
+
+                // Find caller's snail for rejection sound
+                for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+                    if (participant.hasActivePlayer() && participant.getPlayerId().equals(playerId)) {
+                        TransponderSnailBlockEntity callerBlock = getRegisteredSnailBlock(participant.getSnailNumber());
+                        if (callerBlock != null) {
+                            soundManager.playCallDisconnectedSoundAtSnail(player, callerBlock.getBlockPos());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void notifyCallEnded(CallSession callSession) {
+        System.out.println("TransponderCallManager: Notifying call ended for " + callSession.getActivePlayerParticipants().size() + " players");
+
+        // Play spatial disconnected sounds at all participating snail locations
+        for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
+            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.SNAIL_INTERACTION_RANGE);
+            if (!nearbyPlayers.isEmpty()) {
+                soundManager.playCallDisconnectedSoundAtSnail(nearbyPlayers.get(0), pos);
+            }
+        }
+
+        // Notify participants
+        for (UUID playerId : callSession.getActivePlayerParticipants()) {
+            ServerPlayer player = getPlayerById(playerId);
+            if (player != null) {
+                player.sendSystemMessage(Component.literal("Call ended"));
+            }
+        }
+
+        // Notify block entities
+        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
+            TransponderSnailBlockEntity block = getRegisteredSnailBlock(snailNumber);
+            if (block != null) {
+                block.onCallEnded(callSession.getCallId());
+            }
+        }
+    }
+
+    // =================== UTILITY METHODS ===================
+
+    private boolean snailExists(int snailNumber) {
+        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+        return registry != null && registry.isNumberAssigned(snailNumber);
+    }
+
+    @Nullable
+    private ServerPlayer findPlayerNearSnail(int snailNumber) {
+        TransponderSnailBlockEntity block = getRegisteredSnailBlock(snailNumber);
+        return block != null ? block.findNearbyPlayer() : null;
+    }
+
+    private List<ServerPlayer> getPlayersAroundSnail(int snailNumber) {
+        TransponderSnailBlockEntity block = getRegisteredSnailBlock(snailNumber);
+        if (block != null) {
+            return getPlayersNearSnail(
+                    (ServerLevel) block.getLevel(),
+                    block.getBlockPos(),
+                    VoiceChatConstants.SNAIL_INTERACTION_RANGE
+            );
+        }
+        return List.of();
+    }
+
+    @Nullable
+    private ServerPlayer getPlayerById(UUID playerId) {
+        return ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayer(playerId);
+    }
+
+    public List<ServerPlayer> getPlayersNearSnail(ServerLevel level, BlockPos snailPos, double range) {
+        List<ServerPlayer> nearbyPlayers = new ArrayList<>();
         for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(Vec3.atCenterOf(pos)) <= range * range) {
+            double distance = player.distanceToSqr(snailPos.getX() + 0.5, snailPos.getY() + 0.5, snailPos.getZ() + 0.5);
+            if (distance <= range * range) {
                 nearbyPlayers.add(player);
             }
         }
-
         return nearbyPlayers;
     }
 
-    /**
-     * Schedule call timeout
-     */
-    private void scheduleCallTimeout(UUID playerId, UUID callId, long delayMs) {
-        scheduler.schedule(() -> {
-            try {
-                // Check if the call request still exists
-                UUID existingCallId = callRequests.get(playerId);
-                if (existingCallId != null && existingCallId.equals(callId)) {
-                    // Remove the expired request
-                    callRequests.remove(playerId);
-
-                    // Get player and notify of timeout
-                    ServerPlayer player = getPlayerById(playerId);
-                    if (player != null) {
-                        player.sendSystemMessage(Component.literal("Call timed out"));
-                        if (soundManager != null) {
-                            soundManager.stopRingTone(player);
-                            soundManager.playCallDisconnectedSound(player);
-                        }
-                    }
-
-                    System.out.println("TransponderCallManager: Call " + callId + " to player " + playerId + " timed out");
-                }
-            } catch (Exception e) {
-                System.err.println("TransponderCallManager: Error in call timeout: " + e.getMessage());
+    @Nullable
+    private ServerLevel getWorldForPosition(BlockPos pos) {
+        // Helper method to get world for a position - you may need to adapt this
+        for (TransponderSnailBlockEntity block : registeredSnailBlocks.values()) {
+            if (block.getBlockPos().equals(pos)) {
+                return (ServerLevel) block.getLevel();
             }
-        }, delayMs, TimeUnit.MILLISECONDS);
+        }
+        return null;
     }
 
-    /**
-     * Check if player is in a call
-     */
+    private void cleanupInactiveCalls() {
+        long currentTime = System.currentTimeMillis();
+        List<UUID> toRemove = new ArrayList<>();
+
+        for (CallSession session : activeCalls.values()) {
+            if (session.shouldAutoEnd()) {
+                toRemove.add(session.getCallId());
+            }
+        }
+
+        for (UUID callId : toRemove) {
+            System.out.println("TransponderCallManager: Cleaning up inactive call " + callId.toString().substring(0, 8));
+            endCall(callId);
+        }
+    }
+
+    // =================== QUERY METHODS ===================
+
     public boolean isInCall(UUID playerId) {
-        return playerToCall.containsKey(playerId);
+        return playerToCallId.containsKey(playerId);
     }
 
-    /**
-     * Get call for player
-     */
-    public TransponderCall getCallForPlayer(UUID playerId) {
-        UUID callId = playerToCall.get(playerId);
-        return callId != null ? activeCalls.get(callId) : null;
+    public boolean isSnailInCall(int snailNumber) {
+        return snailToCallId.containsKey(snailNumber);
     }
 
-    /**
-     * Get active call by ID
-     */
-    public TransponderCall getCall(UUID callId) {
-        return activeCalls.get(callId);
+    public boolean isCallActive(UUID callId) {
+        CallSession session = activeCalls.get(callId);
+        return session != null && session.getState() == CallSession.CallState.CONNECTED;
     }
 
-    /**
-     * Get all active calls
-     */
-    public Collection<TransponderCall> getActiveCalls() {
+    public boolean isCallConnected(UUID callId) {
+        return isCallActive(callId);
+    }
+
+    @Nullable
+    public UUID getPlayerCallId(UUID playerId) {
+        return playerToCallId.get(playerId);
+    }
+
+    public Collection<CallSession> getActiveCalls() {
         return new ArrayList<>(activeCalls.values());
     }
 
-    /**
-     * Handle player disconnect with full cleanup
-     */
-    public void handlePlayerDisconnect(ServerPlayer player) {
-        UUID playerId = player.getUUID();
-
-        try {
-            // Remove call requests
-            callRequests.remove(playerId);
-
-            // Stop all sounds for this player
-            if (soundManager != null) {
-                soundManager.stopAllSoundsForPlayer(playerId);
-            }
-
-            // Leave any active call
-            if (isInCall(playerId)) {
-                leaveCall(player);
-            }
-
-            System.out.println("TransponderCallManager: Handled disconnect for " + player.getName().getString());
-
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Error handling player disconnect: " + e.getMessage());
-            e.printStackTrace();
-        }
+    public CallSoundManager getSoundManager() {
+        return soundManager;
     }
 
-    /**
-     * Get comprehensive debug information
-     */
-    public Map<String, Object> getDebugInfo() {
-        Map<String, Object> info = new HashMap<>();
-
-        info.put("activeCalls", activeCalls.size());
-        info.put("playersInCalls", playerToCall.size());
-        info.put("pendingInvites", callRequests.size());
-
-        // Audio system debug info
-        if (audioChannelManager != null) {
-            info.put("audioChannels", audioChannelManager.getChannelDebugInfo());
-        }
-        if (audioForwarder != null) {
-            info.put("audioSessions", audioForwarder.getAudioDebugInfo());
-        }
-        if (soundManager != null) {
-            info.put("activeSounds", soundManager.getActiveSoundsInfo());
-        }
-
-        // Individual call details
-        Map<String, Object> callDetails = new HashMap<>();
-        for (Map.Entry<UUID, TransponderCall> entry : activeCalls.entrySet()) {
-            callDetails.put(entry.getKey().toString(), entry.getValue().getDebugInfo());
-        }
-        info.put("callDetails", callDetails);
-
-        return info;
-    }
+    // =================== CLEANUP METHODS ===================
 
     /**
-     * Cleanup all resources (for server shutdown)
+     * Cleanup method called when server is shutting down
      */
     public void cleanup() {
+        System.out.println("TransponderCallManager: Starting cleanup...");
+
         try {
             // End all active calls
-            Set<UUID> callIds = new HashSet<>(activeCalls.keySet());
-            for (UUID callId : callIds) {
-                endCall(callId);
+            for (UUID callId : new HashSet<>(activeCalls.keySet())) {
+                try {
+                    endCall(callId);
+                } catch (Exception e) {
+                    System.err.println("TransponderCallManager: Error ending call " + callId + " during cleanup: " + e.getMessage());
+                }
             }
 
-            // Clean up audio systems
-            if (audioChannelManager != null) {
-                audioChannelManager.cleanup();
-            }
-            if (audioForwarder != null) {
-                audioForwarder.cleanup();
-            }
-            if (soundManager != null) {
-                soundManager.cleanup();
-            }
-
-            // Shutdown scheduler
-            scheduler.shutdown();
-
-            // Clear all mappings
+            // Clear all collections
             activeCalls.clear();
-            playerToCall.clear();
-            callRequests.clear();
+            registeredSnailBlocks.clear();
+            playerToCallId.clear();
+            snailToCallId.clear();
+            playersInCall.clear();
+            ringingSnails.clear();
 
-            System.out.println("TransponderCallManager: Full cleanup completed");
+            // Cleanup sound manager if it exists
+            if (soundManager != null) {
+                try {
+                    soundManager.cleanup();
+                } catch (Exception e) {
+                    System.err.println("TransponderCallManager: Error cleaning up sound manager: " + e.getMessage());
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("TransponderCallManager: Error during cleanup: " + e.getMessage());
             e.printStackTrace();
         }
+
+        System.out.println("TransponderCallManager: Cleanup completed");
     }
 
-    /**
-     * Get player by UUID
-     */
-    private ServerPlayer getPlayerById(UUID playerId) {
-        return net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()
-                .getPlayerList().getPlayer(playerId);
+    public void shutdown() {
+        System.out.println("TransponderCallManager: Shutting down...");
+
+        List<UUID> activeCalls = new ArrayList<>(this.activeCalls.keySet());
+        for (UUID callId : activeCalls) {
+            endCall(callId);
+        }
+
+        playersInCall.clear();
+        ringingSnails.clear();
+        soundManager.cleanup();
+        scheduler.shutdown();
+
+        System.out.println("TransponderCallManager: Shutdown complete");
     }
 }

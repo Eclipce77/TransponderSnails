@@ -2,6 +2,8 @@ package net.eclipce.transpondersnails.gui;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
@@ -30,21 +32,32 @@ public class SnailCallIconRenderer {
             y = entity.getY();
             z = entity.getZ();
         }
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-        RenderSystem.enableBlend();
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
-        RenderSystem.setShaderColor(1, 1, 1, 1);
-        if (true) {
+
+        // Check if player is in a call using the call manager
+        boolean shouldShowIcon = false;
+        if (entity != null) {
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager != null) {
+                shouldShowIcon = callManager.isInCall(entity.getUUID());
+            }
+        }
+
+        // Only render the icon if the player is in a call
+        if (shouldShowIcon) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+            RenderSystem.enableBlend();
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+            RenderSystem.setShaderColor(1, 1, 1, 1);
+
             event.getGuiGraphics().blit(new ResourceLocation("transpondersnails:textures/icons/snail_call_icon.png"), 38, h - 32, 0, 0, 16, 16, 16, 16);
 
+            RenderSystem.depthMask(true);
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.enableDepthTest();
+            RenderSystem.disableBlend();
+            RenderSystem.setShaderColor(1, 1, 1, 1);
         }
-        RenderSystem.depthMask(true);
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.enableDepthTest();
-        RenderSystem.disableBlend();
-        RenderSystem.setShaderColor(1, 1, 1, 1);
     }
 }
-

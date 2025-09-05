@@ -28,7 +28,7 @@ public class ModPackets {
         // Reset packet ID counter
         nextId = 0;
 
-        // 1) Client → Server: CallInitiationPacket (existing, but needs updating)
+        // 1) Client → Server: CallInitiationPacket (updated with call manager integration)
         CHANNEL.messageBuilder(CallInitiationPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(CallInitiationPacket::new)
                 .encoder(CallInitiationPacket::encode)
@@ -42,60 +42,42 @@ public class ModPackets {
                 .consumerMainThread(SnailNumberSyncPacket::handle)
                 .add();
 
-        // 3) Server → Client: Call invitation notification
-        CHANNEL.messageBuilder(CallInvitationPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(CallInvitationPacket::new)
-                .encoder(CallInvitationPacket::encode)
-                .consumerMainThread(CallInvitationPacket::handle)
-                .add();
-
-        // 4) Client → Server: Call response (accept/decline)
-        CHANNEL.messageBuilder(CallResponsePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(CallResponsePacket::new)
-                .encoder(CallResponsePacket::encode)
-                .consumerMainThread(CallResponsePacket::handle)
-                .add();
-
-        // 5) Server → Client: Call status updates
-        CHANNEL.messageBuilder(CallStatusPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(CallStatusPacket::new)
-                .encoder(CallStatusPacket::encode)
-                .consumerMainThread(CallStatusPacket::handle)
-                .add();
-
-        // 6) Bidirectional: Call end notification
-        CHANNEL.messageBuilder(CallEndPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(CallEndPacket::new)
-                .encoder(CallEndPacket::encode)
-                .consumerMainThread(CallEndPacket::handle)
-                .add();
-
-        CHANNEL.messageBuilder(CallEndPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(CallEndPacket::new)
-                .encoder(CallEndPacket::encode)
-                .consumerMainThread(CallEndPacket::handle)
-                .add();
-
-        // 7) Client → Server: Snail number request
+        // 3) Client → Server: Snail number request
         CHANNEL.messageBuilder(SnailNumberRequestPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(SnailNumberRequestPacket::new)
                 .encoder(SnailNumberRequestPacket::encode)
                 .consumerMainThread(SnailNumberRequestPacket::handle)
                 .add();
 
-        // 8) Client → Server: Dial digit input
+        // 4) Client → Server: Dial digit input
         CHANNEL.messageBuilder(DialDigitPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(DialDigitPacket::new)
                 .encoder(DialDigitPacket::encode)
                 .consumerMainThread(DialDigitPacket::handle)
                 .add();
 
-        // 9) Server → Client: Dialed number sync
+        // 5) Server → Client: Dialed number sync
         CHANNEL.messageBuilder(DialedNumberSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
                 .decoder(DialedNumberSyncPacket::new)
                 .encoder(DialedNumberSyncPacket::encode)
                 .consumerMainThread(DialedNumberSyncPacket::handle)
                 .add();
+
+        // 6) Server → Client: Call state synchronization
+        CHANNEL.messageBuilder(CallStateSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(CallStateSyncPacket::new)
+                .encoder(CallStateSyncPacket::encode)
+                .consumerMainThread(CallStateSyncPacket::handle)
+                .add();
+
+        // 7) Client → Server: Call response (accept/reject/hang up)
+        CHANNEL.messageBuilder(CallResponsePacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .decoder(CallResponsePacket::new)
+                .encoder(CallResponsePacket::encode)
+                .consumerMainThread(CallResponsePacket::handle)
+                .add();
+
+        System.out.println("ModPackets: Registered " + nextId + " packet types");
     }
 
     /** Client-side: send a packet to the server. */

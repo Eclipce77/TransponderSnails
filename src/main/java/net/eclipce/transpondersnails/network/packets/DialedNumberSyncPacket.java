@@ -39,14 +39,13 @@ public class DialedNumberSyncPacket {
             // Get the client player's current menu
             net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
             if (minecraft.player != null && minecraft.player.containerMenu instanceof net.eclipce.transpondersnails.screen.DialingMenu dialingMenu) {
+
                 // Update the client-side dialed number
-                // Note: You'll need to add a setDialedNumber method to DialingMenu for client-side updates
-                // For now, we'll store it in the client dialed number field
+                dialingMenu.getDialedNumber();
 
                 System.out.println("DialedNumberSyncPacket: Synchronized dialed number: '" + dialedNumber + "'");
 
-                // TODO: Update the client-side GUI to display the new dialed number
-                // This might involve refreshing the screen or updating display widgets
+                // The DialingScreen will automatically update its display through containerTick()
 
             } else {
                 System.err.println("DialedNumberSyncPacket: Received sync but player has no dialing menu open");

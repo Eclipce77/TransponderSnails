@@ -290,6 +290,97 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
+     * Attempts to restore a snail assignment that was lost during loading
+     * This should only be used during world loading/validation
+     * @param snailUUID The UUID of the snail to restore
+     * @param preferredNumber The number the snail previously had
+     * @return The restored number, or -1 if restoration failed
+     */
+    public synchronized int restoreSnailAssignment(@NotNull UUID snailUUID, int preferredNumber) {
+        System.out.println("SnailNumberRegistry: Attempting to restore assignment for UUID " + snailUUID + " with preferred number #" + preferredNumber);
+
+        // Check if the UUID is already assigned
+        if (snailToNumber.containsKey(snailUUID)) {
+            int existingNumber = snailToNumber.get(snailUUID);
+            System.out.println("SnailNumberRegistry: UUID already has assignment #" + existingNumber);
+            return existingNumber;
+        }
+
+        // Check if preferred number is available
+        if (preferredNumber >= MIN_SNAIL_NUMBER && preferredNumber <= MAX_SNAIL_NUMBER) {
+            if (!assignedNumbers.contains(preferredNumber)) {
+                // Preferred number is available, restore it
+                snailToNumber.put(snailUUID, preferredNumber);
+                numberToSnail.put(preferredNumber, snailUUID);
+                assignedNumbers.add(preferredNumber);
+                setDirty();
+
+                System.out.println("SnailNumberRegistry: Restored preferred assignment #" + preferredNumber + " to UUID " + snailUUID);
+                return preferredNumber;
+            } else {
+                System.out.println("SnailNumberRegistry: Preferred number #" + preferredNumber + " is no longer available");
+            }
+        }
+
+        // Preferred number not available, assign a new one
+        int newNumber = generateUniqueNumber();
+        if (newNumber != -1) {
+            snailToNumber.put(snailUUID, newNumber);
+            numberToSnail.put(newNumber, snailUUID);
+            assignedNumbers.add(newNumber);
+            setDirty();
+
+            System.out.println("SnailNumberRegistry: Restored with new assignment #" + newNumber + " to UUID " + snailUUID);
+            return newNumber;
+        }
+
+        System.err.println("SnailNumberRegistry: Failed to restore assignment for UUID " + snailUUID + " - no numbers available");
+        return -1;
+    }
+
+    /**
+     * Force save the registry data (for debugging)
+     */
+    public void forceSave() {
+        if (ServerLifecycleHooks.getCurrentServer() == null) {
+            System.err.println("SnailNumberRegistry: Cannot force save - server not available");
+            return;
+        }
+
+        try {
+            ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
+            overworld.getDataStorage().save();
+            System.out.println("SnailNumberRegistry: Forced save completed with " + assignedNumbers.size() + " assignments");
+        } catch (Exception e) {
+            System.err.println("SnailNumberRegistry: Error during force save: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Enhanced debug method with save validation
+     */
+    public void debugPrintStateWithSave() {
+        debugPrintState();
+
+        // Also check if data is being saved properly
+        try {
+            if (ServerLifecycleHooks.getCurrentServer() != null) {
+                ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
+                System.out.println("SnailNumberRegistry: DataStorage location: " + overworld.getDataStorage().toString());
+
+                // Force a save and verify
+                setDirty();
+                overworld.getDataStorage().save();
+                System.out.println("SnailNumberRegistry: Force save completed");
+            }
+        } catch (Exception e) {
+            System.err.println("SnailNumberRegistry: Error during save validation: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Resets the instance cache - should only be called when server stops
      */
     public static void resetInstance() {

@@ -1,12 +1,15 @@
-// Enhanced DialingMenu with proper client-server sync
+// Enhanced DialingMenu with call system integration
 package net.eclipce.transpondersnails.screen;
 
+import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.data.SnailNBTHandler;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.network.ModPackets;
-import net.eclipce.transpondersnails.network.packets.CallInitiationPacket;
-import net.eclipce.transpondersnails.network.packets.SnailNumberSyncPacket;
+import net.eclipce.transpondersnails.network.packets.*;
+import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -29,6 +32,12 @@ public class DialingMenu extends AbstractContainerMenu {
     private boolean numberAssigned = false;
     private boolean syncRequested = false; // Track if we've requested sync
 
+    // Call state information
+    private CallStateSyncPacket.CallState currentCallState = CallStateSyncPacket.CallState.IDLE;
+    private UUID activeCallId = null;
+    private int otherSnailNumber = -1;
+    private String callStatusMessage = "";
+
     // Constructor for block entity (placed snail)
     public DialingMenu(int containerId, Inventory playerInventory, TransponderSnailBlockEntity blockEntity) {
         super(ModMenuTypes.DIALING_MENU.get(), containerId);
@@ -39,6 +48,7 @@ public class DialingMenu extends AbstractContainerMenu {
         // Initialize snail number on server side
         if (!player.level().isClientSide) {
             initializeSnailNumber();
+            checkExistingCallState(); // Check if snail is already in a call
         } else {
             // On client side, request sync from server
             requestSnailNumberSync();
@@ -55,6 +65,7 @@ public class DialingMenu extends AbstractContainerMenu {
         // Initialize snail number on server side
         if (!player.level().isClientSide) {
             initializeSnailNumber();
+            checkExistingCallState(); // Check if player is already in a call
         } else {
             // On client side, request sync from server
             requestSnailNumberSync();
@@ -75,6 +86,35 @@ public class DialingMenu extends AbstractContainerMenu {
     }
 
     /**
+     * Check if this snail or player is already in a call when the menu opens
+     */
+    private void checkExistingCallState() {
+        if (player.level().isClientSide) {
+            return; // Server only
+        }
+
+        TransponderCallManager callManager = TransponderSnails.getCallManager();
+        if (callManager == null) {
+            return;
+        }
+
+        // Check if player is already in a call
+        if (callManager.isInCall(player.getUUID())) {
+            // Update call state to connected
+            UUID callId = callManager.getPlayerCallId(player.getUUID());
+            if (callId != null) {
+                updateCallStateAndSync(CallStateSyncPacket.CallState.CONNECTED, callId, -1, "In call");
+            }
+        } else if (blockEntity != null) {
+            // Check if the snail block is ringing
+            if (blockEntity.isRinging()) {
+                UUID callId = blockEntity.getActiveCallId();
+                updateCallStateAndSync(CallStateSyncPacket.CallState.RINGING_IN, callId, -1, "Incoming call");
+            }
+        }
+    }
+
+    /**
      * Request snail number sync from server (client-side only)
      */
     private void requestSnailNumberSync() {
@@ -84,8 +124,7 @@ public class DialingMenu extends AbstractContainerMenu {
 
         syncRequested = true;
         // Send a packet to server requesting the snail number
-        // You'll need to create a SnailNumberRequestPacket for this
-        // For now, we'll rely on the server sending it automatically
+        ModPackets.sendToServer(new SnailNumberRequestPacket());
     }
 
     /**
@@ -160,7 +199,70 @@ public class DialingMenu extends AbstractContainerMenu {
         // On server side, validate and sync the snail number
         if (!player.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
             validateAndSyncSnailNumber(serverPlayer);
+            updateCallStateFromManager(serverPlayer);
         }
+    }
+
+    /**
+     * Check call manager for call state updates and sync to client
+     */
+    private void updateCallStateFromManager(ServerPlayer serverPlayer) {
+        TransponderCallManager callManager = TransponderSnails.getCallManager();
+        if (callManager == null) {
+            return;
+        }
+
+        // Check if player's call state has changed
+        boolean playerInCall = callManager.isInCall(serverPlayer.getUUID());
+        UUID callId = callManager.getPlayerCallId(serverPlayer.getUUID());
+
+        CallStateSyncPacket.CallState newState = CallStateSyncPacket.CallState.IDLE;
+        int otherNumber = -1;
+        String statusMsg = "";
+
+        if (playerInCall && callId != null) {
+            newState = CallStateSyncPacket.CallState.CONNECTED;
+            // Try to get the other party's snail number
+            // This would require the call manager to track snail numbers in calls
+            statusMsg = "Connected";
+        } else if (blockEntity != null && blockEntity.isRinging()) {
+            newState = CallStateSyncPacket.CallState.RINGING_IN;
+            callId = blockEntity.getActiveCallId();
+            statusMsg = "Incoming call";
+        }
+
+        // Only sync if state changed
+        if (newState != currentCallState ||
+                (callId != null && !callId.equals(activeCallId)) ||
+                otherNumber != this.otherSnailNumber) {
+
+            updateCallStateAndSync(newState, callId, otherNumber, statusMsg);
+        }
+    }
+
+    /**
+     * Update call state and sync to client
+     */
+    private void updateCallStateAndSync(CallStateSyncPacket.CallState newState, UUID callId, int otherNumber, String statusMsg) {
+        this.currentCallState = newState;
+        this.activeCallId = callId;
+        this.otherSnailNumber = otherNumber;
+        this.callStatusMessage = statusMsg;
+
+        // Sync to client
+        if (!player.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
+            ModPackets.sendToPlayer(new CallStateSyncPacket(newState, callId, otherNumber, statusMsg), serverPlayer);
+        }
+    }
+
+    /**
+     * Called from client via CallStateSyncPacket to update call state
+     */
+    public void updateCallState(CallStateSyncPacket.CallState callState, UUID callId, int otherSnailNumber, String statusMessage) {
+        this.currentCallState = callState;
+        this.activeCallId = callId;
+        this.otherSnailNumber = otherSnailNumber;
+        this.callStatusMessage = statusMessage;
     }
 
     /**
@@ -243,59 +345,7 @@ public class DialingMenu extends AbstractContainerMenu {
         return true;
     }
 
-    public TransponderSnailBlockEntity getBlockEntity() {
-        return blockEntity;
-    }
-
-    public ItemStack getSnailStack() {
-        return snailStack;
-    }
-
-    public int getOwnSnailNumber() {
-        return ownSnailNumber;
-    }
-
-    public boolean isNumberAssigned() {
-        return numberAssigned;
-    }
-
-    // Called from client via packet to set the snail number
-    public void setOwnSnailNumber(int number) {
-        System.out.println("DialingMenu: setOwnSnailNumber called with number #" + number);
-        this.ownSnailNumber = number;
-        this.numberAssigned = number != -1;
-    }
-
-    // Methods for handling dialing from the GUI
-    public void dialDigit(int digit) {
-        if (blockEntity != null) {
-            // Server side - delegate to block entity
-            blockEntity.dialDigit(digit);
-        } else {
-            // Client side - store locally, or send packet to server for handheld
-            if (player.level().isClientSide) {
-                clientDialedNumber += digit;
-            } else {
-                // Server-side handheld dialing - store in menu
-                clientDialedNumber += digit;
-            }
-        }
-    }
-
-    public void clearDialedNumber() {
-        if (blockEntity != null) {
-            // Server side - delegate to block entity
-            blockEntity.clearDialedNumber();
-        } else {
-            // Client side - clear local storage
-            clientDialedNumber = "";
-        }
-    }
-
-    // Legacy method name for compatibility
-    public void clearNumber() {
-        clearDialedNumber();
-    }
+    // =================== CALL MANAGEMENT METHODS ===================
 
     public void initiateCall() {
         String targetNumber = getDialedNumber();
@@ -343,32 +393,157 @@ public class DialingMenu extends AbstractContainerMenu {
             return;
         }
 
-        // Look up target snail
-        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
-        if (registry == null) {
-            serverPlayer.sendSystemMessage(Component.literal("Call system is not available!")
+        TransponderCallManager callManager = TransponderSnails.getCallManager();
+        if (callManager == null) {
+            serverPlayer.sendSystemMessage(Component.literal("Voice chat system not available!")
                     .withStyle(net.minecraft.ChatFormatting.RED));
             return;
         }
 
-        UUID targetSnailUUID = registry.getSnailByNumber(targetNumber);
-        if (targetSnailUUID == null) {
-            serverPlayer.sendSystemMessage(Component.literal("No snail found with number #" + targetNumber)
-                    .withStyle(net.minecraft.ChatFormatting.RED));
-            return;
+        // Update call state to dialing
+        updateCallStateAndSync(CallStateSyncPacket.CallState.DIALING, null, targetNumber, "Dialing...");
+
+        // Use the call manager to initiate the call
+        boolean success = callManager.initiateCallBySnailNumber(serverPlayer, this.ownSnailNumber, targetNumber);
+
+        if (success) {
+            // Clear the dialed number after successful call initiation
+            clearDialedNumber();
+
+            // Call state will be updated by the call manager through callbacks
+            serverPlayer.sendSystemMessage(Component.literal("Calling snail #" + targetNumber + "...")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+        } else {
+            // Reset to idle state if call failed
+            updateCallStateAndSync(CallStateSyncPacket.CallState.IDLE, null, -1, "");
         }
-
-        // TODO: Find the player who owns the target snail
-        // This is complex because snails are tied to UUIDs, not players
-        // You might need to track snail ownership or find online players with that snail
-
-        // For now, show a message that the call system needs more implementation
-        serverPlayer.sendSystemMessage(Component.literal("Found snail #" + targetNumber + "! Call system integration coming soon...")
-                .withStyle(net.minecraft.ChatFormatting.YELLOW));
-
-        // Clear the dialed number after attempting call
-        clearDialedNumber();
     }
+
+    /**
+     * Accept an incoming call
+     */
+    public void acceptCall() {
+        if (currentCallState != CallStateSyncPacket.CallState.RINGING_IN || activeCallId == null) {
+            return;
+        }
+
+        if (!player.level().isClientSide) {
+            // Server side - use call manager
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager != null && player instanceof ServerPlayer serverPlayer) {
+                callManager.acceptCall(serverPlayer, activeCallId);
+            }
+        } else {
+            // Client side - send packet
+            ModPackets.sendToServer(new CallResponsePacket(CallResponsePacket.Response.ACCEPT, activeCallId));
+        }
+    }
+
+    /**
+     * Reject an incoming call
+     */
+    public void rejectCall() {
+        if (currentCallState != CallStateSyncPacket.CallState.RINGING_IN || activeCallId == null) {
+            return;
+        }
+
+        if (!player.level().isClientSide) {
+            // Server side - use call manager
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager != null && player instanceof ServerPlayer serverPlayer) {
+                callManager.rejectCall(serverPlayer, activeCallId);
+            }
+        } else {
+            // Client side - send packet
+            ModPackets.sendToServer(new CallResponsePacket(CallResponsePacket.Response.REJECT, activeCallId));
+        }
+    }
+
+    /**
+     * Hang up an active call
+     */
+    public void hangUpCall() {
+        if (currentCallState != CallStateSyncPacket.CallState.CONNECTED || activeCallId == null) {
+            return;
+        }
+
+        if (!player.level().isClientSide) {
+            // Server side - use call manager
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager != null && player instanceof ServerPlayer serverPlayer) {
+                callManager.endCall(serverPlayer);
+            }
+        } else {
+            // Client side - send packet
+            ModPackets.sendToServer(new CallResponsePacket(CallResponsePacket.Response.HANG_UP, activeCallId));
+        }
+    }
+
+    /**
+     * Called when a call is initiated - for GUI updates
+     */
+    public void onCallInitiated() {
+        // Update GUI to show calling state
+        // You can add visual feedback here (disable dial buttons, show status, etc.)
+        System.out.println("DialingMenu: Call initiated");
+    }
+
+    /**
+     * Called when a call ends - for GUI updates
+     */
+    public void onCallEnded() {
+        // Update GUI to show idle state
+        updateCallStateAndSync(CallStateSyncPacket.CallState.IDLE, null, -1, "");
+
+        if (blockEntity != null) {
+            blockEntity.clearDialedNumber();
+        } else {
+            clearDialedNumber();
+        }
+        System.out.println("DialingMenu: Call ended");
+    }
+
+    /**
+     * Called when number is cleared - for GUI updates
+     */
+    public void onNumberCleared() {
+        // Update GUI as needed
+        System.out.println("DialingMenu: Number cleared");
+    }
+
+    // =================== CALL STATE GETTERS ===================
+
+    public CallStateSyncPacket.CallState getCurrentCallState() {
+        return currentCallState;
+    }
+
+    public UUID getActiveCallId() {
+        return activeCallId;
+    }
+
+    public int getOtherSnailNumber() {
+        return otherSnailNumber;
+    }
+
+    public String getCallStatusMessage() {
+        return callStatusMessage;
+    }
+
+    public boolean canInitiateCall() {
+        return currentCallState == CallStateSyncPacket.CallState.IDLE &&
+                ownSnailNumber != -1 &&
+                !getDialedNumber().isEmpty();
+    }
+
+    public boolean canAcceptCall() {
+        return currentCallState == CallStateSyncPacket.CallState.RINGING_IN;
+    }
+
+    public boolean canHangUp() {
+        return currentCallState == CallStateSyncPacket.CallState.CONNECTED;
+    }
+
+    // =================== EXISTING DIALING METHODS ===================
 
     public String getDialedNumber() {
         if (blockEntity != null) {
@@ -378,5 +553,103 @@ public class DialingMenu extends AbstractContainerMenu {
             // Client side - return local storage
             return clientDialedNumber;
         }
+    }
+
+    // Methods for handling dialing from the GUI
+    public void dialDigit(int digit) {
+        if (blockEntity != null) {
+            // Server side - delegate to block entity
+            blockEntity.dialDigit(digit);
+        } else {
+            // Client side - store locally, or send packet to server for handheld
+            if (player.level().isClientSide) {
+                if (clientDialedNumber.length() < 4) {
+                    clientDialedNumber += digit;
+                }
+            } else {
+                // Server-side handheld dialing - store in menu
+                if (clientDialedNumber.length() < 4) {
+                    clientDialedNumber += digit;
+                }
+            }
+        }
+    }
+
+    public void clearDialedNumber() {
+        if (blockEntity != null) {
+            // Server side - delegate to block entity
+            blockEntity.clearDialedNumber();
+        } else {
+            // Client side - clear local storage
+            clientDialedNumber = "";
+        }
+    }
+
+    // Legacy method name for compatibility
+    public void clearNumber() {
+        clearDialedNumber();
+    }
+
+    public boolean isDialedNumberValid() {
+        String dialed = getDialedNumber();
+
+        if (dialed.length() != 4) {
+            return false;
+        }
+
+        try {
+            int number = Integer.parseInt(dialed);
+            return number >= 1000 && number <= 9999;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    // =================== GETTERS ===================
+
+    public TransponderSnailBlockEntity getBlockEntity() {
+        return blockEntity;
+    }
+
+    public ItemStack getSnailStack() {
+        return snailStack;
+    }
+
+    public int getOwnSnailNumber() {
+        return ownSnailNumber;
+    }
+
+    public boolean isNumberAssigned() {
+        return numberAssigned;
+    }
+
+    // Called from client via packet to set the snail number
+    public void setOwnSnailNumber(int number) {
+        System.out.println("DialingMenu: setOwnSnailNumber called with number #" + number);
+        this.ownSnailNumber = number;
+        this.numberAssigned = number != -1;
+    }
+
+    // Called from client via packet to set the dialed number
+    public void setClientDialedNumber(String number) {
+        if (player.level().isClientSide) {
+            this.clientDialedNumber = number != null ? number : "";
+            System.out.println("DialingMenu: setClientDialedNumber called with: '" + this.clientDialedNumber + "'");
+        }
+    }
+
+    /**
+     * Helper method to find a nearby player for call operations
+     */
+    private ServerPlayer findNearbyPlayer() {
+        if (blockEntity == null || !(blockEntity.getLevel() instanceof ServerLevel serverLevel)) {
+            return null;
+        }
+
+        BlockPos pos = blockEntity.getBlockPos();
+        return serverLevel.players().stream()
+                .filter(player -> player.distanceToSqr(pos.getX(), pos.getY(), pos.getZ()) <= 9.0)
+                .findFirst()
+                .orElse(null);
     }
 }

@@ -11,29 +11,32 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * Client → Server: Player response to call invitation (accept/decline)
+ * Client → Server: Player response to call events (accept, reject, hang up)
  */
 public class CallResponsePacket {
-    private final UUID callId;
-    private final boolean accepted; // true for accept, false for decline
-    private final String responseType; // "accept", "decline", "timeout"
 
-    public CallResponsePacket(UUID callId, boolean accepted, String responseType) {
+    public enum Response {
+        ACCEPT,     // Accept an incoming call
+        REJECT,     // Reject an incoming call
+        HANG_UP     // End an active call
+    }
+
+    private final Response response;
+    private final UUID callId;
+
+    public CallResponsePacket(Response response, UUID callId) {
+        this.response = response;
         this.callId = callId;
-        this.accepted = accepted;
-        this.responseType = responseType;
     }
 
     public CallResponsePacket(FriendlyByteBuf buf) {
+        this.response = buf.readEnum(Response.class);
         this.callId = buf.readUUID();
-        this.accepted = buf.readBoolean();
-        this.responseType = buf.readUtf();
     }
 
     public void encode(FriendlyByteBuf buf) {
+        buf.writeEnum(response);
         buf.writeUUID(callId);
-        buf.writeBoolean(accepted);
-        buf.writeUtf(responseType);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -43,49 +46,28 @@ public class CallResponsePacket {
                 return;
             }
 
+            TransponderCallManager callManager = TransponderSnails.getCallManager();
+            if (callManager == null) {
+                player.sendSystemMessage(Component.literal("Voice chat system not available!")
+                        .withStyle(net.minecraft.ChatFormatting.RED));
+                return;
+            }
+
             try {
-                TransponderCallManager callManager = TransponderSnails.getCallManager();
-                if (callManager == null) {
-                    player.sendSystemMessage(Component.literal("Call system not available!")
-                            .withStyle(net.minecraft.ChatFormatting.RED));
-                    return;
+                switch (response) {
+                    case ACCEPT:
+                        handleAcceptCall(callManager, player, callId);
+                        break;
+                    case REJECT:
+                        handleRejectCall(callManager, player, callId);
+                        break;
+                    case HANG_UP:
+                        handleHangUp(callManager, player, callId);
+                        break;
+                    default:
+                        System.err.println("CallResponsePacket: Unknown response type: " + response);
+                        break;
                 }
-
-                if (accepted) {
-                    // Player accepted the call
-                    if (callManager.acceptCall(player)) {
-                        player.sendSystemMessage(Component.literal("Call accepted!")
-                                .withStyle(net.minecraft.ChatFormatting.GREEN));
-                        System.out.println("CallResponsePacket: Player " + player.getName().getString() +
-                                " accepted call " + callId);
-                    } else {
-                        player.sendSystemMessage(Component.literal("Failed to accept call - it may no longer be available")
-                                .withStyle(net.minecraft.ChatFormatting.RED));
-                        System.out.println("CallResponsePacket: Player " + player.getName().getString() +
-                                " failed to accept call " + callId);
-                    }
-                } else {
-                    // Player declined the call
-                    // Remove the player's call request to decline it
-                    // Note: The TransponderCallManager doesn't have a direct decline method,
-                    // but we can simulate it by just ignoring the invitation
-
-                    String reason = switch (responseType) {
-                        case "decline" -> "declined the call";
-                        case "timeout" -> "call timed out";
-                        default -> "did not answer";
-                    };
-
-                    player.sendSystemMessage(Component.literal("Call " + reason)
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
-
-                    System.out.println("CallResponsePacket: Player " + player.getName().getString() +
-                            " " + reason + " (call " + callId + ")");
-
-                    // TODO: Notify the caller that the call was declined
-                    // You might want to add a decline method to TransponderCallManager
-                }
-
             } catch (Exception e) {
                 System.err.println("CallResponsePacket: Error handling call response: " + e.getMessage());
                 e.printStackTrace();
@@ -96,8 +78,41 @@ public class CallResponsePacket {
         ctx.get().setPacketHandled(true);
     }
 
+    private void handleAcceptCall(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
+        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " accepting call " + callId.toString().substring(0, 8));
+
+        boolean success = callManager.acceptCall(player, callId);
+        if (success) {
+            System.out.println("CallResponsePacket: Successfully accepted call");
+        } else {
+            System.err.println("CallResponsePacket: Failed to accept call");
+        }
+    }
+
+    private void handleRejectCall(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
+        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " rejecting call " + callId.toString().substring(0, 8));
+
+        boolean success = callManager.rejectCall(player, callId);
+        if (success) {
+            System.out.println("CallResponsePacket: Successfully rejected call");
+        } else {
+            System.err.println("CallResponsePacket: Failed to reject call");
+        }
+    }
+
+    private void handleHangUp(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
+        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " hanging up call " + callId.toString().substring(0, 8));
+
+        callManager.endCall(player);
+        System.out.println("CallResponsePacket: Call ended");
+    }
+
     // Getters
-    public UUID getCallId() { return callId; }
-    public boolean isAccepted() { return accepted; }
-    public String getResponseType() { return responseType; }
+    public Response getResponse() {
+        return response;
+    }
+
+    public UUID getCallId() {
+        return callId;
+    }
 }

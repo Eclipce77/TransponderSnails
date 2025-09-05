@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.minecraft.ChatFormatting;
+import net.eclipce.transpondersnails.screen.DialingMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -311,23 +312,31 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
 
     // Helper method for dial buttons
     private void onCallButtonPressed(int digit) {
-        System.out.println("Call Button Pressed"); // Debug output
-        this.menu.initiateCall(); // You'll need to add this method to your DialingMenu
+        if (!menu.isDialedNumberValid()) {
+            // This shouldn't happen if button is properly disabled, but just in case
+            return;
+        } else {
+            System.out.println("Call Button Pressed"); // Debug output
+            this.menu.initiateCall(); // You'll need to add this method to your DialingMenu
+            menu.onCallInitiated();
 
-        // Update the text display
-        updateNumberDisplay();
+            // Update the text display
+            updateNumberDisplay();
 
-        // Optional: Play a sound
-        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(
-                ModSounds.DIAL_BUTTON.get(), 1.0F));
+            // Optional: Play a sound
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(
+                    ModSounds.DIAL_BUTTON.get(), 1.0F));
 
-        super.onClose();
+            super.onClose();
+        }
+
     }
 
     // Helper method for clear button
     private void onClearButtonPressed(int digit) {
         System.out.println("Number cleared!"); // Debug output
         this.menu.clearNumber(); // You'll need to add this method to your DialingMenu
+        menu.onNumberCleared();
 
         // Update the text display
         updateNumberDisplay();

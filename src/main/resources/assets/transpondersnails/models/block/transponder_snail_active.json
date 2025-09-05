@@ -1,0 +1,7 @@
+{
+	"parent": "transpondersnails:block/transponder_snail",
+	"textures": {
+		"0": "transpondersnails:block/transponder_snail_active",
+		"particle": "transpondersnails:block/transponder_snail_active"
+	}
+}

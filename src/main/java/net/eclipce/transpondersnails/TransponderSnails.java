@@ -2,21 +2,18 @@ package net.eclipce.transpondersnails;
 
 import com.mojang.logging.LogUtils;
 
-import de.maxhenkel.voicechat.api.VoicechatApi;
-import de.maxhenkel.voicechat.api.VoicechatPlugin;
-import de.maxhenkel.voicechat.api.VoicechatServerApi;
-import de.maxhenkel.voicechat.api.events.EventRegistration;
-import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
+import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.commands.CallCommand;
+import net.eclipce.transpondersnails.commands.SnailNumberCommand;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.eclipce.transpondersnails.sound.ModSounds;
-
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
@@ -25,6 +22,7 @@ import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -103,25 +101,33 @@ public class TransponderSnails {
     }
 
     @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event)
-    {
+    public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+
+        // Reset server state when server starts
+        TransponderSnailBlockEntity.setServerStartingUp();
+        System.out.println("TransponderSnails: Server starting - reset block entity state");
+    }
+
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        // Set shutdown flag to prevent infinite loops during world save
+        TransponderSnailBlockEntity.setServerShuttingDown();
+        System.out.println("TransponderSnails: Server stopping - preventing block entity loops");
     }
 
     // Register commands
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         CallCommand.register(event.getDispatcher());
+        SnailNumberCommand.register(event.getDispatcher());
     }
 
     // Handle player disconnection
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (callManager != null && event.getEntity() instanceof ServerPlayer) {
-            ServerPlayer player = (ServerPlayer) event.getEntity();
-            callManager.handlePlayerDisconnect(player);
-        }
+
     }
 
     // Static setter for the call manager (called by VoiceChat plugin)
@@ -137,11 +143,6 @@ public class TransponderSnails {
             return null; // Return null instead of throwing exception to prevent crashes
         }
         return callManager;
-    }
-
-    // Check if call manager is available
-    public static boolean isCallManagerAvailable() {
-        return callManager != null;
     }
 
     public static final Collection<AbstractMap.SimpleEntry<Runnable, Integer>> workQueue = new ConcurrentLinkedQueue<>();
