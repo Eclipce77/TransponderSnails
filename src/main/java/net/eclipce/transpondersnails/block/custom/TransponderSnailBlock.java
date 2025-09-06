@@ -32,20 +32,35 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class TransponderSnailBlock extends Block implements EntityBlock {
-    // Updated hitbox: moved 4 pixels on X axis and 2 pixels on Z axis
-    // Original: (0, 0, 0) to (8, 10.5, 13)
-    // New: (4, 0, 2) to (12, 10.5, 15)
-    public static final VoxelShape SHAPE = TransponderSnailBlock.box(4, 0, 2, 12, 10.5, 15);
 
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 
     // Block properties for visual states
     public static final BooleanProperty HAS_SOUND = BooleanProperty.create("has_sound");
     public static final BooleanProperty IN_CALL = BooleanProperty.create("in_call");
+
+    // Define shapes for each direction manually
+    // Original NORTH: (4, 0, 2) to (12, 10.5, 15)
+    private static final VoxelShape SHAPE_NORTH = Block.box(4, 0, 2, 12, 10.5, 15);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(4, 0, 1, 12, 10.5, 14);  // 180° rotation
+    private static final VoxelShape SHAPE_EAST = Block.box(1, 0, 4, 14, 10.5, 12);   // 90° rotation
+    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 4, 15, 10.5, 12);   // 270° rotation
+
+    // Create map for easy lookup
+    private static final Map<Direction, VoxelShape> SHAPES = new HashMap<>();
+
+    static {
+        SHAPES.put(Direction.NORTH, SHAPE_NORTH);
+        SHAPES.put(Direction.SOUTH, SHAPE_SOUTH);
+        SHAPES.put(Direction.EAST, SHAPE_EAST);
+        SHAPES.put(Direction.WEST, SHAPE_WEST);
+    }
 
     public TransponderSnailBlock(Properties pProperties) {
         super(pProperties);
@@ -55,14 +70,23 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
                 .setValue(IN_CALL, false));
     }
 
+    /**
+     * Get the shape for the given direction
+     */
+    private static VoxelShape getShapeForDirection(Direction direction) {
+        return SHAPES.getOrDefault(direction, SHAPE_NORTH);
+    }
+
     @Override
     public VoxelShape getCollisionShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
-        return SHAPE; // Use the same shape for collision as for visual
+        Direction facing = pState.getValue(FACING);
+        return getShapeForDirection(facing);
     }
 
     @Override
     public VoxelShape getShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
-        return SHAPE;
+        Direction facing = pState.getValue(FACING);
+        return getShapeForDirection(facing);
     }
 
     @Override
@@ -93,13 +117,28 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof TransponderSnailBlockEntity snailEntity) {
-                return snailEntity.onUse(serverPlayer);
-            }
+        // Only handle on server side
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;
         }
-        return InteractionResult.SUCCESS;
+
+        // Only handle main hand interactions
+        if (hand != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS;
+        }
+
+        // Get the block entity
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (blockEntity instanceof TransponderSnailBlockEntity snailEntity && player instanceof ServerPlayer serverPlayer) {
+
+            // Check if player is sneaking
+            boolean isSneaking = player.isShiftKeyDown();
+
+            // Use the enhanced interaction method
+            return snailEntity.onPlayerInteraction(serverPlayer, isSneaking);
+        }
+
+        return InteractionResult.FAIL;
     }
 
     @Nullable
@@ -302,5 +341,19 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             return state.getValue(IN_CALL);
         }
         return false;
+    }
+
+    // =================== DEBUG METHODS ===================
+
+    /**
+     * Debug method to print hitbox information for all directions
+     */
+    public static void debugPrintHitboxes() {
+        System.out.println("=== TransponderSnail Hitbox Debug ===");
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            VoxelShape shape = getShapeForDirection(dir);
+            System.out.println(dir + ": " + shape.bounds());
+        }
+        System.out.println("=====================================");
     }
 }

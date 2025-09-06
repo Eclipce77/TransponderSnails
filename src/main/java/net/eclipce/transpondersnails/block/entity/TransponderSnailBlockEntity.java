@@ -342,47 +342,87 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
     /**
      * Handle player interaction with the snail block
+     * This should be called from TransponderSnailBlock.use() method
+     *
+     * @param player The player interacting
+     * @param isSneaking Whether the player is sneaking
+     * @return The interaction result
      */
-    public InteractionResult onUse(ServerPlayer player) {
+    public InteractionResult onPlayerInteraction(ServerPlayer player, boolean isSneaking) {
         if (!isCallManagerAvailable()) {
-            player.sendSystemMessage(Component.literal("Voice chat system not available!"));
+            player.sendSystemMessage(Component.literal("Voice chat system not available!")
+                    .withStyle(net.minecraft.ChatFormatting.RED));
             return InteractionResult.FAIL;
         }
 
         TransponderCallManager callManager = getCallManager();
 
+        // Handle interactions based on current state and sneaking
         if (isRinging && activeCallId != null) {
-            // Answer incoming call
-            if (callManager.acceptCall(player, activeCallId)) {
-                setRinging(false);
-                setCallState(CallStateSyncPacket.CallState.CONNECTED);
-                player.sendSystemMessage(Component.literal("Call answered!"));
-
+            // Snail is ringing (incoming call)
+            if (isSneaking) {
+                // Sneak+Right Click while ringing: Open DialingMenu
+                player.openMenu(this);
                 return InteractionResult.SUCCESS;
             } else {
-                player.sendSystemMessage(Component.literal("Failed to answer call!"));
-                return InteractionResult.FAIL;
+                // Right Click while ringing: Answer Call
+                if (callManager.acceptCall(player, activeCallId)) {
+                    setRinging(false);
+                    setCallState(CallStateSyncPacket.CallState.CONNECTED);
+                    player.sendSystemMessage(Component.literal("Call answered!")
+                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+                    return InteractionResult.SUCCESS;
+                } else {
+                    player.sendSystemMessage(Component.literal("Failed to answer call!")
+                            .withStyle(net.minecraft.ChatFormatting.RED));
+                    return InteractionResult.FAIL;
+                }
             }
         } else if (activeCallId != null && currentCallState == CallStateSyncPacket.CallState.CONNECTED) {
-            // Check if this player is in the call
-            if (callManager.isInCall(player.getUUID())) {
-                // Player is in call - they can hang up
-                callManager.endCall(player);
+            // Snail is in an active call
+            if (isSneaking) {
+                // Sneak+Right Click in call: Open DialingMenu
+                player.openMenu(this);
                 return InteractionResult.SUCCESS;
             } else {
-                // Snail is busy with existing call
-                player.sendSystemMessage(Component.literal("Transponder Snail is busy!"));
-                return InteractionResult.FAIL;
+                // Right Click in call: End Call (only if player is in the call)
+                if (callManager.isInCall(player.getUUID())) {
+                    callManager.endCall(player);
+                    player.sendSystemMessage(Component.literal("Call ended!")
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    return InteractionResult.SUCCESS;
+                } else {
+                    // Player is not in the call - snail is busy
+                    player.sendSystemMessage(Component.literal("Transponder Snail is busy!")
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    return InteractionResult.FAIL;
+                }
             }
         } else if (currentCallState == CallStateSyncPacket.CallState.IDLE) {
-            // No active call - open dialing GUI
+            // Snail is idle (not in call, not ringing)
+            // Both Right Click and Sneak+Right Click: Open DialingMenu
             player.openMenu(this);
             return InteractionResult.SUCCESS;
         } else {
-            // Snail is in some other state (dialing, etc.)
-            player.sendSystemMessage(Component.literal("Transponder Snail is busy!"));
-            return InteractionResult.FAIL;
+            // Snail is in some other state (dialing, busy, etc.)
+            if (isSneaking) {
+                // Sneak+Right Click: Still allow GUI access for monitoring
+                player.openMenu(this);
+                return InteractionResult.SUCCESS;
+            } else {
+                // Right Click: Snail is busy
+                player.sendSystemMessage(Component.literal("Transponder Snail is busy!")
+                        .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                return InteractionResult.FAIL;
+            }
         }
+    }
+
+    /**
+     * Handle player interaction with the snail block
+     */
+    public InteractionResult onUse(ServerPlayer player) {
+        return onPlayerInteraction(player, false);
     }
 
     // =================== ENHANCED CALL LIFECYCLE CALLBACKS ===================
