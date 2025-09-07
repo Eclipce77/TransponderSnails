@@ -41,6 +41,8 @@ public class TransponderCallManager {
     // Track which snails are currently ringing
     private final Map<Integer, UUID> ringingSnails = new ConcurrentHashMap<>();
 
+    private SnailAudioRelay audioRelay;
+
     public TransponderCallManager(VoicechatServerApi voiceChatApi) {
         this.voiceChatApi = voiceChatApi;
         this.soundManager = new CallSoundManager();
@@ -376,8 +378,22 @@ public class TransponderCallManager {
         }
     }
 
+    // =================== CALL AUDIO HANDLING =========================
+
+    // Add this method to set the audio relay from the plugin
+    public void setAudioRelay(SnailAudioRelay audioRelay) {
+        this.audioRelay = audioRelay;
+        System.out.println("TransponderCallManager: Audio relay system connected");
+    }
+
+    // Add this getter method
+    public SnailAudioRelay getAudioRelay() {
+        return audioRelay;
+    }
+
     // =================== ENHANCED CALL TERMINATION ===================
 
+    // Update the endCall(UUID callId) method to include audio relay cleanup:
     public void endCall(UUID callId) {
         CallSession callSession = activeCalls.remove(callId);
         if (callSession == null) {
@@ -392,6 +408,12 @@ public class TransponderCallManager {
             updateBlockEntitiesForCall(callSession);
 
             stopRingingForCall(callSession);
+
+            // NEW: Notify audio relay that call is ending
+            if (audioRelay != null) {
+                audioRelay.onCallEnded(callId);
+            }
+
             cleanupCall(callSession);
             notifyCallEnded(callSession);
 
@@ -680,6 +702,7 @@ public class TransponderCallManager {
     /**
      * Cleanup method called when server is shutting down
      */
+    // Update the cleanup() method to include audio relay cleanup:
     public void cleanup() {
         System.out.println("TransponderCallManager: Starting cleanup...");
 
@@ -707,6 +730,16 @@ public class TransponderCallManager {
                     soundManager.cleanup();
                 } catch (Exception e) {
                     System.err.println("TransponderCallManager: Error cleaning up sound manager: " + e.getMessage());
+                }
+            }
+
+            // NEW: Cleanup audio relay if it exists
+            if (audioRelay != null) {
+                try {
+                    audioRelay.cleanupCaches();
+                    System.out.println("TransponderCallManager: Audio relay cleanup completed");
+                } catch (Exception e) {
+                    System.err.println("TransponderCallManager: Error cleaning up audio relay: " + e.getMessage());
                 }
             }
 

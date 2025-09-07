@@ -2,9 +2,11 @@ package net.eclipce.transpondersnails.voice;
 
 import de.maxhenkel.voicechat.api.*;
 import de.maxhenkel.voicechat.api.events.EventRegistration;
+import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
+import net.eclipce.transpondersnails.voice.server.SnailAudioRelay;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 
 import javax.annotation.Nullable;
@@ -14,9 +16,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @ForgeVoicechatPlugin
 public class TransponderSnailsPlugin implements VoicechatPlugin {
+
+    private SnailAudioRelay audioRelay;
+    private ScheduledExecutorService scheduler;
 
     @Override
     public String getPluginId() {
@@ -31,6 +39,9 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
     @Override
     public void registerEvents(EventRegistration registration) {
         registration.registerEvent(VoicechatServerStartedEvent.class, this::onServerStarted);
+
+        // Register microphone packet event for audio forwarding
+        registration.registerEvent(MicrophonePacketEvent.class, this::onMicrophonePacket);
     }
 
     private void onServerStarted(VoicechatServerStartedEvent event) {
@@ -47,10 +58,38 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
         // Initialize the call manager with the API
         TransponderCallManager callManager = new TransponderCallManager(api);
 
+        // Initialize the audio relay system
+        audioRelay = new SnailAudioRelay(api, callManager);
+
+        // Connect them together
+        callManager.setAudioRelay(audioRelay);
+
         // Set the call manager in the main mod class
         TransponderSnails.setCallManager(callManager);
 
-        TransponderSnails.LOGGER.info("Transponder Snails voice chat integration initialized!");
+        // Start cleanup scheduler for audio relay
+        scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(() -> {
+            if (audioRelay != null) {
+                audioRelay.cleanupCaches();
+            }
+        }, 30, 30, TimeUnit.SECONDS); // Clean up every 30 seconds
+
+        TransponderSnails.LOGGER.info("Transponder Snails voice chat integration initialized with audio relay!");
+    }
+
+    /**
+     * Handle microphone packets for audio forwarding
+     */
+    private void onMicrophonePacket(MicrophonePacketEvent event) {
+        if (audioRelay != null) {
+            try {
+                audioRelay.onMicrophonePacket(event);
+            } catch (Exception e) {
+                System.err.println("TransponderSnailsPlugin: Error in microphone packet handler: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
     @Nullable
@@ -89,5 +128,25 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * Cleanup method for when the plugin shuts down
+     */
+    public void cleanup() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+            try {
+                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // Note: audioRelay cleanup is handled by the TransponderCallManager
+        System.out.println("TransponderSnailsPlugin: Cleanup completed");
     }
 }
