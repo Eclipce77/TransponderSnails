@@ -248,7 +248,7 @@ public class TransponderCallManager {
             if (callSession.getState() == CallSession.CallState.RINGING) {
                 handleCallTimeout(callSession);
             }
-        }, VoiceChatConstants.RING_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }, VoiceChatConstants.getRingTimeoutMs(), TimeUnit.MILLISECONDS);
     }
 
     // =================== ENHANCED CALL ACCEPTANCE/REJECTION ===================
@@ -364,7 +364,7 @@ public class TransponderCallManager {
 
                     if (channel != null) {
                         channel.setCategory(VoiceChatConstants.SNAIL_VOLUME_CATEGORY);
-                        channel.setDistance((float) VoiceChatConstants.LOCATIONAL_SNAIL_RANGE);
+                        channel.setDistance((float) VoiceChatConstants.getLocationalSnailRange());
                         callSession.addProximityChannel(pos, channel);
                         System.out.println("TransponderCallManager: Created audio channel at " + pos);
                     }
@@ -482,7 +482,7 @@ public class TransponderCallManager {
 
     private void playConnectionSounds(CallSession callSession) {
         for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
-            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.SNAIL_INTERACTION_RANGE);
+            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.getSnailInteractionRange());
             if (!nearbyPlayers.isEmpty()) {
                 soundManager.playCallConnectedSoundAtSnail(nearbyPlayers.get(0), pos);
             }
@@ -552,7 +552,7 @@ public class TransponderCallManager {
 
         // Play spatial disconnected sounds at all participating snail locations
         for (BlockPos pos : callSession.getInvolvedBlockPositions()) {
-            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.SNAIL_INTERACTION_RANGE);
+            List<ServerPlayer> nearbyPlayers = getPlayersNearSnail((ServerLevel) getWorldForPosition(pos), pos, VoiceChatConstants.getSnailInteractionRange());
             if (!nearbyPlayers.isEmpty()) {
                 soundManager.playCallDisconnectedSoundAtSnail(nearbyPlayers.get(0), pos);
             }
@@ -594,7 +594,7 @@ public class TransponderCallManager {
             return getPlayersNearSnail(
                     (ServerLevel) block.getLevel(),
                     block.getBlockPos(),
-                    VoiceChatConstants.SNAIL_INTERACTION_RANGE
+                    VoiceChatConstants.getSnailInteractionRange()
             );
         }
         return List.of();

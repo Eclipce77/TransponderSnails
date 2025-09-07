@@ -18,6 +18,7 @@ public class ClientSetup {
         event.enqueueWork(() -> {
             // Register the screen for the menu type
             MenuScreens.register(ModMenuTypes.DIALING_MENU.get(), DialingScreen::new);
+            ConfigScreenFactory.register();
         });
     }
 }

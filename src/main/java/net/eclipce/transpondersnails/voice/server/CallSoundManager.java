@@ -377,7 +377,7 @@ public class CallSoundManager {
                                 Math.pow(instance.snailPosition.getZ() + 0.5 - player.getZ(), 2)
                 );
 
-                if (distance <= VoiceChatConstants.SNAIL_INTERACTION_RANGE) {
+                if (distance <= VoiceChatConstants.getSnailInteractionRange()) {
                     if (instance.stopTask != null) {
                         instance.stopTask.cancel(false);
                     }

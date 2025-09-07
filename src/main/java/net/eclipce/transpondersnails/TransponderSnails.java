@@ -7,6 +7,7 @@ import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.commands.CallCommand;
 import net.eclipce.transpondersnails.commands.SnailNumberCommand;
+import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
@@ -15,7 +16,6 @@ import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
@@ -25,6 +25,7 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -58,6 +59,8 @@ public class TransponderSnails {
 
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.MENU_TYPES.register(modEventBus);
+
+        ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.SERVER, ModConfig.SERVER_SPEC);
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);

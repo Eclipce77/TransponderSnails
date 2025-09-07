@@ -1053,7 +1053,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         for (ServerPlayer player : serverLevel.players()) {
             double distance = player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-            if (distance <= VoiceChatConstants.SNAIL_INTERACTION_RANGE * VoiceChatConstants.SNAIL_INTERACTION_RANGE) {
+            if (distance <= VoiceChatConstants.getSnailInteractionRange() * VoiceChatConstants.getSnailInteractionRange()) {
                 if (distance < closestDistance) {
                     closestDistance = distance;
                     closestPlayer = player;
@@ -1066,7 +1066,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
     public List<ServerPlayer> getNearbyListeners() {
         if (isCallManagerAvailable() && level instanceof ServerLevel serverLevel) {
-            return getCallManager().getPlayersNearSnail(serverLevel, worldPosition, VoiceChatConstants.SNAIL_INTERACTION_RANGE);
+            return getCallManager().getPlayersNearSnail(serverLevel, worldPosition, VoiceChatConstants.getSnailInteractionRange());
         }
         return List.of();
     }
