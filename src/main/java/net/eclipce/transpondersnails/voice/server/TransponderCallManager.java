@@ -149,6 +149,7 @@ public class TransponderCallManager {
 
     // =================== ENHANCED CALL INITIATION ===================
 
+    // Update initiateCallBySnailNumber method:
     public boolean initiateCallBySnailNumber(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber) {
         try {
             System.out.println("TransponderCallManager: Initiating call from snail #" + callerSnailNumber + " to #" + targetSnailNumber);
@@ -192,6 +193,9 @@ public class TransponderCallManager {
             playerToCallId.put(caller.getUUID(), callId);
             snailToCallId.put(callerSnailNumber, callId);
             snailToCallId.put(targetSnailNumber, callId);
+
+            // FIXED: Add caller to call icon tracking during initiation
+            addPlayerToCallIcon(caller.getUUID());
 
             // Change state to RINGING and start ringing
             callSession.setState(CallSession.CallState.RINGING);
@@ -303,6 +307,7 @@ public class TransponderCallManager {
 
     // =================== ENHANCED CALL CONNECTION ===================
 
+    // Fix for TransponderCallManager.connectCall() method
     private void connectCall(CallSession callSession, ServerPlayer acceptingPlayer) {
         callSession.setState(CallSession.CallState.CONNECTED);
         updateBlockEntitiesForCall(callSession);
@@ -323,9 +328,10 @@ public class TransponderCallManager {
             playerToCallId.put(acceptingPlayer.getUUID(), callSession.getCallId());
         }
 
-        // Add all participants to call icon tracking
+        // FIXED: Add ALL participants to call icon tracking, not just the accepting player
         for (UUID playerId : callSession.getActivePlayerParticipants()) {
             addPlayerToCallIcon(playerId);
+            System.out.println("TransponderCallManager: Added player " + playerId + " to call icon tracking");
         }
 
         // Create audio channels
@@ -342,7 +348,8 @@ public class TransponderCallManager {
             }
         }
 
-        System.out.println("TransponderCallManager: Call connected - " + callSession.getParticipantCount() + " participants");
+        System.out.println("TransponderCallManager: Call connected - " + callSession.getParticipantCount() + " participants, "
+                + callSession.getActivePlayerParticipants().size() + " players with call icons");
     }
 
     private void createAudioChannels(CallSession callSession) {
