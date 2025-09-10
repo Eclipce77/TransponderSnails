@@ -70,10 +70,7 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
         // Start cleanup scheduler for audio relay
         scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(() -> {
-            if (audioRelay != null) {
-                audioRelay.cleanupCaches();
-            }
-        }, 30, 30, TimeUnit.SECONDS); // Clean up every 30 seconds
+        }, 5, 5, TimeUnit.SECONDS); // Clean up every 30 seconds
 
         TransponderSnails.LOGGER.info("Transponder Snails voice chat integration initialized with audio relay!");
     }

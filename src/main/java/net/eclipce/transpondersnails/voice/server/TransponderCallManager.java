@@ -391,6 +391,11 @@ public class TransponderCallManager {
         return audioRelay;
     }
 
+    // NEW: Add this method to expose registered snail blocks for the audio relay
+    public Map<Integer, TransponderSnailBlockEntity> getRegisteredSnailBlocks() {
+        return new HashMap<>(registeredSnailBlocks);
+    }
+
     // =================== ENHANCED CALL TERMINATION ===================
 
     // Update the endCall(UUID callId) method to include audio relay cleanup:
@@ -730,16 +735,6 @@ public class TransponderCallManager {
                     soundManager.cleanup();
                 } catch (Exception e) {
                     System.err.println("TransponderCallManager: Error cleaning up sound manager: " + e.getMessage());
-                }
-            }
-
-            // NEW: Cleanup audio relay if it exists
-            if (audioRelay != null) {
-                try {
-                    audioRelay.cleanupCaches();
-                    System.out.println("TransponderCallManager: Audio relay cleanup completed");
-                } catch (Exception e) {
-                    System.err.println("TransponderCallManager: Error cleaning up audio relay: " + e.getMessage());
                 }
             }
 
