@@ -13,7 +13,7 @@ import net.minecraftforge.common.ForgeConfigSpec;
  * Custom config screen for Transponder Snails
  * Provides a user-friendly interface for editing configuration values
  */
-public class ModConfigScreen extends Screen {
+public class ModClientConfigScreen extends Screen {
     private final Screen parent;
     private final ForgeConfigSpec configSpec;
     private final String configFileName;
@@ -44,7 +44,7 @@ public class ModConfigScreen extends Screen {
     private int tooltipX;
     private int tooltipY;
 
-    public ModConfigScreen(Screen parent, ForgeConfigSpec configSpec, String configFileName) {
+    public ModClientConfigScreen(Screen parent, ForgeConfigSpec configSpec, String configFileName) {
         super(Component.literal("Transponder Snails"));
         this.parent = parent;
         this.configSpec = configSpec;

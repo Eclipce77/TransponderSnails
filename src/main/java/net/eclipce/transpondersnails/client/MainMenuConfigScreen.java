@@ -1,5 +1,6 @@
 package net.eclipce.transpondersnails.client;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -16,6 +17,7 @@ public class MainMenuConfigScreen extends Screen {
     private final ForgeConfigSpec configSpec;
 
     // GUI elements
+    private Button enableNumpadButton;
     private EditBox locationalRangeBox;
     private EditBox handheldRangeBox;
     private EditBox ringTimeoutBox;
@@ -28,12 +30,14 @@ public class MainMenuConfigScreen extends Screen {
     private static final double DEFAULT_INTERACTION_RANGE = 10.0;
 
     // Current default values (what will be used for new worlds)
+    private boolean currentNumpadDefault;
     private double currentLocationalDefault;
     private double currentHandheldDefault;
     private long currentRingTimeoutDefault;
     private double currentInteractionDefault;
 
     // Text labels
+    private Component numpadLabel;
     private Component locationalLabel;
     private Component handheldLabel;
     private Component ringTimeoutLabel;
@@ -61,12 +65,14 @@ public class MainMenuConfigScreen extends Screen {
     private void loadCurrentDefaults() {
         // Try to load from config, but use hardcoded defaults if not available
         try {
+            currentNumpadDefault = net.eclipce.transpondersnails.config.ModConfig.SERVER.enableNumpadSupport.getDefault();
             currentLocationalDefault = net.eclipce.transpondersnails.config.ModConfig.SERVER.locationalSnailRange.getDefault();
             currentHandheldDefault = net.eclipce.transpondersnails.config.ModConfig.SERVER.handheldSnailRange.getDefault();
             currentRingTimeoutDefault = net.eclipce.transpondersnails.config.ModConfig.SERVER.ringTimeoutMs.getDefault();
             currentInteractionDefault = net.eclipce.transpondersnails.config.ModConfig.SERVER.snailInteractionRange.getDefault();
         } catch (Exception e) {
             // Fallback to hardcoded defaults if config access fails
+            currentNumpadDefault = false;
             currentLocationalDefault = DEFAULT_LOCATIONAL_RANGE;
             currentHandheldDefault = DEFAULT_HANDHELD_RANGE;
             currentRingTimeoutDefault = DEFAULT_RING_TIMEOUT;
@@ -79,6 +85,7 @@ public class MainMenuConfigScreen extends Screen {
         super.init();
 
         // Create text labels
+        numpadLabel = Component.literal("Numpad Enabled:");
         locationalLabel = Component.literal("Placed Snail Audio Range:");
         handheldLabel = Component.literal("Handheld Snail Audio Range:");
         ringTimeoutLabel = Component.literal("Ringing Timeout (in Ms):");
@@ -89,6 +96,17 @@ public class MainMenuConfigScreen extends Screen {
         int startY = 80; // Start lower to make room for explanation
         int spacing = 30;
         int textBoxWidth = 80;
+
+        // Numpad Support toggle button (first option)
+        enableNumpadButton = Button.builder(
+                        Component.literal(currentNumpadDefault ? "True" : "False")
+                                .withStyle(currentNumpadDefault ? ChatFormatting.GREEN : ChatFormatting.RED),
+                        this::toggleEnableNumpad)
+                .bounds(centerX + 10, startY, 80, 20)
+                .build();
+        this.addRenderableWidget(enableNumpadButton);
+
+        startY += spacing;
 
         // Locational Snail Range
         locationalRangeBox = new EditBox(this.font, centerX + 10, startY, textBoxWidth, 20, Component.literal(""));
@@ -138,35 +156,41 @@ public class MainMenuConfigScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                         Component.literal("Save Defaults"),
                         this::saveDefaults)
-                .bounds(centerX - 100, startY - 15, 80, 20)
+                .bounds(centerX - 100, startY, 80, 20)
                 .build());
 
         // Cancel Button
         this.addRenderableWidget(Button.builder(
                         Component.literal("Cancel"),
                         this::cancelConfig)
-                .bounds(centerX + 20, startY - 15, 80, 20)
+                .bounds(centerX + 20, startY, 80, 20)
                 .build());
 
         // Reset to Hardcoded Defaults Button
         this.addRenderableWidget(Button.builder(
                         Component.literal("Reset to Defaults"),
                         this::resetToHardcodedDefaults)
-                .bounds(centerX - 70, startY + 15, 140, 20)
+                .bounds(centerX - 70, startY + 30, 140, 20)
                 .build());
+    }
+
+    private void toggleEnableNumpad(Button button) {
+        currentNumpadDefault = !currentNumpadDefault;
+        button.setMessage(Component.literal(currentNumpadDefault ? "True" : "False")
+                .withStyle(currentNumpadDefault ? ChatFormatting.GREEN : ChatFormatting.RED));
     }
 
     private void saveDefaults(Button button) {
         try {
             // Parse and validate values
+            boolean numpadSupport = currentNumpadDefault;
             double locationalRange = parseDouble(locationalRangeBox.getValue(), 1.0, 100.0, DEFAULT_LOCATIONAL_RANGE);
             double handheldRange = parseDouble(handheldRangeBox.getValue(), 1.0, 50.0, DEFAULT_HANDHELD_RANGE);
             long ringTimeout = parseLong(ringTimeoutBox.getValue(), 5000L, 300000L, DEFAULT_RING_TIMEOUT);
             double interactionRange = parseDouble(interactionRangeBox.getValue(), 1.0, 50.0, DEFAULT_INTERACTION_RANGE);
 
             // These values will be used as defaults for new worlds
-            // We could save them to a separate defaults config file
-            saveDefaultsToFile(locationalRange, handheldRange, ringTimeout, interactionRange);
+            saveDefaultsToFile(numpadSupport, locationalRange, handheldRange, ringTimeout, interactionRange);
 
             this.minecraft.setScreen(parent);
 
@@ -175,7 +199,7 @@ public class MainMenuConfigScreen extends Screen {
         }
     }
 
-    private void saveDefaultsToFile(double locationalRange, double handheldRange, long ringTimeout, double interactionRange) {
+    private void saveDefaultsToFile(boolean numpadSupport, double locationalRange, double handheldRange, long ringTimeout, double interactionRange) {
         // Save to a separate defaults configuration file
         // This could be implemented as a simple properties file or JSON
         // For now, we'll update the static defaults in the config class
@@ -186,6 +210,7 @@ public class MainMenuConfigScreen extends Screen {
             // a separate defaults storage system depending on your needs
 
             System.out.println("Saved new defaults:");
+            System.out.println("  Numpad Support: " + numpadSupport);
             System.out.println("  Locational Range: " + locationalRange);
             System.out.println("  Handheld Range: " + handheldRange);
             System.out.println("  Ring Timeout: " + ringTimeout);
@@ -204,6 +229,9 @@ public class MainMenuConfigScreen extends Screen {
     }
 
     private void resetToHardcodedDefaults(Button button) {
+        currentNumpadDefault = false;
+        enableNumpadButton.setMessage(Component.literal("False")
+                .withStyle(ChatFormatting.RED));
         locationalRangeBox.setValue(String.valueOf(DEFAULT_LOCATIONAL_RANGE));
         handheldRangeBox.setValue(String.valueOf(DEFAULT_HANDHELD_RANGE));
         ringTimeoutBox.setValue(String.valueOf(DEFAULT_RING_TIMEOUT));
@@ -261,10 +289,20 @@ public class MainMenuConfigScreen extends Screen {
         // Reset tooltip for this frame
         hoveredTooltip = null;
 
-        // Locational Snail Range
-        int labelWidth = this.font.width(locationalLabel);
+        // Numpad Enabled (first option)
+        int labelWidth = this.font.width(numpadLabel);
         if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= startY + 6 - 4 && mouseY <= startY + 6 + 9) {
-            hoveredTooltip = "{locational_snail_range}";
+            hoveredTooltip = "Enable numpad support for dialing";
+            tooltipX = mouseX;
+            tooltipY = mouseY;
+        }
+        guiGraphics.drawString(this.font, numpadLabel, labelX, startY + 6, 0xFFFFFF);
+        startY += spacing;
+
+        // Locational Snail Range
+        labelWidth = this.font.width(locationalLabel);
+        if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= startY + 6 - 4 && mouseY <= startY + 6 + 9) {
+            hoveredTooltip = "Audio range for placed snail blocks";
             tooltipX = mouseX;
             tooltipY = mouseY;
         }
@@ -275,7 +313,7 @@ public class MainMenuConfigScreen extends Screen {
         // Handheld Snail Range
         labelWidth = this.font.width(handheldLabel);
         if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= startY + 6 - 4 && mouseY <= startY + 6 + 9) {
-            hoveredTooltip = "{handheld_snail_range}";
+            hoveredTooltip = "Audio range for handheld snails";
             tooltipX = mouseX;
             tooltipY = mouseY;
         }
@@ -286,7 +324,7 @@ public class MainMenuConfigScreen extends Screen {
         // Ring Timeout
         labelWidth = this.font.width(ringTimeoutLabel);
         if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= startY + 6 - 4 && mouseY <= startY + 6 + 9) {
-            hoveredTooltip = "{ring_timeout_ms} [1 Sec = 1000 Ms]";
+            hoveredTooltip = "Time before call stops ringing (1 sec = 1000 ms)";
             tooltipX = mouseX;
             tooltipY = mouseY;
         }
@@ -297,16 +335,17 @@ public class MainMenuConfigScreen extends Screen {
         // Interaction Range
         labelWidth = this.font.width(interactionLabel);
         if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= startY + 6 - 4 && mouseY <= startY + 6 + 9) {
-            hoveredTooltip = "{snail_interaction_range}";
+            hoveredTooltip = "Range to interact with snail blocks";
             tooltipX = mouseX;
             tooltipY = mouseY;
         }
         guiGraphics.drawString(this.font, interactionLabel, labelX, startY + 6, 0xFFFFFF);
         guiGraphics.drawString(this.font, "(1.0 - 50.0)", rangeX, startY + 6, 0xAAAAAA);
 
+        // Render widgets BEFORE tooltip
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        // Render custom tooltip if hovering over a label
+        // Render custom tooltip LAST so it appears on top of everything
         if (hoveredTooltip != null) {
             renderCustomTooltip(guiGraphics, hoveredTooltip, tooltipX, tooltipY);
         }

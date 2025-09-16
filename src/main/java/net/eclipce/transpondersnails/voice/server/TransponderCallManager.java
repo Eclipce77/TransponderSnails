@@ -4,6 +4,7 @@ import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
+import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -104,26 +105,6 @@ public class TransponderCallManager {
         }
     }
 
-    // =================== CALL ICON MANAGEMENT ===================
-
-    public boolean isPlayerInCallForIcon(UUID playerId) {
-        return playersInCall.contains(playerId);
-    }
-
-    private void addPlayerToCallIcon(UUID playerId) {
-        playersInCall.add(playerId);
-        System.out.println("TransponderCallManager: Added player " + playerId + " to call icon tracking");
-    }
-
-    private void removePlayerFromCallIcon(UUID playerId) {
-        playersInCall.remove(playerId);
-        System.out.println("TransponderCallManager: Removed player " + playerId + " from call icon tracking");
-    }
-
-    public Set<UUID> getPlayersWithCallIcon() {
-        return new HashSet<>(playersInCall);
-    }
-
     // =================== SNAIL BLOCK REGISTRATION ===================
 
     public void registerSnailBlock(int snailNumber, TransponderSnailBlockEntity blockEntity) {
@@ -193,9 +174,6 @@ public class TransponderCallManager {
             playerToCallId.put(caller.getUUID(), callId);
             snailToCallId.put(callerSnailNumber, callId);
             snailToCallId.put(targetSnailNumber, callId);
-
-            // FIXED: Add caller to call icon tracking during initiation
-            addPlayerToCallIcon(caller.getUUID());
 
             // Change state to RINGING and start ringing
             callSession.setState(CallSession.CallState.RINGING);
@@ -309,8 +287,8 @@ public class TransponderCallManager {
 
     // Fix for TransponderCallManager.connectCall() method
     private void connectCall(CallSession callSession, ServerPlayer acceptingPlayer) {
-        callSession.setState(CallSession.CallState.CONNECTED);
         updateBlockEntitiesForCall(callSession);
+        callSession.setState(CallSession.CallState.CONNECTED);
 
         // Add accepting player to the call
         if (!callSession.isParticipant(acceptingPlayer.getUUID())) {
@@ -326,12 +304,6 @@ public class TransponderCallManager {
                 }
             }
             playerToCallId.put(acceptingPlayer.getUUID(), callSession.getCallId());
-        }
-
-        // FIXED: Add ALL participants to call icon tracking, not just the accepting player
-        for (UUID playerId : callSession.getActivePlayerParticipants()) {
-            addPlayerToCallIcon(playerId);
-            System.out.println("TransponderCallManager: Added player " + playerId + " to call icon tracking");
         }
 
         // Create audio channels
@@ -470,11 +442,28 @@ public class TransponderCallManager {
         }
     }
 
+    /**
+     * Handle player disconnection - clean up call icon state
+     */
+    public void onPlayerDisconnect(UUID playerId) {
+        if (playersInCall.contains(playerId)) {
+            playersInCall.remove(playerId);
+            System.out.println("TransponderCallManager: Cleaned up call icon for disconnected player " + playerId);
+        }
+
+        // If player was in a call, end it
+        if (isInCall(playerId)) {
+            ServerPlayer player = getPlayerById(playerId);
+            if (player != null) {
+                endCall(player);
+            }
+        }
+    }
+
     private void cleanupCall(CallSession callSession) {
         // Remove from tracking maps
         for (UUID playerId : callSession.getActivePlayerParticipants()) {
             playerToCallId.remove(playerId);
-            removePlayerFromCallIcon(playerId);
         }
         for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
             snailToCallId.remove(snailNumber);

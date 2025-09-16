@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Manages spatial sound effects for Transponder Snail calls
- * Enhanced with sound categorization for blockstate texture changes
+ * Enhanced with sound categorization for blockstate texture changes and faster timing
  */
 public class CallSoundManager {
 
@@ -35,10 +35,10 @@ public class CallSoundManager {
     private final Map<UUID, SoundInstance> activeSounds = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    // NEW: Track ambient snail sounds per position for blockstate updates
+    // Track ambient snail sounds per position for blockstate updates
     private final Map<BlockPos, Set<SoundCategory>> activeAmbientSounds = new ConcurrentHashMap<>();
 
-    // NEW: Sound categorization for blockstate logic
+    // Sound categorization for blockstate logic
     public enum SoundCategory {
         AMBIENT_SNAIL_SOUNDS,    // Affects blockstate texture (ringing, connection status)
         INTERACTION_SOUNDS       // Does not affect blockstate (pick up, hang up)
@@ -50,7 +50,7 @@ public class CallSoundManager {
         final Level level;
         final ResourceLocation soundLocation;
         final SoundType type;
-        final SoundCategory category;  // NEW
+        final SoundCategory category;
         final long startTime;
         java.util.concurrent.ScheduledFuture<?> stopTask;
 
@@ -70,14 +70,14 @@ public class CallSoundManager {
         AMBIENT         // Continuous ambient sound
     }
 
-    // NEW: Callback interface for blockstate updates - this is the interface your BlockEntity implements
+    // Callback interface for blockstate updates
     public interface BlockstateUpdateCallback {
         void onSoundStateChanged(BlockPos pos, boolean hasAmbientSound);
     }
 
     private final Set<BlockstateUpdateCallback> blockstateCallbacks = ConcurrentHashMap.newKeySet();
 
-    // NEW: Register for blockstate updates
+    // Register for blockstate updates
     public void registerBlockstateCallback(BlockstateUpdateCallback callback) {
         blockstateCallbacks.add(callback);
         System.out.println("CallSoundManager: Registered blockstate callback");
@@ -90,20 +90,24 @@ public class CallSoundManager {
         }
     }
 
-    // =================== SPATIAL AUDIO METHODS WITH CATEGORIES ===================
+    // =================== SPATIAL AUDIO METHODS WITH ENHANCED TIMING ===================
 
     /**
-     * Play ringtone at snail location - AMBIENT sound that affects blockstate
+     * Play ringtone at snail location with faster intervals - AMBIENT sound that affects blockstate
      */
     public void playLocationalRingTone(ServerPlayer player, BlockPos snailLocation) {
         UUID soundId = UUID.randomUUID();
-        playSnailPositionRepeatingSound(player.level(), snailLocation, SNAIL_RINGING_SOUND, soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playSnailPositionRepeatingSound(player.level(), snailLocation, SNAIL_RINGING_SOUND,
+                soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
+                2000); // Reduced from 2000ms to 1500ms
         System.out.println("CallSoundManager: Started ambient ringtone at snail position " + snailLocation);
     }
 
     public void playLocationalRingToneAtPosition(Level level, BlockPos snailLocation) {
         UUID soundId = UUID.randomUUID();
-        playSnailPositionRepeatingSound(level, snailLocation, SNAIL_RINGING_SOUND, soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playSnailPositionRepeatingSound(level, snailLocation, SNAIL_RINGING_SOUND,
+                soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
+                2000); // Reduced from 2000ms to 1500ms
         System.out.println("CallSoundManager: Started ambient ringtone at snail position " + snailLocation + " (no player required)");
     }
 
@@ -147,10 +151,10 @@ public class CallSoundManager {
         System.out.println("CallSoundManager: Played ambient busy sound at snail position " + snailPos);
     }
 
-    // =================== CORE SOUND METHODS WITH CATEGORY TRACKING ===================
+    // =================== CORE SOUND METHODS WITH FASTER TIMING ===================
 
     /**
-     * Play a one-shot sound with category tracking for blockstate updates
+     * Enhanced play one-shot sound with faster cleanup for ambient sounds
      */
     private void playSnailPositionSound(Level level, BlockPos snailPos, ResourceLocation soundLocation, SoundCategory category) {
         try {
@@ -169,13 +173,12 @@ public class CallSoundManager {
                     pitch
             );
 
-            // NEW: Handle ambient sound tracking for blockstate updates
+            // Handle ambient sound tracking for blockstate updates with faster cleanup
             if (category == SoundCategory.AMBIENT_SNAIL_SOUNDS) {
-                // Add short-duration tracking for one-shot ambient sounds
                 activeAmbientSounds.computeIfAbsent(snailPos, k -> ConcurrentHashMap.newKeySet()).add(category);
                 notifyBlockstateUpdate(snailPos, true);
 
-                // Schedule removal after sound duration (estimated)
+                // Schedule faster removal for one-shot sounds
                 scheduler.schedule(() -> {
                     Set<SoundCategory> sounds = activeAmbientSounds.get(snailPos);
                     if (sounds != null) {
@@ -185,7 +188,7 @@ public class CallSoundManager {
                             notifyBlockstateUpdate(snailPos, false);
                         }
                     }
-                }, 2000, TimeUnit.MILLISECONDS); // 2 second estimated duration for one-shot sounds
+                }, 1000, TimeUnit.MILLISECONDS); // Reduced from 2000ms to 1000ms for faster cleanup
             }
 
             System.out.println("CallSoundManager: Played spatial sound " + soundLocation + " (" + category + ") at " + snailPos);
@@ -197,9 +200,10 @@ public class CallSoundManager {
     }
 
     /**
-     * Play a repeating sound with category tracking
+     * Enhanced repeating sound with customizable interval
      */
-    private void playSnailPositionRepeatingSound(Level level, BlockPos snailPos, ResourceLocation soundLocation, UUID soundId, SoundType type, SoundCategory category) {
+    private void playSnailPositionRepeatingSound(Level level, BlockPos snailPos, ResourceLocation soundLocation,
+                                                 UUID soundId, SoundType type, SoundCategory category, int intervalMs) {
         // Stop any existing sounds of this type at this location
         stopSnailPositionSounds(snailPos, type);
 
@@ -207,7 +211,7 @@ public class CallSoundManager {
         SoundInstance instance = new SoundInstance(snailPos, level, soundLocation, type, category);
         activeSounds.put(soundId, instance);
 
-        // NEW: Track ambient sounds for blockstate updates
+        // Track ambient sounds for blockstate updates
         if (category == SoundCategory.AMBIENT_SNAIL_SOUNDS) {
             activeAmbientSounds.computeIfAbsent(snailPos, k -> ConcurrentHashMap.newKeySet()).add(category);
             notifyBlockstateUpdate(snailPos, true);
@@ -216,16 +220,24 @@ public class CallSoundManager {
         // Play the sound initially
         playSnailPositionSoundDirect(level, snailPos, soundLocation);
 
-        // Schedule repeating playback
+        // Schedule repeating playback with custom interval
         instance.stopTask = scheduler.scheduleAtFixedRate(() -> {
             if (activeSounds.containsKey(soundId)) {
                 playSnailPositionSoundDirect(level, snailPos, soundLocation);
             } else {
                 System.out.println("CallSoundManager: Repeating sound " + soundLocation + " at " + snailPos + " was stopped, cleaning up");
             }
-        }, 2000, 2000, TimeUnit.MILLISECONDS);
+        }, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
 
-        System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " (" + category + ") at " + snailPos);
+        System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " (" + category + ") at " + snailPos + " with " + intervalMs + "ms interval");
+    }
+
+    /**
+     * Default repeating sound method with faster timing
+     */
+    private void playSnailPositionRepeatingSound(Level level, BlockPos snailPos, ResourceLocation soundLocation,
+                                                 UUID soundId, SoundType type, SoundCategory category) {
+        playSnailPositionRepeatingSound(level, snailPos, soundLocation, soundId, type, category, 1500); // Default faster interval
     }
 
     /**
@@ -260,7 +272,6 @@ public class CallSoundManager {
                     instance.stopTask.cancel(false);
                 }
 
-                // NEW: Track if we're stopping ambient sounds
                 if (instance.category == SoundCategory.AMBIENT_SNAIL_SOUNDS) {
                     hadAmbientSounds = true;
                 }
@@ -270,7 +281,7 @@ public class CallSoundManager {
             }
         }
 
-        // NEW: Update blockstate if we stopped ambient sounds
+        // Update blockstate if we stopped ambient sounds
         if (hadAmbientSounds) {
             updateAmbientSoundTracking(snailPos);
         }
@@ -303,7 +314,7 @@ public class CallSoundManager {
             }
         }
 
-        // NEW: Clean up ambient sound tracking
+        // Clean up ambient sound tracking
         if (hadAmbientSounds) {
             activeAmbientSounds.remove(snailPos);
             notifyBlockstateUpdate(snailPos, false);
@@ -314,7 +325,7 @@ public class CallSoundManager {
         }
     }
 
-    // =================== NEW BLOCKSTATE UPDATE METHODS ===================
+    // =================== BLOCKSTATE UPDATE METHODS ===================
 
     /**
      * Update ambient sound tracking after stopping sounds
@@ -415,7 +426,7 @@ public class CallSoundManager {
         System.out.println("CallSoundManager: Cleanup complete");
     }
 
-    // Existing utility methods remain unchanged
+    // Utility methods
     public Map<UUID, String> getActiveSoundsInfo() {
         Map<UUID, String> info = new HashMap<>();
         for (Map.Entry<UUID, SoundInstance> entry : activeSounds.entrySet()) {

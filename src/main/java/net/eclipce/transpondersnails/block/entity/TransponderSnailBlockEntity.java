@@ -66,6 +66,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     // CallSession integration
     private CallSession currentCallSession = null;
 
+    // Audio readiness tracking
+    private boolean audioReady = false;
+
     public TransponderSnailBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), pPos, pBlockState);
     }
@@ -263,7 +266,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     /**
      * Check if block currently has the "call" visual state
      */
-    private boolean getCurrentVisualCallState() {
+    public boolean getCurrentVisualCallState() {
         if (level != null) {
             BlockState state = level.getBlockState(worldPosition);
             if (state.getBlock() instanceof TransponderSnailBlock) {
@@ -344,7 +347,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Handle player interaction with the snail block
      * This should be called from TransponderSnailBlock.use() method
      *
-     * @param player The player interacting
+     * @param player     The player interacting
      * @param isSneaking Whether the player is sneaking
      * @return The interaction result
      */
@@ -425,6 +428,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         return onPlayerInteraction(player, false);
     }
 
+    /**
+     * Reset audio readiness (called when call ends)
+     */
+    private void resetAudioReadiness() {
+        this.audioReady = false;
+    }
+
     // =================== ENHANCED CALL LIFECYCLE CALLBACKS ===================
 
     /**
@@ -501,6 +511,19 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     }
 
     /**
+     * Called when call is fully connected and audio channels are ready
+     */
+    public void onCallFullyConnected(UUID callId) {
+        if (this.activeCallId != null && this.activeCallId.equals(callId)) {
+            this.audioReady = true;
+            setChanged();
+
+            System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber +
+                    " is now ready for audio transmission");
+        }
+    }
+
+    /**
      * Called by the call manager when a call ends
      */
     public void onCallEnded(UUID callId) {
@@ -509,6 +532,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.activeCallId = null;
         setRinging(false);
         clearDialedNumber();
+        resetAudioReadiness(); // Add this line
         setChanged();
         setCallState(CallStateSyncPacket.CallState.IDLE);
 
@@ -577,6 +601,15 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         }
     }
 
+    /**
+     * Check if this snail is ready to transmit/receive audio
+     */
+    public boolean isAudioReady() {
+        return audioReady &&
+                currentCallState == CallStateSyncPacket.CallState.CONNECTED &&
+                getCurrentVisualCallState();
+    }
+
     // =================== CALL STATE MANAGEMENT ===================
 
     /**
@@ -611,14 +644,22 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      */
     private String getStateMessage(CallStateSyncPacket.CallState state) {
         switch (state) {
-            case IDLE: return "";
-            case DIALING: return "Dialing...";
-            case RINGING_OUT: return "Calling...";
-            case RINGING_IN: return "Incoming call";
-            case CONNECTED: return "Connected";
-            case BUSY: return "Busy";
-            case DISCONNECTED: return "Disconnected";
-            default: return "";
+            case IDLE:
+                return "";
+            case DIALING:
+                return "Dialing...";
+            case RINGING_OUT:
+                return "Calling...";
+            case RINGING_IN:
+                return "Incoming call";
+            case CONNECTED:
+                return "Connected";
+            case BUSY:
+                return "Busy";
+            case DISCONNECTED:
+                return "Disconnected";
+            default:
+                return "";
         }
     }
 
@@ -1126,6 +1167,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         tag.putBoolean("HasAmbientSound", hasAmbientSound);
         tag.putBoolean("InActiveCall", inActiveCall);
+        tag.putBoolean("AudioReady", audioReady); // Add this line
     }
 
     @Override
@@ -1163,5 +1205,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         this.hasAmbientSound = tag.getBoolean("HasAmbientSound");
         this.inActiveCall = tag.getBoolean("InActiveCall");
+        this.audioReady = tag.getBoolean("AudioReady"); // Add this line
     }
 }

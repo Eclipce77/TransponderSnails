@@ -7,81 +7,65 @@ import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import de.maxhenkel.voicechat.api.opus.OpusDecoder;
 import de.maxhenkel.voicechat.api.opus.OpusEncoder;
+import de.maxhenkel.voicechat.api.packets.MicrophonePacket;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Improved audio relay system for Transponder Snails
- * Uses persistent audio streams and proper buffering
+ * Fixed audio relay system for Transponder Snails
+ * Addresses stuttering and blockstate update issues
  */
 public class SnailAudioRelay {
 
     private final VoicechatServerApi voiceChatApi;
     private final TransponderCallManager callManager;
 
-    // Persistent decoders/encoders per connection
+    // Audio management
     private final Map<UUID, OpusDecoder> playerDecoders = new ConcurrentHashMap<>();
-    private final Map<UUID, Map<BlockPos, EncoderPlayerPair>> callAudioStreams = new ConcurrentHashMap<>();
-
-    // Improved audio buffering with timing
-    private final Map<UUID, AudioStreamBuffer> audioStreams = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<BlockPos, AudioConnection>> activeConnections = new ConcurrentHashMap<>();
 
     // Performance optimization - cache nearby snails
     private final Map<UUID, NearbySnailCache> playerSnailCache = new ConcurrentHashMap<>();
     private static final long CACHE_TIMEOUT_MS = 1000;
 
-    // Audio processing thread
-    private final ScheduledExecutorService audioProcessor = Executors.newSingleThreadScheduledExecutor(
-            r -> new Thread(r, "SnailAudioRelay-Processor"));
+    // FIX 3: Restored blockstate tracking with proper cleanup
+    private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(
+            r -> new Thread(r, "SnailAudioRelay-Cleanup"));
+    private final Map<BlockPos, Long> lastAudioActivity = new ConcurrentHashMap<>();
+    private final Set<BlockPos> snailsWithActiveAudio = ConcurrentHashMap.newKeySet();
+    private static final long AUDIO_TIMEOUT_MS = 400; // 400ms timeout
 
-    // Audio activity tracking for blockstate updates only
-    private final Map<BlockPos, Long> activeAudioAtPosition = new ConcurrentHashMap<>();
-    private final Set<BlockPos> snailsReceivingAudio = ConcurrentHashMap.newKeySet();
-    private static final long AUDIO_ACTIVITY_TIMEOUT_MS = 500; // 500ms timeout for audio activity
+    // FIX 2: Pre-allocated silence buffer to prevent stuttering
+    private static final short[] SILENCE_BUFFER = new short[VoiceChatConstants.AUDIO_FRAME_SIZE];
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 
-        // Start audio processing loop
-        audioProcessor.scheduleAtFixedRate(this::processAudioStreams, 0, 20, TimeUnit.MILLISECONDS);
+        // FIX 3: Start cleanup task for blockstate management
+        cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 100, 100, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized improved audio relay system");
+        System.out.println("SnailAudioRelay: Initialized fixed audio relay system");
     }
 
     /**
-     * Find a snail block entity at a specific position
-     */
-    @Nullable
-    private TransponderSnailBlockEntity findSnailAtPosition(BlockPos pos) {
-        Map<Integer, TransponderSnailBlockEntity> registeredSnails = callManager.getRegisteredSnailBlocks();
-        for (TransponderSnailBlockEntity snail : registeredSnails.values()) {
-            if (snail.getBlockPos().equals(pos)) {
-                return snail;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Main audio processing - now just captures and buffers
+     * Main audio processing with stuttering fixes
      */
     public void onMicrophonePacket(MicrophonePacketEvent event) {
         try {
-            de.maxhenkel.voicechat.api.ServerPlayer vcSpeaker = event.getSenderConnection().getPlayer();
+            // Get the speaking player
+            de.maxhenkel.voicechat.api.ServerPlayer vcSpeaker = Objects.requireNonNull(event.getSenderConnection()).getPlayer();
             if (vcSpeaker == null) return;
 
             ServerPlayer speaker = ServerLifecycleHooks.getCurrentServer()
@@ -103,33 +87,42 @@ public class SnailAudioRelay {
             TransponderSnailBlockEntity nearbySnail = findNearestSnailInCall(speaker, callSession);
             if (nearbySnail == null) return;
 
-            // Calculate volume
+            // Calculate volume based on distance
             float volume = calculateVolumeByDistance(speaker, nearbySnail.getBlockPos());
             if (volume <= 0.0f) return;
 
-            // Get or create decoder for this player
-            OpusDecoder decoder = getOrCreateDecoder(speaker.getUUID());
-            if (decoder == null) return;
-
-            // Decode audio
+            // Get audio data
             byte[] opusData = event.getPacket().getOpusEncodedData();
             if (opusData == null || opusData.length == 0) return;
+
+            // Decode the audio once
+            OpusDecoder decoder = getOrCreateDecoder(speaker.getUUID());
+            if (decoder == null) return;
 
             short[] pcmAudio = decoder.decode(opusData);
             if (pcmAudio == null || pcmAudio.length == 0) return;
 
-            // Apply volume
-            short[] adjustedAudio = applyVolumeToAudio(pcmAudio, volume);
+            // Apply volume adjustment if needed
+            if (volume < 1.0f) {
+                pcmAudio = applyVolume(pcmAudio, volume);
+            }
 
-            // Add to audio stream buffer
-            AudioStreamBuffer streamBuffer = getOrCreateAudioStream(speaker.getUUID(), callSession, nearbySnail);
-            streamBuffer.addAudioFrame(adjustedAudio, System.currentTimeMillis());
+            // Check if this is actual audio content
+            boolean hasAudio = hasAudioContent(pcmAudio);
 
-            // ONLY NEW LINE: Track audio activity for blockstate updates
-            trackAudioActivity(callSession, nearbySnail, adjustedAudio);
+            // Forward to all target snails in the call
+            Set<BlockPos> targetPositions = callSession.getInvolvedBlockPositions();
+            for (BlockPos targetPos : targetPositions) {
+                if (!targetPos.equals(nearbySnail.getBlockPos())) {
+                    // FIX 2: Always send audio (even if silence) to prevent stuttering
+                    forwardAudioToSnail(speaker.getUUID(), targetPos, pcmAudio, callSession);
 
-            // Ensure audio streams are set up for all target snails
-            ensureAudioStreamsForCall(callSession, nearbySnail, speaker.getUUID());
+                    // FIX 3: Update blockstate activity if there's actual audio
+                    if (hasAudio) {
+                        updateAudioActivity(targetPos);
+                    }
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Error processing microphone packet: " + e.getMessage());
@@ -138,164 +131,144 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Get or create a persistent decoder for a player
+     * FIX 2: Improved audio forwarding that prevents stuttering
      */
-    private OpusDecoder getOrCreateDecoder(UUID playerId) {
-        return playerDecoders.computeIfAbsent(playerId, k -> {
-            try {
-                return voiceChatApi.createDecoder();
-            } catch (Exception e) {
-                System.err.println("SnailAudioRelay: Failed to create decoder for player " + k);
-                return null;
-            }
-        });
-    }
-
-    /**
-     * Get or create audio stream buffer for a player
-     */
-    private AudioStreamBuffer getOrCreateAudioStream(UUID playerId, CallSession callSession,
-                                                     TransponderSnailBlockEntity sourceSnail) {
-        return audioStreams.computeIfAbsent(playerId, k ->
-                new AudioStreamBuffer(playerId, callSession.getCallId(), sourceSnail.getBlockPos()));
-    }
-
-    /**
-     * Process audio streams on dedicated thread - maintains consistent timing
-     */
-    private void processAudioStreams() {
+    private void forwardAudioToSnail(UUID speakerId, BlockPos targetPos, short[] audioData, CallSession callSession) {
         try {
-            // ONLY NEW LINE: Clean up expired audio activity for blockstates
-            cleanupExpiredAudioActivity();
+            // Get or create audio connection for this target
+            Map<BlockPos, AudioConnection> playerConnections = activeConnections.computeIfAbsent(
+                    speakerId, k -> new ConcurrentHashMap<>());
 
-            long currentTime = System.currentTimeMillis();
+            AudioConnection connection = playerConnections.get(targetPos);
+            if (connection == null || !connection.isValid()) {
+                // Create new connection
+                LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
+                if (channel == null) return;
 
-            for (AudioStreamBuffer stream : audioStreams.values()) {
-                if (!stream.isActive()) continue;
+                OpusEncoder encoder = voiceChatApi.createEncoder();
+                if (encoder == null) return;
 
-                // Get target positions for this stream's call
-                CallSession callSession = getCallSessionById(stream.callId);
-                if (callSession == null) continue;
+                // FIX 2: Create continuous audio supplier that never returns null
+                ContinuousAudioHolder audioHolder = new ContinuousAudioHolder();
+                AudioPlayer player = voiceChatApi.createAudioPlayer(channel, encoder, audioHolder::getCurrentAudio);
 
-                Set<BlockPos> targetPositions = callSession.getInvolvedBlockPositions();
-                targetPositions.remove(stream.sourcePosition); // Don't send to source
+                if (player != null) {
+                    connection = new AudioConnection(encoder, player, audioHolder);
+                    playerConnections.put(targetPos, connection);
+                    player.startPlaying();
+                    System.out.println("SnailAudioRelay: Created audio connection for " + targetPos);
+                }
+            }
 
-                // Get audio data to send (maybe silence if no recent audio)
-                short[] audioToSend = stream.getNextAudioFrame(currentTime);
-                if (audioToSend == null) continue;
+            // Send audio through the connection
+            if (connection != null && connection.isValid()) {
+                connection.sendAudio(audioData);
+            }
 
-                // Send to all target positions
-                Map<BlockPos, EncoderPlayerPair> streamPairs = callAudioStreams.get(stream.callId);
-                if (streamPairs == null) continue;
+        } catch (Exception e) {
+            System.err.println("SnailAudioRelay: Failed to forward audio to " + targetPos + ": " + e.getMessage());
+        }
+    }
 
-                for (BlockPos targetPos : targetPositions) {
-                    EncoderPlayerPair pair = streamPairs.get(targetPos);
-                    if (pair != null && pair.isValid()) {
-                        pair.sendAudio(audioToSend);
-                    }
+    /**
+     * Improved audio content detection with better threshold
+     */
+    private boolean hasAudioContent(short[] audioData) {
+        if (audioData == null || audioData.length == 0) return false;
+
+        // Quick RMS calculation on a subset of samples for performance
+        long sumSquares = 0;
+        int checkSamples = Math.min(audioData.length, 240); // Check first 5ms worth for speed
+
+        for (int i = 0; i < checkSamples; i++) {
+            long sample = audioData[i];
+            sumSquares += sample * sample;
+        }
+
+        double rms = Math.sqrt((double)sumSquares / checkSamples);
+        return rms > 80.0; // Balanced threshold - not too sensitive
+    }
+
+    /**
+     * FIX 3: Proper audio activity tracking for blockstates
+     */
+    private void updateAudioActivity(BlockPos pos) {
+        long now = System.currentTimeMillis();
+        lastAudioActivity.put(pos, now);
+
+        // Only update blockstate if not already active (prevents spam)
+        if (!snailsWithActiveAudio.contains(pos)) {
+            snailsWithActiveAudio.add(pos);
+            updateSnailBlockstate(pos, true);
+            System.out.println("SnailAudioRelay: Started audio activity at " + pos);
+        }
+    }
+
+    /**
+     * FIX 3: Improved blockstate update method
+     */
+    private void updateSnailBlockstate(BlockPos pos, boolean active) {
+        try {
+            TransponderSnailBlockEntity snail = findSnailAtPosition(pos);
+            if (snail != null && snail.getCurrentCallState() == CallStateSyncPacket.CallState.CONNECTED) {
+                snail.onSoundStateChanged(pos, active);
+                System.out.println("SnailAudioRelay: Updated blockstate for " + pos + " - active: " + active);
+            }
+        } catch (Exception e) {
+            System.err.println("SnailAudioRelay: Error updating blockstate for " + pos + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * FIX 3: Scheduled cleanup of expired audio activity
+     */
+    private void cleanupExpiredActivity() {
+        try {
+            long now = System.currentTimeMillis();
+
+            // Find expired positions
+            Set<BlockPos> expiredPositions = new HashSet<>();
+            Iterator<Map.Entry<BlockPos, Long>> iterator = lastAudioActivity.entrySet().iterator();
+
+            while (iterator.hasNext()) {
+                Map.Entry<BlockPos, Long> entry = iterator.next();
+                if (now - entry.getValue() > AUDIO_TIMEOUT_MS) {
+                    expiredPositions.add(entry.getKey());
+                    iterator.remove();
+                }
+            }
+
+            // Update blockstates for expired positions
+            for (BlockPos pos : expiredPositions) {
+                if (snailsWithActiveAudio.remove(pos)) {
+                    updateSnailBlockstate(pos, false);
+                    System.out.println("SnailAudioRelay: Stopped audio activity at " + pos + " (timeout)");
                 }
             }
 
         } catch (Exception e) {
-            System.err.println("SnailAudioRelay: Error in audio processing loop: " + e.getMessage());
+            System.err.println("SnailAudioRelay: Error in cleanup: " + e.getMessage());
         }
     }
 
     /**
-     * Ensure persistent audio streams exist for all target snails in the call
+     * Simple volume application
      */
-    private void ensureAudioStreamsForCall(CallSession callSession, TransponderSnailBlockEntity sourceSnail,
-                                           UUID speakerPlayerId) {
-        UUID callId = callSession.getCallId();
-        Map<BlockPos, EncoderPlayerPair> streamPairs = callAudioStreams.computeIfAbsent(callId,
-                k -> new ConcurrentHashMap<>());
-
-        Set<BlockPos> targetPositions = callSession.getInvolvedBlockPositions();
-
-        for (BlockPos targetPos : targetPositions) {
-            if (targetPos.equals(sourceSnail.getBlockPos())) continue;
-            if (streamPairs.containsKey(targetPos)) continue;
-
-            // Get the locational audio channel for this position
-            LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
-            if (channel == null) continue;
-
-            try {
-                OpusEncoder encoder = voiceChatApi.createEncoder();
-                if (encoder == null) continue;
-
-                // Create audio supplier that reads from our stream buffer
-                AudioPlayer player = voiceChatApi.createAudioPlayer(
-                        channel,
-                        encoder,
-                        () -> {
-                            AudioStreamBuffer stream = audioStreams.get(speakerPlayerId);
-                            if (stream != null && stream.hasAudio()) {
-                                return stream.getCurrentAudioFrame();
-                            }
-                            return new short[VoiceChatConstants.AUDIO_FRAME_SIZE]; // Silence
-                        }
-                );
-
-                if (player != null) {
-                    EncoderPlayerPair pair = new EncoderPlayerPair(encoder, player);
-                    streamPairs.put(targetPos, pair);
-                    player.startPlaying();
-
-                    System.out.println("SnailAudioRelay: Created persistent audio stream for snail at " + targetPos);
-                }
-
-            } catch (Exception e) {
-                System.err.println("SnailAudioRelay: Failed to create audio stream for " + targetPos + ": " + e.getMessage());
-            }
+    private short[] applyVolume(short[] audio, float volume) {
+        short[] result = new short[audio.length];
+        for (int i = 0; i < audio.length; i++) {
+            float adjusted = audio[i] * volume;
+            result[i] = (short)Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, Math.round(adjusted)));
         }
+        return result;
     }
 
     /**
-     * Check if audio contains audible content (not just silence/noise)
-     */
-    private boolean hasAudibleContent(short[] audioData) {
-        if (audioData == null || audioData.length == 0) {
-            return false;
-        }
-
-        // Calculate RMS (Root Mean Square) to detect actual audio content
-        long sumSquares = 0;
-        for (short sample : audioData) {
-            sumSquares += (long)sample * sample;
-        }
-
-        double rms = Math.sqrt((double)sumSquares / audioData.length);
-
-        // Threshold for detecting actual audio vs silence/noise
-        double threshold = 100.0; // Adjust if needed
-
-        return rms > threshold;
-    }
-
-    /**
-     * Apply volume adjustment to PCM audio data
-     */
-    private short[] applyVolumeToAudio(short[] originalAudio, float volume) {
-        if (volume >= 1.0f) return originalAudio;
-
-        short[] adjustedAudio = new short[originalAudio.length];
-        for (int i = 0; i < originalAudio.length; i++) {
-            int adjusted = (int)(originalAudio[i] * volume);
-            adjustedAudio[i] = (short)Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, adjusted));
-        }
-        return adjustedAudio;
-    }
-
-    /**
-     * Calculate volume based on player's distance from snail
+     * Calculate volume based on distance
      */
     private float calculateVolumeByDistance(ServerPlayer player, BlockPos snailPos) {
         double distance = player.distanceToSqr(
-                snailPos.getX() + 0.5,
-                snailPos.getY() + 0.5,
-                snailPos.getZ() + 0.5
-        );
+                snailPos.getX() + 0.5, snailPos.getY() + 0.5, snailPos.getZ() + 0.5);
 
         double maxRange = VoiceChatConstants.getSnailInteractionRange();
         double maxRangeSq = maxRange * maxRange;
@@ -307,7 +280,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Find the nearest snail that's participating in the given call
+     * Find nearest snail in call
      */
     @Nullable
     private TransponderSnailBlockEntity findNearestSnailInCall(ServerPlayer player, CallSession callSession) {
@@ -319,8 +292,7 @@ public class SnailAudioRelay {
 
         TransponderSnailBlockEntity closestSnail = null;
         double closestDistance = Double.MAX_VALUE;
-        double maxRange = VoiceChatConstants.getSnailInteractionRange();
-        double maxRangeSq = maxRange * maxRange;
+        double maxRangeSq = VoiceChatConstants.getSnailInteractionRange() * VoiceChatConstants.getSnailInteractionRange();
 
         for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
             TransponderSnailBlockEntity snail = callManager.getRegisteredSnailBlock(snailNumber);
@@ -329,8 +301,7 @@ public class SnailAudioRelay {
             double distance = player.distanceToSqr(
                     snail.getBlockPos().getX() + 0.5,
                     snail.getBlockPos().getY() + 0.5,
-                    snail.getBlockPos().getZ() + 0.5
-            );
+                    snail.getBlockPos().getZ() + 0.5);
 
             if (distance <= maxRangeSq && distance < closestDistance) {
                 closestDistance = distance;
@@ -346,50 +317,31 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Update a snail's blockstate for audio activity
+     * Find snail at position
      */
-    private void updateSnailBlockstateForAudio(BlockPos snailPos, boolean receivingAudio) {
-        TransponderSnailBlockEntity snail = findSnailAtPosition(snailPos);
-        if (snail == null) {
-            return;
+    @Nullable
+    private TransponderSnailBlockEntity findSnailAtPosition(BlockPos pos) {
+        Map<Integer, TransponderSnailBlockEntity> registeredSnails = callManager.getRegisteredSnailBlocks();
+        for (TransponderSnailBlockEntity snail : registeredSnails.values()) {
+            if (snail.getBlockPos().equals(pos)) {
+                return snail;
+            }
         }
-
-        if (snail.getCurrentCallState() != CallStateSyncPacket.CallState.CONNECTED) {
-            return;
-        }
-
-        try {
-            snail.onSoundStateChanged(snailPos, receivingAudio);
-            System.out.println("SnailAudioRelay: Updated blockstate for snail at " + snailPos +
-                    " - receiving audio: " + receivingAudio);
-        } catch (Exception e) {
-            System.err.println("SnailAudioRelay: Error updating blockstate: " + e.getMessage());
-        }
+        return null;
     }
 
     /**
-     * Track audio activity for blockstate updates only
+     * Get or create decoder for player
      */
-    private void trackAudioActivity(CallSession callSession, TransponderSnailBlockEntity sourceSnail, short[] audioData) {
-        // Only track if audio contains actual content
-        if (!hasAudibleContent(audioData)) {
-            return;
-        }
-
-        Set<BlockPos> targetPositions = callSession.getInvolvedBlockPositions();
-        long currentTime = System.currentTimeMillis();
-
-        for (BlockPos targetPos : targetPositions) {
-            if (!targetPos.equals(sourceSnail.getBlockPos())) { // Don't update source snail
-                activeAudioAtPosition.put(targetPos, currentTime);
-
-                // If not already receiving audio, mark as receiving and update blockstate
-                if (!snailsReceivingAudio.contains(targetPos)) {
-                    snailsReceivingAudio.add(targetPos);
-                    updateSnailBlockstateForAudio(targetPos, true);
-                }
+    private OpusDecoder getOrCreateDecoder(UUID playerId) {
+        return playerDecoders.computeIfAbsent(playerId, k -> {
+            try {
+                return voiceChatApi.createDecoder();
+            } catch (Exception e) {
+                System.err.println("SnailAudioRelay: Failed to create decoder: " + e.getMessage());
+                return null;
             }
-        }
+        });
     }
 
     /**
@@ -404,7 +356,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Clean up when a player leaves a call
+     * Clean up when player leaves call
      */
     public void onPlayerLeftCall(UUID playerId) {
         // Clean up decoder
@@ -413,14 +365,16 @@ public class SnailAudioRelay {
             try {
                 decoder.close();
             } catch (Exception e) {
-                System.err.println("SnailAudioRelay: Error closing decoder for player " + playerId);
+                System.err.println("SnailAudioRelay: Error closing decoder: " + e.getMessage());
             }
         }
 
-        // Clean up audio stream
-        AudioStreamBuffer stream = audioStreams.remove(playerId);
-        if (stream != null) {
-            stream.cleanup();
+        // Clean up connections
+        Map<BlockPos, AudioConnection> connections = activeConnections.remove(playerId);
+        if (connections != null) {
+            for (AudioConnection connection : connections.values()) {
+                connection.cleanup();
+            }
         }
 
         // Clear cache
@@ -428,43 +382,49 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Clean up when a call ends
+     * Clean up when call ends
      */
     public void onCallEnded(UUID callId) {
-        // Stop and remove all audio streams for this call
-        Map<BlockPos, EncoderPlayerPair> streamPairs = callAudioStreams.remove(callId);
-        if (streamPairs != null) {
-            // NEW: Reset blockstates for snails that were in this call
-            for (BlockPos pos : streamPairs.keySet()) {
-                if (snailsReceivingAudio.remove(pos)) {
-                    updateSnailBlockstateForAudio(pos, false);
-                }
-                activeAudioAtPosition.remove(pos);
-            }
+        // Find all connections for this call and clean them up
+        CallSession callSession = getCallSessionById(callId);
+        if (callSession != null) {
+            Set<BlockPos> involvedPositions = callSession.getInvolvedBlockPositions();
 
-            for (EncoderPlayerPair pair : streamPairs.values()) {
-                pair.cleanup();
+            // FIX 3: Properly reset blockstates for involved snails
+            for (BlockPos pos : involvedPositions) {
+                snailsWithActiveAudio.remove(pos);
+                lastAudioActivity.remove(pos);
+                updateSnailBlockstate(pos, false);
             }
         }
 
-        // Clean up audio streams for this call
-        audioStreams.entrySet().removeIf(entry -> {
-            AudioStreamBuffer stream = entry.getValue();
-            if (stream.callId.equals(callId)) {
-                stream.cleanup();
-                return true;
+        // Clean up any remaining connections
+        for (Map<BlockPos, AudioConnection> connections : activeConnections.values()) {
+            Iterator<Map.Entry<BlockPos, AudioConnection>> iterator = connections.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<BlockPos, AudioConnection> entry = iterator.next();
+                entry.getValue().cleanup();
+                iterator.remove();
             }
-            return false;
-        });
+        }
 
-        System.out.println("SnailAudioRelay: Cleaned up audio relay for ended call " + callId.toString().substring(0, 8));
+        System.out.println("SnailAudioRelay: Cleaned up call " + callId.toString().substring(0, 8));
     }
 
     /**
      * Shutdown cleanup
      */
     public void shutdown() {
-        audioProcessor.shutdown();
+        // FIX 3: Shutdown cleanup executor
+        cleanupExecutor.shutdown();
+        try {
+            if (!cleanupExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                cleanupExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            cleanupExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
 
         // Clean up all decoders
         for (OpusDecoder decoder : playerDecoders.values()) {
@@ -476,115 +436,129 @@ public class SnailAudioRelay {
         }
         playerDecoders.clear();
 
-        // Clean up all audio streams
-        for (Map<BlockPos, EncoderPlayerPair> streamPairs : callAudioStreams.values()) {
-            for (EncoderPlayerPair pair : streamPairs.values()) {
-                pair.cleanup();
+        // Clean up all connections
+        for (Map<BlockPos, AudioConnection> connections : activeConnections.values()) {
+            for (AudioConnection connection : connections.values()) {
+                connection.cleanup();
             }
         }
-        callAudioStreams.clear();
+        activeConnections.clear();
 
-        // Clean up stream buffers
-        for (AudioStreamBuffer stream : audioStreams.values()) {
-            stream.cleanup();
+        playerSnailCache.clear();
+        lastAudioActivity.clear();
+        snailsWithActiveAudio.clear();
+
+        System.out.println("SnailAudioRelay: Shutdown complete");
+    }
+
+    // =================== AUDIO TRANSMISSION READINESS CHECKS ===================
+
+    /**
+     * Check if a snail is ready to transmit/receive audio
+     */
+    private boolean isSnailReadyForAudio(TransponderSnailBlockEntity snail) {
+        if (snail == null) {
+            return false;
         }
-        audioStreams.clear();
+
+        // Must be in CONNECTED call state
+        if (snail.getCurrentCallState() != CallStateSyncPacket.CallState.CONNECTED) {
+            System.out.println("SnailAudioRelay: Snail not ready - call state: " + snail.getCurrentCallState());
+            return false;
+        }
+
+        // Must show "in call" visual state (transponder_snail_call or transponder_snail_active)
+        if (!snail.getCurrentVisualCallState()) {
+            System.out.println("SnailAudioRelay: Snail not ready - visual call state not active");
+            return false;
+        }
+
+        // Must be audio ready (call fully connected with audio channels)
+        if (!snail.isAudioReady()) {
+            System.out.println("SnailAudioRelay: Snail not ready - audio not ready");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Process audio transmission after readiness checks pass
+     */
+    private void processAudioTransmission(ServerPlayer speaker, CallSession callSession,
+                                          TransponderSnailBlockEntity transmittingSnail,
+                                          MicrophonePacket microphonePacket) {
+
+        // Relay audio to all other snails in the call
+        for (BlockPos snailPos : callSession.getInvolvedBlockPositions()) {
+            if (snailPos.equals(transmittingSnail.getBlockPos())) {
+                continue; // Don't relay to the transmitting snail
+            }
+
+            // Get the proximity channel for this position
+            AudioChannel proximityChannel = callSession.getProximityChannel(snailPos);
+            if (proximityChannel != null) {
+                try {
+                    // Send audio to this snail's location
+                    proximityChannel.send(microphonePacket.getOpusEncodedData());
+
+                    System.out.println("SnailAudioRelay: Relayed audio to snail at " + snailPos);
+
+                } catch (Exception e) {
+                    System.err.println("SnailAudioRelay: Error relaying audio to " + snailPos + ": " + e.getMessage());
+                }
+            }
+        }
+
+        // Update last activity time for the call session
+        callSession.updateActivity();
     }
 
     // =================== HELPER CLASSES ===================
 
     /**
-     * Manages audio buffering with proper timing
+     * FIX 2: Continuous audio holder that never returns null (prevents stuttering)
      */
-    private static class AudioStreamBuffer {
-        final UUID playerId;
-        final UUID callId;
-        final BlockPos sourcePosition;
-        private final Queue<TimestampedAudioFrame> audioFrames = new ConcurrentLinkedQueue<>();
-        private long lastActivityTime;
-        private short[] currentFrame = new short[VoiceChatConstants.AUDIO_FRAME_SIZE];
+    private static class ContinuousAudioHolder {
+        private volatile short[] currentAudio = SILENCE_BUFFER;
+        private volatile long lastUpdateTime = System.currentTimeMillis();
+        private static final long SILENCE_TIMEOUT = 50; // 50ms timeout to silence
 
-        AudioStreamBuffer(UUID playerId, UUID callId, BlockPos sourcePosition) {
-            this.playerId = playerId;
-            this.callId = callId;
-            this.sourcePosition = sourcePosition;
-            this.lastActivityTime = System.currentTimeMillis();
-        }
-
-        void addAudioFrame(short[] audioData, long timestamp) {
-            audioFrames.offer(new TimestampedAudioFrame(audioData, timestamp));
-            lastActivityTime = timestamp;
-
-            // Keep only recent frames (200ms worth)
-            while (audioFrames.size() > 10) {
-                audioFrames.poll();
+        void setCurrentAudio(short[] audio) {
+            if (audio != null && audio.length > 0) {
+                this.currentAudio = audio;
+                this.lastUpdateTime = System.currentTimeMillis();
             }
         }
 
-        short[] getNextAudioFrame(long currentTime) {
-            TimestampedAudioFrame frame = audioFrames.poll();
-            if (frame != null && (currentTime - frame.timestamp) < 100) { // Within 100ms
-                currentFrame = frame.audioData;
-                return currentFrame;
+        short[] getCurrentAudio() {
+            // FIX 2: Return silence if no recent audio update (prevents stuttering on old data)
+            long timeSinceUpdate = System.currentTimeMillis() - lastUpdateTime;
+            if (timeSinceUpdate > SILENCE_TIMEOUT) {
+                return SILENCE_BUFFER;
             }
-
-            // No recent audio - return silence but maintain timing
-            if ((currentTime - lastActivityTime) < 1000) { // Keep stream active for 1 second
-                return new short[VoiceChatConstants.AUDIO_FRAME_SIZE]; // Silence
-            }
-
-            return null; // Stream inactive
-        }
-
-        short[] getCurrentAudioFrame() {
-            return currentFrame;
-        }
-
-        boolean hasAudio() {
-            return !audioFrames.isEmpty();
-        }
-
-        boolean isActive() {
-            return (System.currentTimeMillis() - lastActivityTime) < 2000; // 2 second timeout
-        }
-
-        void cleanup() {
-            audioFrames.clear();
-        }
-
-        private static class TimestampedAudioFrame {
-            final short[] audioData;
-            final long timestamp;
-
-            TimestampedAudioFrame(short[] audioData, long timestamp) {
-                this.audioData = audioData;
-                this.timestamp = timestamp;
-            }
+            return currentAudio;
         }
     }
 
     /**
-     * Manages encoder and audio player pairs
+     * Manages a single audio connection to a snail
      */
-    private static class EncoderPlayerPair {
+    private static class AudioConnection {
         final OpusEncoder encoder;
         final AudioPlayer player;
-        private boolean valid = true;
+        final ContinuousAudioHolder audioHolder;
+        private volatile boolean valid = true;
 
-        EncoderPlayerPair(OpusEncoder encoder, AudioPlayer player) {
+        AudioConnection(OpusEncoder encoder, AudioPlayer player, ContinuousAudioHolder audioHolder) {
             this.encoder = encoder;
             this.player = player;
+            this.audioHolder = audioHolder;
         }
 
         void sendAudio(short[] audioData) {
-            if (!valid || !player.isPlaying()) return;
-
-            try {
-                // The audio supplier will be called by the player automatically
-                // We don't manually send here, just ensure the player is running
-            } catch (Exception e) {
-                System.err.println("SnailAudioRelay: Error in audio stream");
-                valid = false;
+            if (valid && player.isPlaying()) {
+                audioHolder.setCurrentAudio(audioData);
             }
         }
 
@@ -600,7 +574,7 @@ public class SnailAudioRelay {
                 }
                 encoder.close();
             } catch (Exception e) {
-                System.err.println("SnailAudioRelay: Error cleaning up encoder/player pair");
+                System.err.println("SnailAudioRelay: Error cleaning up connection: " + e.getMessage());
             }
         }
     }
@@ -619,30 +593,6 @@ public class SnailAudioRelay {
 
         boolean isValid() {
             return (System.currentTimeMillis() - timestamp) < CACHE_TIMEOUT_MS;
-        }
-    }
-
-    /**
-     * Clean up expired audio activity for blockstate updates
-     */
-    private void cleanupExpiredAudioActivity() {
-        long currentTime = System.currentTimeMillis();
-
-        // Find expired positions
-        Set<BlockPos> expiredPositions = new HashSet<>();
-        activeAudioAtPosition.entrySet().removeIf(entry -> {
-            boolean expired = (currentTime - entry.getValue()) > AUDIO_ACTIVITY_TIMEOUT_MS;
-            if (expired) {
-                expiredPositions.add(entry.getKey());
-            }
-            return expired;
-        });
-
-        // Update blockstates for positions that are no longer receiving audio
-        for (BlockPos pos : expiredPositions) {
-            if (snailsReceivingAudio.remove(pos)) {
-                updateSnailBlockstateForAudio(pos, false);
-            }
         }
     }
 }

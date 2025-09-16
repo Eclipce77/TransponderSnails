@@ -3,9 +3,9 @@ package net.eclipce.transpondersnails.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.minecraft.ChatFormatting;
-import net.eclipce.transpondersnails.screen.DialingMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -13,7 +13,6 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -187,38 +186,43 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // Handle number keys 1-0 (main keyboard, not numpad)
-        // Key codes for main number row: 49-57 (1-9), 48 (0)
-        if (keyCode >= 49 && keyCode <= 57) {
-            // Keys 1-9
-            int digit = keyCode - 48; // Convert key code to digit (49 becomes 1, 50 becomes 2, etc.)
-            onDialButtonPressed(digit);
-            return true; // Consume the key press
-        } else if (keyCode == 48) {
-            // Key 0
+        // Handle main number row keys (always enabled)
+        if (keyCode >= InputConstants.KEY_1 && keyCode <= InputConstants.KEY_9) {
+            onDialButtonPressed(keyCode - InputConstants.KEY_0);
+            return true;
+        } else if (keyCode == InputConstants.KEY_0) {
             onDialButtonPressed(0);
             return true;
         }
 
-        // Handle backspace and delete for clearing
-        else if (keyCode == InputConstants.KEY_BACKSPACE || keyCode == InputConstants.KEY_DELETE) {
-            onClearButtonPressed(-1); // Use -1 as the "clear" identifier
-            return true;
+        // Handle numpad keys (only if enabled in config)
+        if (ModConfig.isNumpadEnabled()) {
+            if (keyCode >= InputConstants.KEY_NUMPAD1 && keyCode <= InputConstants.KEY_NUMPAD9) {
+                onDialButtonPressed(keyCode - InputConstants.KEY_NUMPAD0);
+                return true;
+            } else if (keyCode == InputConstants.KEY_NUMPAD0) {
+                onDialButtonPressed(0);
+                return true;
+            }
         }
 
-        // Handle enter key explicitly
-        else if (keyCode == InputConstants.KEY_RETURN) {
-            onCallButtonPressed(10); // Use -1 as the "clear" identifier
-            return true;
+        // Handle special keys
+        switch (keyCode) {
+            case InputConstants.KEY_BACKSPACE:
+            case InputConstants.KEY_DELETE:
+                onClearButtonPressed(-1);
+                return true;
+
+            case InputConstants.KEY_RETURN:
+            case InputConstants.KEY_NUMPADENTER:
+                onCallButtonPressed(10);
+                return true;
+
+            case InputConstants.KEY_ESCAPE:
+                this.onClose();
+                return true;
         }
 
-        // Handle escape key explicitly
-        else if (keyCode == InputConstants.KEY_ESCAPE) {
-            this.onClose();
-            return true;
-        }
-
-        // If we didn't handle the key, pass it to the parent
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 

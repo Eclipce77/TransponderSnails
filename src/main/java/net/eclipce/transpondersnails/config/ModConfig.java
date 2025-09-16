@@ -28,6 +28,7 @@ public class ModConfig {
      * These values affect gameplay mechanics
      */
     public static class ServerConfig {
+        public final ForgeConfigSpec.BooleanValue enableNumpadSupport;
         public final ForgeConfigSpec.DoubleValue locationalSnailRange;
         public final ForgeConfigSpec.DoubleValue handheldSnailRange;
         public final ForgeConfigSpec.LongValue ringTimeoutMs;
@@ -49,6 +50,11 @@ public class ModConfig {
                     .comment("      .%%%%%%%%%%%%%%%* ")
                     .comment("These configurations offer control over various aspects of the Transponder Snails mod")
                     .push("transponder_snails");
+
+            enableNumpadSupport = builder
+                    .comment("Enable numpad keys for dialing in addition to number row keys")
+                    .comment("Default: false (only number row keys work)")
+                    .define("enable_numpad", false);
 
             locationalSnailRange = builder
                     .comment("Range in blocks for voice chat through placed Transponder Snail blocks")
@@ -75,12 +81,14 @@ public class ModConfig {
     }
 
     // Default values - used as fallbacks
+    private static final boolean DEFAULT_ENABLE_NUMPAD = false;
     private static final double DEFAULT_LOCATIONAL_RANGE = 10.0;
     private static final double DEFAULT_HANDHELD_RANGE = 3.0;
     private static final long DEFAULT_RING_TIMEOUT = 30000L;
     private static final double DEFAULT_INTERACTION_RANGE = 10.0;
 
     // Cache the config values for performance
+    private static boolean cachedEnableNumpad = DEFAULT_ENABLE_NUMPAD;
     private static double cachedLocationalRange = DEFAULT_LOCATIONAL_RANGE;
     private static double cachedHandheldRange = DEFAULT_HANDHELD_RANGE;
     private static long cachedRingTimeout = DEFAULT_RING_TIMEOUT;
@@ -92,12 +100,14 @@ public class ModConfig {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         // Update cached values when config changes, with fallback to defaults
+        cachedEnableNumpad = SERVER.enableNumpadSupport.get();
         cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
         cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
         cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
         cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
 
         System.out.println("TransponderSnails config loaded:");
+        System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
         System.out.println("  Locational Snail Range: " + cachedLocationalRange);
         System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
         System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
@@ -124,6 +134,10 @@ public class ModConfig {
             return defaultValue;
         }
         return value;
+    }
+
+    public static boolean isNumpadEnabled() {
+        return cachedEnableNumpad;
     }
 
     // Getter methods for cached values with additional safety checks
@@ -165,5 +179,31 @@ public class ModConfig {
      */
     public static double clampRange(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    // Add this method to your ModConfig class:
+
+    /**
+     * Temporarily updates the cached numpad value for immediate effect
+     * This is used by the config screen to apply changes before saving
+     * @param enabled The new enabled state
+     */
+    public static void setNumpadEnabledTemporary(boolean enabled) {
+        cachedEnableNumpad = enabled;
+    }
+
+    /**
+     * Forces a reload of all cached values from the config
+     * Call this after saving the config to ensure cache is updated
+     */
+    public static void reloadCachedValues() {
+        cachedEnableNumpad = SERVER.enableNumpadSupport.get();
+        cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
+        cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
+        cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
+        cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
+
+        System.out.println("TransponderSnails config reloaded:");
+        System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
     }
 }
