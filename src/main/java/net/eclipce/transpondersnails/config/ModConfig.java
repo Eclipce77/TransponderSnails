@@ -8,34 +8,66 @@ import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Configuration class for Transponder Snails mod
- * Handles both client and server-side configuration
+ * Split into client-side (GUI preferences) and server-side (gameplay mechanics)
  */
 @Mod.EventBusSubscriber(modid = "transpondersnails", bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ModConfig {
 
+    // Client configuration (player-specific settings)
+    public static final ClientConfig CLIENT;
+    public static final ForgeConfigSpec CLIENT_SPEC;
+
+    // Server configuration (gameplay mechanics)
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
     static {
-        final Pair<ServerConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder()
+        // Build client config
+        final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder()
+                .configure(ClientConfig::new);
+        CLIENT_SPEC = clientPair.getRight();
+        CLIENT = clientPair.getLeft();
+
+        // Build server config
+        final Pair<ServerConfig, ForgeConfigSpec> serverPair = new ForgeConfigSpec.Builder()
                 .configure(ServerConfig::new);
-        SERVER_SPEC = specPair.getRight();
-        SERVER = specPair.getLeft();
+        SERVER_SPEC = serverPair.getRight();
+        SERVER = serverPair.getLeft();
+    }
+
+    /**
+     * Client-side configuration (GUI and input preferences)
+     * These values are per-player and not synced
+     */
+    public static class ClientConfig {
+        public final ForgeConfigSpec.BooleanValue enableNumpadSupport;
+
+        public ClientConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Transponder Snails Client Configuration")
+                    .comment("These settings are per-player and affect input/GUI preferences")
+                    .push("client");
+
+            enableNumpadSupport = builder
+                    .comment("Enable numpad keys for dialing in addition to number row keys")
+                    .comment("This is a client-side preference that doesn't affect gameplay")
+                    .define("enable_numpad", false);
+
+            builder.pop();
+        }
     }
 
     /**
      * Server-side configuration (synced to clients)
-     * These values affect gameplay mechanics
+     * These values affect gameplay mechanics and must be consistent for all players
      */
     public static class ServerConfig {
-        public final ForgeConfigSpec.BooleanValue enableNumpadSupport;
         public final ForgeConfigSpec.DoubleValue locationalSnailRange;
         public final ForgeConfigSpec.DoubleValue handheldSnailRange;
         public final ForgeConfigSpec.LongValue ringTimeoutMs;
         public final ForgeConfigSpec.DoubleValue snailInteractionRange;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("Transponder Snails Configuration")
+            builder.comment("Transponder Snails Server Configuration")
                     .comment("   =%%% :%%%: %@@@@@@@# ")
                     .comment(" :@=  .@#   *%%#######%%= ")
                     .comment(" :@=   @#   :-#*::::-#*:*@: ")
@@ -48,13 +80,8 @@ public class ModConfig {
                     .comment("   =@=:               :@= ")
                     .comment("     *%-::::::::::::::=@= ")
                     .comment("      .%%%%%%%%%%%%%%%* ")
-                    .comment("These configurations offer control over various aspects of the Transponder Snails mod")
-                    .push("transponder_snails");
-
-            enableNumpadSupport = builder
-                    .comment("Enable numpad keys for dialing in addition to number row keys")
-                    .comment("Default: false (only number row keys work)")
-                    .define("enable_numpad", false);
+                    .comment("These settings control gameplay mechanics and are synced to all players")
+                    .push("gameplay");
 
             locationalSnailRange = builder
                     .comment("Range in blocks for voice chat through placed Transponder Snail blocks")
@@ -80,15 +107,17 @@ public class ModConfig {
         }
     }
 
-    // Default values - used as fallbacks
+    // Default values
     private static final boolean DEFAULT_ENABLE_NUMPAD = false;
     private static final double DEFAULT_LOCATIONAL_RANGE = 10.0;
     private static final double DEFAULT_HANDHELD_RANGE = 3.0;
     private static final long DEFAULT_RING_TIMEOUT = 30000L;
     private static final double DEFAULT_INTERACTION_RANGE = 10.0;
 
-    // Cache the config values for performance
+    // Cache for client values
     private static boolean cachedEnableNumpad = DEFAULT_ENABLE_NUMPAD;
+
+    // Cache for server values
     private static double cachedLocationalRange = DEFAULT_LOCATIONAL_RANGE;
     private static double cachedHandheldRange = DEFAULT_HANDHELD_RANGE;
     private static long cachedRingTimeout = DEFAULT_RING_TIMEOUT;
@@ -99,19 +128,24 @@ public class ModConfig {
      */
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
-        // Update cached values when config changes, with fallback to defaults
-        cachedEnableNumpad = SERVER.enableNumpadSupport.get();
-        cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
-        cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
-        cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
-        cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
+        if (event.getConfig().getSpec() == CLIENT_SPEC) {
+            // Client config changed
+            cachedEnableNumpad = CLIENT.enableNumpadSupport.get();
+            System.out.println("TransponderSnails client config loaded:");
+            System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
+        } else if (event.getConfig().getSpec() == SERVER_SPEC) {
+            // Server config changed
+            cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
+            cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
+            cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
+            cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
 
-        System.out.println("TransponderSnails config loaded:");
-        System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
-        System.out.println("  Locational Snail Range: " + cachedLocationalRange);
-        System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
-        System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
-        System.out.println("  Interaction Range: " + cachedInteractionRange);
+            System.out.println("TransponderSnails server config loaded:");
+            System.out.println("  Locational Snail Range: " + cachedLocationalRange);
+            System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
+            System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
+            System.out.println("  Interaction Range: " + cachedInteractionRange);
+        }
     }
 
     /**
@@ -136,13 +170,23 @@ public class ModConfig {
         return value;
     }
 
+    // Client config getters
     public static boolean isNumpadEnabled() {
         return cachedEnableNumpad;
     }
 
-    // Getter methods for cached values with additional safety checks
+    /**
+     * Updates the numpad setting and saves immediately
+     * Used by the client config GUI
+     */
+    public static void setNumpadEnabled(boolean enabled) {
+        CLIENT.enableNumpadSupport.set(enabled);
+        cachedEnableNumpad = enabled;
+        CLIENT_SPEC.save(); // Save immediately
+    }
+
+    // Server config getters
     public static double getLocationalSnailRange() {
-        // Extra safety check in case cached value becomes invalid
         if (cachedLocationalRange <= 0 || Double.isNaN(cachedLocationalRange)) {
             System.out.println("TransponderSnails: Cached locational range invalid, using default");
             return DEFAULT_LOCATIONAL_RANGE;
@@ -172,38 +216,5 @@ public class ModConfig {
             return DEFAULT_INTERACTION_RANGE;
         }
         return cachedInteractionRange;
-    }
-
-    /**
-     * Utility method to validate and clamp values if needed
-     */
-    public static double clampRange(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    // Add this method to your ModConfig class:
-
-    /**
-     * Temporarily updates the cached numpad value for immediate effect
-     * This is used by the config screen to apply changes before saving
-     * @param enabled The new enabled state
-     */
-    public static void setNumpadEnabledTemporary(boolean enabled) {
-        cachedEnableNumpad = enabled;
-    }
-
-    /**
-     * Forces a reload of all cached values from the config
-     * Call this after saving the config to ensure cache is updated
-     */
-    public static void reloadCachedValues() {
-        cachedEnableNumpad = SERVER.enableNumpadSupport.get();
-        cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
-        cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
-        cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
-        cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
-
-        System.out.println("TransponderSnails config reloaded:");
-        System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
     }
 }

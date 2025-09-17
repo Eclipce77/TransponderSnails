@@ -7,7 +7,6 @@ import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.commands.CallCommand;
 import net.eclipce.transpondersnails.commands.SnailNumberCommand;
-import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
@@ -60,7 +59,14 @@ public class TransponderSnails {
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.MENU_TYPES.register(modEventBus);
 
-        ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.SERVER, ModConfig.SERVER_SPEC);
+        ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.CLIENT,
+                net.eclipce.transpondersnails.config.ModConfig.CLIENT_SPEC,
+                "transpondersnails-client.toml");
+
+        // Server config goes in the world's serverconfig folder
+        ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.SERVER,
+                net.eclipce.transpondersnails.config.ModConfig.SERVER_SPEC,
+                "transpondersnails-server.toml");
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);

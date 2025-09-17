@@ -6,7 +6,9 @@ import net.eclipce.transpondersnails.screen.DialingScreen;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
@@ -18,7 +20,13 @@ public class ClientSetup {
         event.enqueueWork(() -> {
             // Register the screen for the menu type
             MenuScreens.register(ModMenuTypes.DIALING_MENU.get(), DialingScreen::new);
-            ConfigScreenFactory.register();
         });
+
+        ModLoadingContext.get().registerExtensionPoint(
+                ConfigScreenHandler.ConfigScreenFactory.class,
+                () -> new ConfigScreenHandler.ConfigScreenFactory(
+                        (minecraft, parentScreen) -> new ClientConfigScreen(parentScreen)
+                )
+        );
     }
 }
