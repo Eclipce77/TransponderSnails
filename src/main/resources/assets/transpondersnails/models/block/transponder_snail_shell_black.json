@@ -1,0 +1,6 @@
+{
+	"parent": "transpondersnails:block/transponder_snail",
+	"textures": {
+		"shell": "transpondersnails:block/transpondersnail/shell/transponder_snail_shell_black"
+	}
+}

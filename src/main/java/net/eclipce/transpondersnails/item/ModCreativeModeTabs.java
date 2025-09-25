@@ -18,6 +18,7 @@ public class ModCreativeModeTabs {
             () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.TRANSPONDER_SNAIL.get()))
                     .title(Component.translatable("creativetab.transpondersnails"))
                     .displayItems((pParameters, pOutput) -> {
+                        pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModItems.DEN_DEN_MUSHI.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.ROTARY_DIAL.get());

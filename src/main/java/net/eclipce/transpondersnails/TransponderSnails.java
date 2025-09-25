@@ -7,6 +7,8 @@ import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.commands.CallCommand;
 import net.eclipce.transpondersnails.commands.SnailNumberCommand;
+import net.eclipce.transpondersnails.entity.ModEntities;
+import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
@@ -15,7 +17,9 @@ import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -31,6 +35,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
+import javax.swing.text.html.parser.Entity;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -56,7 +61,9 @@ public class TransponderSnails {
 
         ModSounds.register(modEventBus);
 
+        ModEntities.register(modEventBus);
         ModBlockEntities.register(modEventBus);
+
         ModMenuTypes.MENU_TYPES.register(modEventBus);
 
         ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.CLIENT,
@@ -158,11 +165,12 @@ public class TransponderSnails {
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
     @Mod.EventBusSubscriber(modid = MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static class ClientModEvents
-    {
+    public static class ClientModEvents {
         @SubscribeEvent
-        public static void onClientSetup(FMLClientSetupEvent event)
-        {
+        public static void onClientSetup(FMLClientSetupEvent event) {
+
+            EntityRenderers.register(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiRenderer::new);
+
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
