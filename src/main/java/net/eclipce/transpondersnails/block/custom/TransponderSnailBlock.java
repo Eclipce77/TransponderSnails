@@ -5,12 +5,15 @@ import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
@@ -24,6 +27,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
@@ -91,7 +95,7 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState pState) {
-        return RenderShape.MODEL;
+        return RenderShape.ENTITYBLOCK_ANIMATED;
     }
 
     @Override
@@ -127,14 +131,24 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             return InteractionResult.PASS;
         }
 
-        // Get the block entity
+        ItemStack itemStack = player.getItemInHand(hand);
         BlockEntity blockEntity = level.getBlockEntity(pos);
+
         if (blockEntity instanceof TransponderSnailBlockEntity snailEntity && player instanceof ServerPlayer serverPlayer) {
 
-            // Check if player is sneaking
-            boolean isSneaking = player.isShiftKeyDown();
+            // Check for dye interaction first (before existing logic)
+            if (itemStack.getItem() instanceof DyeItem) {
+                if (snailEntity.applyDye(itemStack.getItem(), serverPlayer)) {
+                    if (!player.isCreative()) {
+                        itemStack.shrink(1);
+                    }
+                    return InteractionResult.SUCCESS;
+                }
+                return InteractionResult.FAIL;
+            }
 
-            // Use the enhanced interaction method
+            // Existing interaction logic continues here...
+            boolean isSneaking = player.isShiftKeyDown();
             return snailEntity.onPlayerInteraction(serverPlayer, isSneaking);
         }
 
@@ -199,9 +213,23 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
         if (!level.isClientSide) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
-                // Restore snail data from the item
                 snailBE.loadFromItem(stack);
-                System.out.println("TransponderSnailBlock: Placed block, restoring data from item");
+
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null && nbt.contains("body_color")) {
+                    // Load colors from item
+                    snailBE.bodyColor = nbt.getInt("body_color");
+                    snailBE.shellColor = nbt.getInt("shell_color");
+                    snailBE.colorsInitialized = true;
+                    System.out.println("TransponderSnailBlock: Loaded colors from item");
+                } else {
+                    // Initialize new colors if not from item
+                    snailBE.ensureColorsInitialized();
+                    System.out.println("TransponderSnailBlock: Initialized new colors");
+                }
+
+                snailBE.setChanged();
+                level.sendBlockUpdated(pos, state, state, Block.UPDATE_ALL);
             }
         }
     }
@@ -226,6 +254,14 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
         }
 
         return drops;
+    }
+
+    /**
+     * Get the shell variant model name based on shell color
+     */
+    public static String getShellVariantModel(int shellColor) {
+        DyeColor dyeColor = DyeColor.byId(shellColor);
+        return "transponder_snail_shell_" + dyeColor.getName();
     }
 
     /**
@@ -341,6 +377,20 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             return state.getValue(IN_CALL);
         }
         return false;
+    }
+
+    /**
+     * Updates the shell color blockstate
+     */
+    public static void updateShellColor(Level level, BlockPos pos, int shellColor) {
+        if (level.isClientSide()) {
+            return;
+        }
+
+        BlockState currentState = level.getBlockState(pos);
+        if (!(currentState.getBlock() instanceof TransponderSnailBlock)) {
+            return;
+        }
     }
 
     // =================== DEBUG METHODS ===================

@@ -1,5 +1,7 @@
 package net.eclipce.transpondersnails.block.entity;
 
+import net.eclipce.transpondersnails.item.DenDenMushiItem;
+import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.screen.DialingMenu;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.eclipce.transpondersnails.voice.server.CallSoundManager;
@@ -16,6 +18,7 @@ import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,6 +31,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
@@ -75,9 +79,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     private boolean audioReady = false;
 
     // Snail color data
-    private int bodyColor = -1; // RGB color for snail body (-1 = uninitialized)
-    private int shellColor = 0; // Dye color index (0-15, default white)
-    private boolean colorsInitialized = false;
+    public int bodyColor = -1; // RGB color for snail body (-1 = uninitialized)
+    public int shellColor = 0; // Dye color index (0-15, default white)
+    public boolean colorsInitialized = false;
 
     // UV mask texture path for eye protection
     private static final ResourceLocation UV_MASK_TEXTURE =
@@ -681,6 +685,135 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         return currentCallState;
     }
 
+    // =================== ENHANCED COLOR METHODS ===================
+
+    /**
+     * Transfer colors from a Den Den Mushi item to this block entity
+     * Used during crafting or placement
+     */
+    public void transferColorsFromDenDenMushi(ItemStack denDenMushiItem) {
+        if (denDenMushiItem.getItem() instanceof DenDenMushiItem && DenDenMushiItem.isCaptured(denDenMushiItem)) {
+            this.bodyColor = DenDenMushiItem.getBodyColor(denDenMushiItem);
+            this.shellColor = DenDenMushiItem.getShellColor(denDenMushiItem);
+            this.colorsInitialized = true;
+            setChanged();
+
+            System.out.println("TransponderSnailBlockEntity: Transferred colors from Den Den Mushi - " +
+                    "Body: #" + Integer.toHexString(bodyColor) +
+                    ", Shell: " + DyeColor.byId(shellColor).getName());
+        }
+    }
+
+    /**
+     * Create a Den Den Mushi item with this block entity's colors
+     * Used when breaking the block with colors preserved
+     */
+    public ItemStack createDenDenMushiWithColors() {
+        ItemStack stack = new ItemStack(ModItems.DEN_DEN_MUSHI.get());
+
+        if (colorsInitialized) {
+            CompoundTag nbt = stack.getOrCreateTag();
+            nbt.putInt("BodyColor", bodyColor);
+            nbt.putInt("ShellColor", shellColor);
+        }
+
+        return stack;
+    }
+
+    public boolean isColorsInitialized() {
+        return colorsInitialized;
+    }
+
+    /**
+     * Check if this block entity can be dyed
+     */
+    public boolean canBeDyed() {
+        return colorsInitialized || hasAssignedNumber();
+    }
+
+    /**
+     * Apply dye to this block entity (enhanced version)
+     */
+    public boolean applyDye(Item dyeItem, @Nullable Player player) {
+        if (dyeItem instanceof DyeItem dye) {
+            // REMOVED: Don't call initializeSnailColors here - colors should already exist
+
+            int newColor = dye.getDyeColor().getId();
+            if (newColor != shellColor) {
+                setShellColor(newColor);
+
+                if (player instanceof ServerPlayer serverPlayer) {
+                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail shell dyed " +
+                                    dye.getDyeColor().getName().replace("_", " ") + "!")
+                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+                }
+
+                return true;
+            } else {
+                if (player instanceof ServerPlayer serverPlayer) {
+                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail is already " +
+                                    dye.getDyeColor().getName().replace("_", " ") + "!")
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                }
+            }
+        }
+        return false;
+    }
+
+
+
+    /**
+     * Gets color data formatted for client-side rendering
+     */
+    public CompoundTag getColorData() {
+        CompoundTag data = new CompoundTag();
+        data.putInt("BodyColor", getBodyColor());
+        data.putInt("ShellColor", shellColor);
+        data.putBoolean("ColorsInitialized", colorsInitialized);
+        return data;
+    }
+
+    /**
+     * Enhanced version that includes colors in render data
+     */
+    public CompoundTag getBlockEntityRenderData() {
+        CompoundTag data = new CompoundTag();
+        data.putInt("BodyColor", getBodyColor());
+        data.putInt("ShellColor", shellColor);
+        data.putBoolean("ColorsInitialized", colorsInitialized);
+        return data;
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = super.getUpdateTag();
+        saveAdditional(tag);
+
+        System.out.println("getUpdateTag called - ShellColor: " + tag.getInt("ShellColor") +
+                ", BodyColor: " + tag.getInt("BodyColor") +
+                ", UUID: " + (tag.hasUUID("SnailUUID") ? tag.getUUID("SnailUUID") : "null"));
+
+        return tag;
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        System.out.println("handleUpdateTag called - ShellColor in tag: " + tag.getInt("ShellColor") +
+                ", isClientSide: " + (level != null && level.isClientSide));
+        super.handleUpdateTag(tag);
+        load(tag);
+    }
+
+    // 3. Test method - Add this temporarily to debug
+    public void testColorSystem() {
+        System.out.println("=== TransponderSnail Color Debug ===");
+        System.out.println("Colors initialized: " + colorsInitialized);
+        System.out.println("Body color: #" + Integer.toHexString(bodyColor));
+        System.out.println("Shell color: " + shellColor + " (" + DyeColor.byId(shellColor).getName() + ")");
+        System.out.println("Level client side: " + (level != null ? level.isClientSide : "null"));
+        System.out.println("===================================");
+    }
+
     // =================== LIFECYCLE METHODS ===================
 
     /**
@@ -689,6 +822,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     @Override
     public void onLoad() {
         super.onLoad();
+
+        if (level != null && level.isClientSide && !colorsInitialized) {
+            // Request sync from server on client load
+            setChanged();
+        }
 
         if (!level.isClientSide && !isUnloading) {
             System.out.println("TransponderSnailBlockEntity: onLoad called for position " + worldPosition);
@@ -918,6 +1056,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     initializeSnailColors();
                     setChanged();
 
+                    // Update blockstate with initial shell color
+                    if (level != null && !level.isClientSide) {
+                        BlockState currentState = level.getBlockState(worldPosition);
+                        level.sendBlockUpdated(worldPosition, currentState, currentState, Block.UPDATE_ALL);
+                        System.out.println("TransponderSnailBlock: Assigned number and forced color sync");
+                    }
+
                     // Register with call manager
                     registerWithCallManager();
 
@@ -1018,7 +1163,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     /**
      * When the block is broken, preserves the snail data in the dropped item
      */
+    @Override
     public void saveToItem(ItemStack stack) {
+        // Call existing saveToItem logic
         unregisterFromCallManager();
 
         if (activeCallId != null && isCallManagerAvailable()) {
@@ -1037,14 +1184,23 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             blockEntityTag.putUUID("SnailUUID", snailUUID);
             blockEntityTag.putInt("AssignedNumber", assignedSnailNumber);
             blockEntityTag.putBoolean("Initialized", initialized);
-            nbt.put("BlockEntityTag", blockEntityTag);
 
-            System.out.println("TransponderSnailBlockEntity: Saved snail data to item - UUID: " + snailUUID + ", Number: #" + assignedSnailNumber);
-
+            // Save colors to both item NBT and BlockEntityTag
             if (colorsInitialized) {
                 nbt.putInt("body_color", bodyColor);
                 nbt.putInt("shell_color", shellColor);
+
+                blockEntityTag.putInt("BodyColor", bodyColor);
+                blockEntityTag.putInt("ShellColor", shellColor);
+                blockEntityTag.putBoolean("ColorsInitialized", colorsInitialized);
             }
+
+            nbt.put("BlockEntityTag", blockEntityTag);
+
+            System.out.println("TransponderSnailBlockEntity: Saved snail data to item - UUID: " + snailUUID +
+                    ", Number: #" + assignedSnailNumber +
+                    (colorsInitialized ? ", Colors: #" + Integer.toHexString(bodyColor) +
+                            "/" + DyeColor.byId(shellColor).getName() : ""));
         }
     }
 
@@ -1172,26 +1328,66 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     // =================== COLOR CUSTOMIZATION METHODS ===================
 
     /**
+     * Sets the shell color (when dyed)
+     * @param dyeColor The dye color to apply (0-15)
+     */
+    public void setShellColor(int dyeColor) {
+        System.out.println("setShellColor BEFORE - shellColor: " + this.shellColor +
+                ", bodyColor: " + Integer.toHexString(this.bodyColor) +
+                ", colorsInitialized: " + this.colorsInitialized);
+
+        if (dyeColor >= 0 && dyeColor <= 15 && dyeColor != this.shellColor) {
+            this.shellColor = dyeColor;
+            setChanged();
+
+            if (level != null && !level.isClientSide) {
+                BlockState state = level.getBlockState(worldPosition);
+                level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
+                System.out.println("TransponderSnailBlockEntity: Shell color changed to " +
+                        DyeColor.byId(dyeColor).getName() + " - Body color: #" + Integer.toHexString(bodyColor));
+                System.out.println("Sent block update packet!");
+            }
+        } else {
+            System.out.println("setShellColor SKIPPED - condition failed");
+        }
+    }
+
+    /**
      * Initializes random pastel colors for this snail
      * Called when the snail is first assigned a number
      */
     private void initializeSnailColors() {
+        System.out.println("initializeSnailColors called - already initialized: " + colorsInitialized +
+                ", isClientSide: " + (level != null && level.isClientSide) +
+                ", STACK TRACE:");
+        Thread.dumpStack(); // This will show WHERE it's being called from
+
         if (colorsInitialized) {
             return;
         }
 
-        // Generate random pastel color for body
         this.bodyColor = generateRandomPastelColor();
-
-        // Optionally randomize shell color or keep default
-        // For now, keeping default white (0) - can be changed with dyes
         this.shellColor = 0;
-
         this.colorsInitialized = true;
         setChanged();
 
         System.out.println("TransponderSnailBlockEntity: Initialized colors - Body: #" +
-                Integer.toHexString(bodyColor) + ", Shell: " + DyeColor.byId(shellColor).getName());
+                Integer.toHexString(bodyColor) + ", Shell: white");
+
+        if (level != null && !level.isClientSide) {
+            BlockState state = level.getBlockState(worldPosition);
+            // Force immediate sync
+            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
+
+            // Schedule another sync on next tick for late-loading clients
+            level.getServer().execute(() -> {
+                if (!this.isRemoved() && this.level != null) {
+                    BlockState currentState = level.getBlockState(worldPosition);
+                    level.sendBlockUpdated(worldPosition, currentState, currentState, Block.UPDATE_ALL);
+                    System.out.println("TransponderSnailBlockEntity: Delayed sync executed for colors");
+                }
+            });
+        }
     }
 
     /**
@@ -1250,6 +1446,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Gets the body color for this snail
      */
     public int getBodyColor() {
+        System.out.println("getBodyColor called - colorsInitialized: " + colorsInitialized +
+                ", bodyColor: #" + Integer.toHexString(bodyColor) +
+                ", isClientSide: " + (level != null && level.isClientSide));
+
         if (!colorsInitialized) {
             initializeSnailColors();
         }
@@ -1260,71 +1460,15 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Gets the shell color (dye index) for this snail
      */
     public int getShellColor() {
+        System.out.println("getShellColor called - shellColor: " + shellColor +
+                ", isClientSide: " + (level != null && level.isClientSide));
         return shellColor;
     }
 
-    /**
-     * Sets the shell color (when dyed)
-     * @param dyeColor The dye color to apply (0-15)
-     */
-    public void setShellColor(int dyeColor) {
-        if (dyeColor >= 0 && dyeColor <= 15) {
-            this.shellColor = dyeColor;
-            setChanged();
-            updateBlockstateVisuals();
+    public void ensureColorsInitialized() {
+        if (!colorsInitialized) {
+            initializeSnailColors();
         }
-    }
-
-    /**
-     * Applies dye to the snail shell
-     * @param dyeItem The dye item being used
-     * @return true if dye was applied successfully
-     */
-    public boolean applyDye(Item dyeItem) {
-        if (dyeItem instanceof DyeItem dye) {
-            int newColor = dye.getDyeColor().getId();
-            if (newColor != shellColor) {
-                setShellColor(newColor);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Checks if UV mask should be applied (eyes protected from tinting)
-     * Based on current blockstate (active/call states)
-     */
-    public boolean shouldApplyUVMask() {
-        // Apply UV mask only in active or call states
-        BlockState state = level.getBlockState(worldPosition);
-        if (state.getBlock() instanceof TransponderSnailBlock) {
-            boolean hasSound = state.getValue(TransponderSnailBlock.HAS_SOUND);
-            boolean inCall = state.getValue(TransponderSnailBlock.IN_CALL);
-
-            // Apply mask when in active state (call with sound) or just in call
-            return inCall || (hasSound && currentCallState == CallStateSyncPacket.CallState.CONNECTED);
-        }
-        return false;
-    }
-
-    /**
-     * Gets the UV mask texture location
-     */
-    public static ResourceLocation getUVMaskTexture() {
-        return UV_MASK_TEXTURE;
-    }
-
-    /**
-     * Gets render data for the renderer
-     * @return A compound tag with color and mask data
-     */
-    public CompoundTag getRenderData() {
-        CompoundTag data = new CompoundTag();
-        data.putInt("BodyColor", getBodyColor());
-        data.putInt("ShellColor", shellColor);
-        data.putBoolean("ApplyMask", shouldApplyUVMask());
-        return data;
     }
 
     // =================== NBT SERIALIZATION ===================
@@ -1359,12 +1503,44 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     }
 
     @Override
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        System.out.println("getUpdatePacket called on " + (level != null && level.isClientSide ? "CLIENT" : "SERVER"));
+        CompoundTag tag = getUpdateTag();
+        System.out.println("  ShellColor in packet: " + tag.getInt("ShellColor"));
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt) {
+        System.out.println("onDataPacket received on CLIENT");
+        CompoundTag tag = pkt.getTag();
+        if (tag != null) {
+            System.out.println("  ShellColor in received packet: " + tag.getInt("ShellColor"));
+            handleUpdateTag(tag);
+        } else {
+            System.out.println("  ERROR: packet tag is NULL!");
+        }
+    }
+
+    @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+
+        // FIXED: Use contains() not hasUUID() for integers!
+        if (tag.contains("BodyColor")) {
+            this.bodyColor = tag.getInt("BodyColor");
+            this.shellColor = tag.getInt("ShellColor");
+            this.colorsInitialized = tag.getBoolean("ColorsInitialized");
+
+            System.out.println("LOADED COLORS: shellColor=" + this.shellColor +
+                    ", bodyColor=" + Integer.toHexString(this.bodyColor));
+        }
 
         if (tag.hasUUID("SnailUUID")) {
             this.snailUUID = tag.getUUID("SnailUUID");
         }
+
         this.assignedSnailNumber = tag.getInt("AssignedNumber");
         this.initialized = tag.getBoolean("Initialized");
 
@@ -1394,9 +1570,5 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.hasAmbientSound = tag.getBoolean("HasAmbientSound");
         this.inActiveCall = tag.getBoolean("InActiveCall");
         this.audioReady = tag.getBoolean("AudioReady"); // Add this line
-
-        this.bodyColor = tag.getInt("BodyColor");
-        this.shellColor = tag.getInt("ShellColor");
-        this.colorsInitialized = tag.getBoolean("ColorsInitialized");
     }
 }

@@ -18,7 +18,7 @@ public class ModItems {
                     new Item.Properties()));
 
     public static final RegistryObject<Item> DEN_DEN_MUSHI = ITEMS.register("den_den_mushi",
-            () -> new Item(new Item.Properties().stacksTo(1)));
+            () -> new DenDenMushiItem(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> ROTARY_DIAL = ITEMS.register("rotary_dial",
             () -> new Item(new Item.Properties()));

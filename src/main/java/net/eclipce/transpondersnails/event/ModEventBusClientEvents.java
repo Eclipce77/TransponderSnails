@@ -1,12 +1,24 @@
 package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
+import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntityRenderer;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
 import net.eclipce.transpondersnails.entity.client.ModModelLayers;
+import net.eclipce.transpondersnails.item.DenDenMushiItem;
+import net.eclipce.transpondersnails.item.ModItems;
+import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod.EventBusSubscriber(modid = TransponderSnails.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ModEventBusClientEvents {
@@ -14,5 +26,89 @@ public class ModEventBusClientEvents {
     @SubscribeEvent
     public static void registerLayer(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(ModModelLayers.DEN_DEN_MUSHI_LAYER, DenDenMushiModel::createBodyLayer);
+    }
+
+    // In your client setup event handler
+    @SubscribeEvent
+    public static void registerItemModelPredicates(FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            // Register shell color predicate
+            ItemProperties.register(ModItems.DEN_DEN_MUSHI.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        // Return shell color ID directly as decimal (0.00, 0.01, 0.02, etc.)
+                        int shellColor = DenDenMushiItem.getShellColor(stack);
+                        float predicateValue = shellColor / 100.0f;
+                        System.out.println("Model Predicate Called: shell_color=" + shellColor +
+                                ", predicate_value=" + predicateValue);
+                        return predicateValue;
+                    });
+
+            // Optional: Add predicate to check if item is captured
+            ItemProperties.register(ModItems.DEN_DEN_MUSHI.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "captured"),
+                    (stack, world, entity, seed) -> {
+                        return DenDenMushiItem.isCaptured(stack) ? 1.0f : 0.0f;
+                    });
+        });
+    }
+
+    @SubscribeEvent
+    public static void onModelRegister(net.minecraftforge.client.event.ModelEvent.RegisterAdditional event) {
+        String[] states = {"transponder_snail", "transponder_snail_sound", "transponder_snail_call", "transponder_snail_active"};
+        String[] colors = {"white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
+                "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"};
+
+        for (String state : states) {
+            for (String color : colors) {
+                event.register(new ResourceLocation(TransponderSnails.MOD_ID, "block/" + state + "_shell_" + color));
+            }
+        }
+
+        System.out.println("Registered 64 transponder snail model variants for BER");
+    }
+
+    // Register item color provider in your client setup
+    @SubscribeEvent
+    public static void registerItemColors(RegisterColorHandlersEvent.Item event) {
+        // Register existing Den Den Mushi item coloring
+        event.register((stack, tintIndex) -> {
+            if (!(stack.getItem() instanceof DenDenMushiItem)) {
+                return -1;
+            }
+
+            if (tintIndex == 0 && DenDenMushiItem.isCaptured(stack)) {
+                return DenDenMushiItem.getBodyColor(stack);
+            }
+
+            return -1;
+        }, ModItems.DEN_DEN_MUSHI.get());
+
+        // Register Transponder Snail block item coloring
+        event.register((stack, tintIndex) -> {
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null) {
+                    if (nbt.contains("body_color")) {
+                        return nbt.getInt("body_color");
+                    }
+                    if (nbt.contains("BlockEntityTag")) {
+                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                        if (beTag.contains("BodyColor")) {
+                            return beTag.getInt("BodyColor");
+                        }
+                    }
+                }
+            }
+            return -1;
+        }, ModBlocks.TRANSPONDER_SNAIL.get());
+    }
+
+    @SubscribeEvent
+    public static void registerBlockEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(
+                ModBlockEntities.TRANSPONDER_SNAIL_BE.get(),
+                TransponderSnailBlockEntityRenderer::new
+        );
     }
 }

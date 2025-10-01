@@ -1,67 +1,23 @@
 {
   "variants": {
-    "facing=north,has_sound=false,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail"
-    },
-    "facing=north,has_sound=true,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail_sound"
-    },
-    "facing=north,has_sound=false,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_call"
-    },
-    "facing=north,has_sound=true,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_active"
-    },
+    "facing=north,has_sound=false,in_call=false": { "model": "transpondersnails:block/transponder_snail_shell_white" },
+    "facing=south,has_sound=false,in_call=false": { "model": "transpondersnails:block/transponder_snail_shell_white", "y": 180 },
+    "facing=east,has_sound=false,in_call=false": { "model": "transpondersnails:block/transponder_snail_shell_white", "y": 90 },
+    "facing=west,has_sound=false,in_call=false": { "model": "transpondersnails:block/transponder_snail_shell_white", "y": 270 },
 
-    "facing=east,has_sound=false,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail",
-      "y": 90
-    },
-    "facing=east,has_sound=true,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail_sound",
-      "y": 90
-    },
-    "facing=east,has_sound=false,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_call",
-      "y": 90
-    },
-    "facing=east,has_sound=true,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_active",
-      "y": 90
-    },
+    "facing=north,has_sound=true,in_call=false": { "model": "transpondersnails:block/transponder_snail_sound_shell_white" },
+    "facing=south,has_sound=true,in_call=false": { "model": "transpondersnails:block/transponder_snail_sound_shell_white", "y": 180 },
+    "facing=east,has_sound=true,in_call=false": { "model": "transpondersnails:block/transponder_snail_sound_shell_white", "y": 90 },
+    "facing=west,has_sound=true,in_call=false": { "model": "transpondersnails:block/transponder_snail_sound_shell_white", "y": 270 },
 
-    "facing=south,has_sound=false,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail",
-      "y": 180
-    },
-    "facing=south,has_sound=true,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail_sound",
-      "y": 180
-    },
-    "facing=south,has_sound=false,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_call",
-      "y": 180
-    },
-    "facing=south,has_sound=true,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_active",
-      "y": 180
-    },
+    "facing=north,has_sound=false,in_call=true": { "model": "transpondersnails:block/transponder_snail_call_shell_white" },
+    "facing=south,has_sound=false,in_call=true": { "model": "transpondersnails:block/transponder_snail_call_shell_white", "y": 180 },
+    "facing=east,has_sound=false,in_call=true": { "model": "transpondersnails:block/transponder_snail_call_shell_white", "y": 90 },
+    "facing=west,has_sound=false,in_call=true": { "model": "transpondersnails:block/transponder_snail_call_shell_white", "y": 270 },
 
-    "facing=west,has_sound=false,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail",
-      "y": 270
-    },
-    "facing=west,has_sound=true,in_call=false": {
-      "model": "transpondersnails:block/transponder_snail_sound",
-      "y": 270
-    },
-    "facing=west,has_sound=false,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_call",
-      "y": 270
-    },
-    "facing=west,has_sound=true,in_call=true": {
-      "model": "transpondersnails:block/transponder_snail_active",
-      "y": 270
-    }
+    "facing=north,has_sound=true,in_call=true": { "model": "transpondersnails:block/transponder_snail_active_shell_white" },
+    "facing=south,has_sound=true,in_call=true": { "model": "transpondersnails:block/transponder_snail_active_shell_white", "y": 180 },
+    "facing=east,has_sound=true,in_call=true": { "model": "transpondersnails:block/transponder_snail_active_shell_white", "y": 90 },
+    "facing=west,has_sound=true,in_call=true": { "model": "transpondersnails:block/transponder_snail_active_shell_white", "y": 270 }
   }
 }

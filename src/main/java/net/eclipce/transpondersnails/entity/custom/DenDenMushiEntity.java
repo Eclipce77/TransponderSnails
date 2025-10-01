@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.entity.custom;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
+import net.eclipce.transpondersnails.item.DenDenMushiItem;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -8,16 +9,19 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.control.SmoothSwimmingMoveControl;
 import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
@@ -27,10 +31,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.ServerLevelAccessor;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.Random;
 
 public class DenDenMushiEntity extends Animal {
     public DenDenMushiEntity(EntityType<? extends Animal> pAnimal, Level pLevel) {
@@ -59,7 +61,6 @@ public class DenDenMushiEntity extends Animal {
         } else {
             --this.idleAnimationTimeout;
         }
-
     }
 
     @Override
@@ -78,13 +79,10 @@ public class DenDenMushiEntity extends Animal {
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new BreedGoal(this, 1.15D));
         this.goalSelector.addGoal(1, new TemptGoal(this, 1.2D, Ingredient.of(Items.KELP), false));
-
         this.goalSelector.addGoal(2, new RandomStrollGoal(this, 1.1D));
         this.goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 3f));
         this.goalSelector.addGoal(4, new RandomLookAroundGoal(this));
-
         this.goalSelector.addGoal(5, new PanicGoal(this, 1.1D));
-
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -120,32 +118,62 @@ public class DenDenMushiEntity extends Animal {
         return SoundEvents.AXOLOTL_DEATH;
     }
 
-    // Color Stuff //
-
-    // Add this method to initialize entity data:
+    // Color Stuff - Fixed synchronization
     @Override
     protected void defineSynchedData() {
         super.defineSynchedData();
-        // Generate random pastel body color on spawn
-        this.entityData.define(BODY_COLOR, generateRandomPastelColor());
-        // Default shell color (white)
-        this.entityData.define(SHELL_COLOR, 0);
+
+        // Define with defaults - actual values will be set in finalizeSpawn
+        this.entityData.define(BODY_COLOR, 0xF5E6A3); // Default pastel yellow
+        this.entityData.define(SHELL_COLOR, 0); // Default white
+
+        System.out.println("defineSynchedData called on " + (level().isClientSide() ? "CLIENT" : "SERVER"));
     }
 
-    // Body color generation (same as in BlockEntity)
+    // Generate colors only during spawn finalization to ensure proper sync
+    @Override
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
+                                        MobSpawnType spawnType, @Nullable SpawnGroupData spawnGroupData,
+                                        @Nullable CompoundTag nbt) {
+
+        // Only generate random colors on the server
+        if (!level.isClientSide()) {
+            int bodyColor = generateRandomPastelColor();
+            int shellColor = generateRandomShellColor();
+
+            this.setBodyColor(bodyColor);
+            this.setShellColor(shellColor);
+
+            System.out.println("SERVER: Finalized spawn with shell=" + shellColor +
+                    " (" + DyeColor.byId(shellColor).getName() +
+                    "), body=#" + Integer.toHexString(bodyColor));
+        }
+
+        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData, nbt);
+    }
+
+    // Monitor data synchronization
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+
+        if (key.equals(SHELL_COLOR)) {
+            System.out.println("SYNC: Shell color updated to " + this.getShellColor() +
+                    " (" + DyeColor.byId(this.getShellColor()).getName() +
+                    ") on " + (level().isClientSide() ? "CLIENT" : "SERVER"));
+        }
+    }
+
+    // Generate random shell color
+    private int generateRandomShellColor() {
+        return this.random.nextInt(16); // DyeColor has 16 colors (IDs 0-15)
+    }
+
+    // Generate random pastel body color
     private int generateRandomPastelColor() {
-        // Use the entity's random field directly (it's a RandomSource, not java.util.Random)
-
-        // Generate random hue (0-360 degrees)
         float hue = this.random.nextFloat();
-
-        // Pastel colors have moderate saturation (30-60%)
         float saturation = 0.7f + (this.random.nextFloat() * 0.1f);
-
-        // Pastel colors have high lightness (70-90%)
         float lightness = 0.7f + (this.random.nextFloat() * 0.2f);
-
-        // Convert HSL to RGB
         return hslToRgb(hue, saturation, lightness);
     }
 
@@ -188,22 +216,74 @@ public class DenDenMushiEntity extends Animal {
     }
 
     public int getShellColor() {
-        return this.entityData.get(SHELL_COLOR);
+        int color = this.entityData.get(SHELL_COLOR);
+        return Math.max(0, Math.min(15, color)); // Clamp to valid range (0-15)
     }
 
     public void setShellColor(int color) {
-        this.entityData.set(SHELL_COLOR, Math.max(0, Math.min(15, color)));
+        int clampedColor = Math.max(0, Math.min(15, color));
+        this.entityData.set(SHELL_COLOR, clampedColor);
+        System.out.println("Shell color set to: " + clampedColor +
+                " (" + DyeColor.byId(clampedColor).getName() + ") on " +
+                (level().isClientSide() ? "CLIENT" : "SERVER"));
     }
 
-    // Allow dyeing the shell by right-clicking with dye
+    // Enhanced mobInteract with comprehensive debugging
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        System.out.println("mobInteract called! Side: " + (level().isClientSide() ? "CLIENT" : "SERVER") +
+                ", Hand: " + hand + ", Item: " + player.getItemInHand(hand));
+
         ItemStack itemstack = player.getItemInHand(hand);
 
+        // Check for pickup first (empty hand)
+        if (itemstack.isEmpty()) {
+            System.out.println("Empty hand detected - attempting pickup");
+
+            if (!this.level().isClientSide) {
+                System.out.println("=== ENTITY PICKUP DEBUG ===");
+                System.out.println("Entity Shell Color (getter): " + this.getShellColor() +
+                        " (" + DyeColor.byId(this.getShellColor()).getName() + ")");
+                System.out.println("Entity Shell Color (raw data): " + this.entityData.get(SHELL_COLOR));
+                System.out.println("Entity Body Color: #" + Integer.toHexString(this.getBodyColor()).toUpperCase());
+
+                // Create item with this entity's data
+                ItemStack denDenMushiItem = DenDenMushiItem.createFromEntity(this);
+
+                // Debug: Verify the created item
+                System.out.println("Created item shell color: " + DenDenMushiItem.getShellColor(denDenMushiItem));
+                System.out.println("Created item body color: #" +
+                        Integer.toHexString(DenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+
+                // Give item to player
+                if (!player.getInventory().add(denDenMushiItem)) {
+                    player.drop(denDenMushiItem, false);
+                }
+
+                // Play pickup sound
+                this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
+                        SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F,
+                        ((this.random.nextFloat() - this.random.nextFloat()) * 0.7F + 1.0F) * 2.0F);
+
+                System.out.println("Entity removed from world");
+                System.out.println("========================");
+
+                // Remove entity
+                this.discard();
+            } else {
+                System.out.println("Client-side pickup - no processing needed");
+            }
+            return InteractionResult.sidedSuccess(this.level().isClientSide);
+        }
+
+        // Check for dyeing
         if (itemstack.getItem() instanceof DyeItem dyeItem) {
             if (!this.level().isClientSide) {
                 DyeColor dyeColor = dyeItem.getDyeColor();
                 if (dyeColor.getId() != this.getShellColor()) {
+                    System.out.println("Dyeing entity from " +
+                            DyeColor.byId(this.getShellColor()).getName() +
+                            " to " + dyeColor.getName());
                     this.setShellColor(dyeColor.getId());
                     if (!player.isCreative()) {
                         itemstack.shrink(1);
