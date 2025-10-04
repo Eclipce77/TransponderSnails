@@ -163,8 +163,19 @@ public class SnailNBTHandler {
         }
 
         CompoundTag nbt = stack.getTag();
-        if (nbt != null && nbt.hasUUID(SNAIL_UUID_TAG)) {
-            return nbt.getUUID(SNAIL_UUID_TAG);
+        if (nbt != null) {
+            // Check top-level NBT first
+            if (nbt.hasUUID(SNAIL_UUID_TAG)) {
+                return nbt.getUUID(SNAIL_UUID_TAG);
+            }
+
+            // ALSO check BlockEntityTag (for items that were placed as blocks then broken)
+            if (nbt.contains("BlockEntityTag")) {
+                CompoundTag blockEntityTag = nbt.getCompound("BlockEntityTag");
+                if (blockEntityTag.hasUUID("SnailUUID")) {
+                    return blockEntityTag.getUUID("SnailUUID");
+                }
+            }
         }
 
         return null;
@@ -189,9 +200,17 @@ public class SnailNBTHandler {
 
         CompoundTag nbt = stack.getOrCreateTag();
 
-        // Check cached number first
+        // Check cached number first (top level)
         if (nbt.contains(CACHED_NUMBER_TAG)) {
             return nbt.getInt(CACHED_NUMBER_TAG);
+        }
+
+        // Check BlockEntityTag for AssignedNumber
+        if (nbt.contains("BlockEntityTag")) {
+            CompoundTag blockEntityTag = nbt.getCompound("BlockEntityTag");
+            if (blockEntityTag.contains("AssignedNumber")) {
+                return blockEntityTag.getInt("AssignedNumber");
+            }
         }
 
         // No cached number - try to look up by UUID

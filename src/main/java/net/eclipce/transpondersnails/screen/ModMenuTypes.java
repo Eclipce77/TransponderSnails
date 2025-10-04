@@ -11,8 +11,7 @@ public class ModMenuTypes {
             DeferredRegister.create(ForgeRegistries.MENU_TYPES, "transpondersnails"); // Use your mod ID
 
     public static final RegistryObject<MenuType<DialingMenu>> DIALING_MENU =
-            MENU_TYPES.register("dialing_menu",
-                    () -> IForgeMenuType.create((windowId, inv, data) -> new DialingMenu(windowId, inv)));
+            MENU_TYPES.register("dialing_menu", () -> IForgeMenuType.create(DialingMenu::createFromNetwork));
 
     // Add more menu types as needed
     //public static final RegistryObject<MenuType<IncomingCallMenu>> INCOMING_CALL_MENU =

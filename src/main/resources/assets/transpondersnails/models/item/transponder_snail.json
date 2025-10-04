@@ -1,3 +1,20 @@
 {
-  "parent": "transpondersnails:block/transponder_snail"
+  "parent": "transpondersnails:block/transponder_snail_shell_white",
+  "overrides": [
+    { "predicate": { "transpondersnails:shell_color": 0.01 }, "model": "transpondersnails:block/transponder_snail_shell_orange" },
+    { "predicate": { "transpondersnails:shell_color": 0.02 }, "model": "transpondersnails:block/transponder_snail_shell_magenta" },
+    { "predicate": { "transpondersnails:shell_color": 0.03 }, "model": "transpondersnails:block/transponder_snail_shell_light_blue" },
+    { "predicate": { "transpondersnails:shell_color": 0.04 }, "model": "transpondersnails:block/transponder_snail_shell_yellow" },
+    { "predicate": { "transpondersnails:shell_color": 0.05 }, "model": "transpondersnails:block/transponder_snail_shell_lime" },
+    { "predicate": { "transpondersnails:shell_color": 0.06 }, "model": "transpondersnails:block/transponder_snail_shell_pink" },
+    { "predicate": { "transpondersnails:shell_color": 0.07 }, "model": "transpondersnails:block/transponder_snail_shell_gray" },
+    { "predicate": { "transpondersnails:shell_color": 0.08 }, "model": "transpondersnails:block/transponder_snail_shell_light_gray" },
+    { "predicate": { "transpondersnails:shell_color": 0.09 }, "model": "transpondersnails:block/transponder_snail_shell_cyan" },
+    { "predicate": { "transpondersnails:shell_color": 0.10 }, "model": "transpondersnails:block/transponder_snail_shell_purple" },
+    { "predicate": { "transpondersnails:shell_color": 0.11 }, "model": "transpondersnails:block/transponder_snail_shell_blue" },
+    { "predicate": { "transpondersnails:shell_color": 0.12 }, "model": "transpondersnails:block/transponder_snail_shell_brown" },
+    { "predicate": { "transpondersnails:shell_color": 0.13 }, "model": "transpondersnails:block/transponder_snail_shell_green" },
+    { "predicate": { "transpondersnails:shell_color": 0.14 }, "model": "transpondersnails:block/transponder_snail_shell_red" },
+    { "predicate": { "transpondersnails:shell_color": 0.15 }, "model": "transpondersnails:block/transponder_snail_shell_black" }
+  ]
 }

@@ -6,6 +6,7 @@ import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -48,6 +49,7 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     // Block properties for visual states
     public static final BooleanProperty HAS_SOUND = BooleanProperty.create("has_sound");
     public static final BooleanProperty IN_CALL = BooleanProperty.create("in_call");
+    public static final IntegerProperty SHELL_COLOR = IntegerProperty.create("shell_color", 0, 15);
 
     // Define shapes for each direction manually
     // Original NORTH: (4, 0, 2) to (12, 10.5, 15)
@@ -71,7 +73,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(HAS_SOUND, false)
-                .setValue(IN_CALL, false));
+                .setValue(IN_CALL, false)
+                .setValue(SHELL_COLOR, 0));
     }
 
     /**
@@ -95,12 +98,12 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState pState) {
-        return RenderShape.ENTITYBLOCK_ANIMATED;
+        return RenderShape.MODEL;
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, HAS_SOUND, IN_CALL);
+        builder.add(FACING, HAS_SOUND, IN_CALL, SHELL_COLOR);
     }
 
     @Override
@@ -121,13 +124,16 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-        // Only handle on server side
+        System.out.println("TransponderSnailBlock.use() called - Hand: " + hand +
+                ", ClientSide: " + level.isClientSide +
+                ", HeldItem: " + player.getItemInHand(hand).getItem());
+
         if (level.isClientSide) {
             return InteractionResult.SUCCESS;
         }
 
-        // Only handle main hand interactions
         if (hand != InteractionHand.MAIN_HAND) {
+            System.out.println("Returning PASS - not main hand");
             return InteractionResult.PASS;
         }
 
@@ -136,18 +142,41 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
         if (blockEntity instanceof TransponderSnailBlockEntity snailEntity && player instanceof ServerPlayer serverPlayer) {
 
-            // Check for dye interaction first (before existing logic)
-            if (itemStack.getItem() instanceof DyeItem) {
-                if (snailEntity.applyDye(itemStack.getItem(), serverPlayer)) {
+            // Check for dye interaction FIRST
+            if (itemStack.getItem() instanceof DyeItem dyeItem) {
+                DyeColor dyeColor = dyeItem.getDyeColor();
+                int newShellColor = dyeColor.getId();
+                int currentShellColor = state.getValue(SHELL_COLOR);
+
+                if (newShellColor != currentShellColor) {
+                    // Ensure colors are initialized
+                    if (!snailEntity.isColorsInitialized()) {
+                        snailEntity.ensureColorsInitialized();
+                    }
+
+                    // Update blockstate
+                    BlockState newState = state.setValue(SHELL_COLOR, newShellColor);
+                    level.setBlock(pos, newState, Block.UPDATE_ALL);
+
+                    // Update block entity and notify player
+                    snailEntity.setShellColor(newShellColor);
+                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail shell dyed " +
+                                    dyeColor.getName().replace("_", " ") + "!")
+                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+
                     if (!player.isCreative()) {
                         itemStack.shrink(1);
                     }
                     return InteractionResult.SUCCESS;
+                } else {
+                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail is already " +
+                                    dyeColor.getName().replace("_", " ") + "!")
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    return InteractionResult.FAIL;
                 }
-                return InteractionResult.FAIL;
             }
 
-            // Existing interaction logic continues here...
+            // NOT a dye - proceed with normal interaction (GUI, calls, etc.)
             boolean isSneaking = player.isShiftKeyDown();
             return snailEntity.onPlayerInteraction(serverPlayer, isSneaking);
         }
@@ -210,50 +239,43 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
 
+        System.out.println("=== setPlacedBy START ===");
+        System.out.println("Item NBT: " + (stack.hasTag() ? stack.getTag() : "NONE"));
+
         if (!level.isClientSide) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
+                System.out.println("BEFORE loadFromItem - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber);
+
                 snailBE.loadFromItem(stack);
 
+                System.out.println("AFTER loadFromItem - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber);
+
                 CompoundTag nbt = stack.getTag();
+                int shellColor = 0;
+
                 if (nbt != null && nbt.contains("body_color")) {
-                    // Load colors from item
                     snailBE.bodyColor = nbt.getInt("body_color");
-                    snailBE.shellColor = nbt.getInt("shell_color");
+                    shellColor = nbt.getInt("shell_color");
                     snailBE.colorsInitialized = true;
-                    System.out.println("TransponderSnailBlock: Loaded colors from item");
                 } else {
-                    // Initialize new colors if not from item
                     snailBE.ensureColorsInitialized();
-                    System.out.println("TransponderSnailBlock: Initialized new colors");
                 }
+
+                BlockState newState = level.getBlockState(pos).setValue(SHELL_COLOR, shellColor);
+                level.setBlock(pos, newState, Block.UPDATE_ALL);
 
                 snailBE.setChanged();
-                level.sendBlockUpdated(pos, state, state, Block.UPDATE_ALL);
-            }
-        }
-    }
 
-    /**
-     * Override to preserve snail data when block is broken
-     */
-    @Override
-    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
-        List<ItemStack> drops = super.getDrops(state, params);
-
-        // Get the block entity to save its data
-        BlockEntity blockEntity = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
-        if (blockEntity instanceof TransponderSnailBlockEntity snailBE && snailBE.hasAssignedNumber()) {
-            // Save the snail data to each dropped item
-            for (ItemStack drop : drops) {
-                if (drop.getItem() == this.asItem()) {
-                    snailBE.saveToItem(drop);
-                    System.out.println("TransponderSnailBlock: Saving snail data to dropped item");
+                if (level instanceof ServerLevel serverLevel) {
+                    serverLevel.getChunkSource().blockChanged(pos);
                 }
+                level.sendBlockUpdated(pos, state, newState, Block.UPDATE_ALL_IMMEDIATE);
+
+                System.out.println("FINAL - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber + ", Initialized: " + snailBE.initialized);
             }
         }
-
-        return drops;
+        System.out.println("=== setPlacedBy END ===");
     }
 
     /**
@@ -262,28 +284,6 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     public static String getShellVariantModel(int shellColor) {
         DyeColor dyeColor = DyeColor.byId(shellColor);
         return "transponder_snail_shell_" + dyeColor.getName();
-    }
-
-    /**
-     * Alternative method for preserving data when broken by player
-     */
-    @Override
-    public void playerDestroy(Level level, Player player, BlockPos pos, BlockState state,
-                              @Nullable BlockEntity blockEntity, ItemStack tool) {
-        if (blockEntity instanceof TransponderSnailBlockEntity snailBE && snailBE.hasAssignedNumber()) {
-            // Create item with preserved data
-            ItemStack itemStack = new ItemStack(this);
-            snailBE.saveToItem(itemStack);
-
-            // Drop the item
-            popResource(level, pos, itemStack);
-
-            // Prevent default drop
-            state.spawnAfterBreak((ServerLevel) level, pos, tool, true);
-            return;
-        }
-
-        super.playerDestroy(level, player, pos, state, blockEntity, tool);
     }
 
     // =================== NEW: BLOCK STATE MANAGEMENT FOR VISUAL UPDATES ===================

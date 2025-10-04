@@ -3,6 +3,7 @@ package net.eclipce.transpondersnails.block;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.item.ModItems;
+import net.eclipce.transpondersnails.item.TransponderSnailItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -16,12 +17,18 @@ import net.minecraftforge.registries.RegistryObject;
 
 import java.util.function.Supplier;
 
+import static net.eclipce.transpondersnails.item.ModItems.ITEMS;
+
 public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(ForgeRegistries.BLOCKS, TransponderSnails.MOD_ID);
 
-    public static final RegistryObject<Block> TRANSPONDER_SNAIL = registerBlockWithCustomStack("transponder_snail",
-            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)), 1);
+    // Only register the BLOCK here, not the item
+    public static final RegistryObject<Block> TRANSPONDER_SNAIL = BLOCKS.register("transponder_snail",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
+    // REMOVED: Don't register the item here - it's in ModItems.java now
+    // The custom TransponderSnailItem is registered in ModItems.java
 
     private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
@@ -29,7 +36,6 @@ public class ModBlocks {
         return toReturn;
     }
 
-    // New method for blocks with custom stack size
     private static <T extends Block> RegistryObject<T> registerBlockWithCustomStack(String name, Supplier<T> block, int stackSize) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
         registerBlockItemWithStack(name, toReturn, stackSize);
@@ -37,12 +43,11 @@ public class ModBlocks {
     }
 
     private static <T extends Block> RegistryObject<Item> registerBlockItem(String name, RegistryObject<T> block) {
-        return ModItems.ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties()));
+        return ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties()));
     }
 
-    // New method for block items with custom stack size
     private static <T extends Block> RegistryObject<Item> registerBlockItemWithStack(String name, RegistryObject<T> block, int stackSize) {
-        return ModItems.ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties().stacksTo(stackSize)));
+        return ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties().stacksTo(stackSize)));
     }
 
     public static void register(IEventBus eventBus) {

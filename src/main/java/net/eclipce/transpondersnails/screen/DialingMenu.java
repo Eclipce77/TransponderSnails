@@ -9,6 +9,7 @@ import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.network.packets.*;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -82,6 +83,23 @@ public class DialingMenu extends AbstractContainerMenu {
         // On client side, we'll wait for sync from server
         if (player.level().isClientSide) {
             requestSnailNumberSync();
+        }
+    }
+
+    // Add this static factory method for client-side menu creation
+    public static DialingMenu createFromNetwork(int containerId, Inventory playerInventory, FriendlyByteBuf buf) {
+        // Handle case where no buffer data is sent (block entity opens menu directly)
+        if (buf == null) {
+            return new DialingMenu(containerId, playerInventory);
+        }
+
+        boolean isHandheld = buf.readBoolean();
+        ItemStack snailStack = buf.readItem();
+
+        if (isHandheld) {
+            return new DialingMenu(containerId, playerInventory, snailStack);
+        } else {
+            return new DialingMenu(containerId, playerInventory);
         }
     }
 

@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.item;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeSpawnEggItem;
@@ -31,6 +32,10 @@ public class ModItems {
 
     public static final RegistryObject<Item> MICROPHONE_CAPSULE = ITEMS.register("microphone_capsule",
             () -> new Item(new Item.Properties()));
+
+    public static final RegistryObject<Item> TRANSPONDER_SNAIL = ITEMS.register("transponder_snail",
+            () -> new TransponderSnailItem(ModBlocks.TRANSPONDER_SNAIL.get(),
+                    new Item.Properties().stacksTo(1)));
 
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);

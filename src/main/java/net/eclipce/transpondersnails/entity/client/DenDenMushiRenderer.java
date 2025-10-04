@@ -41,8 +41,6 @@ public class DenDenMushiRenderer extends MobRenderer<DenDenMushiEntity, DenDenMu
     @Override
     public ResourceLocation getTextureLocation(DenDenMushiEntity entity) {
         int shellColor = entity.getShellColor();
-        System.out.println("Renderer using shell color: " + shellColor +
-                " (" + DyeColor.byId(shellColor).getName() + ")");
         return SHELL_TEXTURES[shellColor];
     }
 
