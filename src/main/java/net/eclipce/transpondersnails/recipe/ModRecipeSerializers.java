@@ -15,6 +15,10 @@ public class ModRecipeSerializers {
             RECIPE_SERIALIZERS.register("transponder_snail_crafting",
                     () -> new TransponderSnailCraftingRecipe.Serializer());
 
+    public static final RegistryObject<RecipeSerializer<DenDenMushiStonecutterRecipe>> DEN_DEN_MUSHI_STONECUTTING =
+            RECIPE_SERIALIZERS.register("den_den_mushi_stonecutting",
+                    DenDenMushiStonecutterRecipe.Serializer::new);
+
     public static void register(IEventBus eventBus) {
         RECIPE_SERIALIZERS.register(eventBus);
     }

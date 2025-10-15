@@ -101,6 +101,31 @@ public class DenDenMushiItem extends Item {
         return 0; // Default white
     }
 
+    /**
+     * Sets the body and shell colors for a Den Den Mushi item
+     */
+    public static void setColors(ItemStack stack, int bodyColor, int shellColor) {
+        if (stack.isEmpty() || !(stack.getItem() instanceof DenDenMushiItem)) {
+            return;
+        }
+
+        CompoundTag nbt = stack.getOrCreateTag();
+        nbt.putInt("BodyColor", bodyColor);
+        nbt.putInt("ShellColor", shellColor);
+    }
+
+    /**
+     * Marks the Den Den Mushi as captured (has colors)
+     */
+    public static void setCaptured(ItemStack stack, boolean captured) {
+        if (stack.isEmpty() || !(stack.getItem() instanceof DenDenMushiItem)) {
+            return;
+        }
+
+        CompoundTag nbt = stack.getOrCreateTag();
+        nbt.putBoolean("IsCaptured", captured);
+    }
+
     // Check if this item has been "captured" from an entity
     public static boolean isCaptured(ItemStack stack) {
         CompoundTag nbt = stack.getTag();

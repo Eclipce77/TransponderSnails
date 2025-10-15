@@ -24,7 +24,10 @@ public class ModItems {
     public static final RegistryObject<Item> ROTARY_DIAL = ITEMS.register("rotary_dial",
             () -> new Item(new Item.Properties()));
 
-    public static final RegistryObject<Item> COPPER_WIRE = ITEMS.register("copper_wire",
+    public static final RegistryObject<Item> COPPER_NUGGET = ITEMS.register("copper_nugget",
+            () -> new Item(new Item.Properties()));
+
+    public static final RegistryObject<Item> WIRE = ITEMS.register("wire",
             () -> new Item(new Item.Properties()));
 
     public static final RegistryObject<Item> TRANSMITTER = ITEMS.register("transmitter",
