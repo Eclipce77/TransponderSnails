@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Represents an active call session between transponder snails
- * Handles both 1-to-1 calls and multi-participant conference calls
+ * NOW WITH FULL HANDHELD SUPPORT for audio forwarding
  */
 public class CallSession {
 
@@ -28,12 +28,15 @@ public class CallSession {
     private CallState state;
 
     // Participants and their snail numbers
-    private final Map<UUID, Integer> participantSnailNumbers = new ConcurrentHashMap<>();  // Player UUID -> Snail Number
-    private final Map<Integer, CallParticipant> snailParticipants = new ConcurrentHashMap<>(); // Snail Number -> Participant Info
+    private final Map<UUID, Integer> participantSnailNumbers = new ConcurrentHashMap<>();
+    private final Map<Integer, CallParticipant> snailParticipants = new ConcurrentHashMap<>();
 
-    // Audio channels
-    private AudioChannel primaryChannel;        // Main call audio
-    private final Map<BlockPos, AudioChannel> proximityChannels = new ConcurrentHashMap<>(); // Location-based eavesdropping
+    // Audio channels - NOW INCLUDES HANDHELD!
+    private AudioChannel primaryChannel;
+    private final Map<BlockPos, AudioChannel> proximityChannels = new ConcurrentHashMap<>();
+
+    // ✨ NEW: Handheld participant audio channels
+    private final Map<UUID, AudioChannel> handheldChannels = new ConcurrentHashMap<>();
 
     // Proximity listeners (players near snail blocks who can hear the call)
     private final Set<UUID> proximityListeners = ConcurrentHashMap.newKeySet();
@@ -48,7 +51,6 @@ public class CallSession {
         this.state = CallState.INITIATING;
         this.lastActivityTime = creationTime;
 
-        // Add initiator as first participant
         addParticipant(initiatorSnailNumber, initiator);
     }
 
@@ -56,10 +58,10 @@ public class CallSession {
      * Represents a call participant - either a player with handheld snail or a placed snail block
      */
     public static class CallParticipant {
-        private final UUID playerId;           // Player UUID (null for unattended blocks)
-        private final int snailNumber;         // The snail's assigned number
-        private final ParticipantType type;    // HANDHELD or BLOCK
-        private final BlockPos blockPosition; // Position if it's a block snail (null for handheld)
+        private final UUID playerId;
+        private final int snailNumber;
+        private final ParticipantType type;
+        private final BlockPos blockPosition;
 
         public enum ParticipantType {
             HANDHELD,   // Player holding a snail
@@ -105,9 +107,6 @@ public class CallSession {
 
     // =================== PARTICIPANT MANAGEMENT ===================
 
-    /**
-     * Add a participant to the call
-     */
     public void addParticipant(int snailNumber, CallParticipant participant) {
         snailParticipants.put(snailNumber, participant);
         if (participant.hasActivePlayer()) {
@@ -116,9 +115,6 @@ public class CallSession {
         updateActivity();
     }
 
-    /**
-     * Remove a participant from the call
-     */
     public void removeParticipant(int snailNumber) {
         CallParticipant participant = snailParticipants.remove(snailNumber);
         if (participant != null && participant.hasActivePlayer()) {
@@ -127,9 +123,6 @@ public class CallSession {
         updateActivity();
     }
 
-    /**
-     * Remove participant by player UUID
-     */
     public void removeParticipantByPlayer(UUID playerId) {
         Integer snailNumber = participantSnailNumbers.remove(playerId);
         if (snailNumber != null) {
@@ -138,100 +131,61 @@ public class CallSession {
         updateActivity();
     }
 
-    /**
-     * Get participant by snail number
-     */
     @Nullable
     public CallParticipant getParticipant(int snailNumber) {
         return snailParticipants.get(snailNumber);
     }
 
-    /**
-     * Get participant by player UUID
-     */
     @Nullable
     public CallParticipant getParticipantByPlayer(UUID playerId) {
         Integer snailNumber = participantSnailNumbers.get(playerId);
         return snailNumber != null ? snailParticipants.get(snailNumber) : null;
     }
 
-    /**
-     * Check if player is a participant
-     */
     public boolean isParticipant(UUID playerId) {
         return participantSnailNumbers.containsKey(playerId);
     }
 
-    /**
-     * Check if snail is a participant
-     */
     public boolean isParticipant(int snailNumber) {
         return snailParticipants.containsKey(snailNumber);
     }
 
-    /**
-     * Get all participant snail numbers
-     */
     public Set<Integer> getParticipantSnailNumbers() {
         return new HashSet<>(snailParticipants.keySet());
     }
 
-    /**
-     * Get all active player participants
-     */
     public Set<UUID> getActivePlayerParticipants() {
         return new HashSet<>(participantSnailNumbers.keySet());
     }
 
-    /**
-     * Get all participants
-     */
     public Collection<CallParticipant> getAllParticipants() {
         return new ArrayList<>(snailParticipants.values());
     }
 
-    /**
-     * Get participant count
-     */
     public int getParticipantCount() {
         return snailParticipants.size();
     }
 
     // =================== PROXIMITY LISTENER MANAGEMENT ===================
 
-    /**
-     * Add a proximity listener (player near a snail block in the call)
-     */
     public void addProximityListener(UUID playerId) {
         if (proximityListeners.add(playerId)) {
             updateActivity();
         }
     }
 
-    /**
-     * Remove a proximity listener
-     */
     public void removeProximityListener(UUID playerId) {
         proximityListeners.remove(playerId);
     }
 
-    /**
-     * Check if player is a proximity listener
-     */
     public boolean isProximityListener(UUID playerId) {
         return proximityListeners.contains(playerId);
     }
 
-    /**
-     * Get all proximity listeners
-     */
     public Set<UUID> getProximityListeners() {
         return new HashSet<>(proximityListeners);
     }
 
-    /**
-     * Get all players who should hear this call (participants + proximity listeners)
-     */
     public Set<UUID> getAllAudioParticipants() {
         Set<UUID> allParticipants = new HashSet<>(participantSnailNumbers.keySet());
         allParticipants.addAll(proximityListeners);
@@ -240,100 +194,97 @@ public class CallSession {
 
     // =================== AUDIO CHANNEL MANAGEMENT ===================
 
-    /**
-     * Set the primary audio channel for call participants
-     */
     public void setPrimaryChannel(AudioChannel channel) {
         this.primaryChannel = channel;
     }
 
-    /**
-     * Get the primary audio channel
-     */
     @Nullable
     public AudioChannel getPrimaryChannel() {
         return primaryChannel;
     }
 
-    /**
-     * Add a proximity channel for a specific location
-     */
+    // Block channels
     public void addProximityChannel(BlockPos position, AudioChannel channel) {
         proximityChannels.put(position, channel);
     }
 
-    /**
-     * Remove proximity channel for a location
-     */
     public void removeProximityChannel(BlockPos position) {
         proximityChannels.remove(position);
     }
 
-    /**
-     * Get proximity channel for a location
-     */
     @Nullable
     public AudioChannel getProximityChannel(BlockPos position) {
         return proximityChannels.get(position);
     }
 
-    /**
-     * Get all proximity channels
-     */
     public Map<BlockPos, AudioChannel> getProximityChannels() {
         return new HashMap<>(proximityChannels);
     }
 
+    // ✨ NEW: Handheld channels
+    public void addHandheldChannel(UUID playerId, AudioChannel channel) {
+        handheldChannels.put(playerId, channel);
+        System.out.println("CallSession: Added handheld channel for player " + playerId.toString().substring(0, 8));
+    }
+
+    public void removeHandheldChannel(UUID playerId) {
+        handheldChannels.remove(playerId);
+        System.out.println("CallSession: Removed handheld channel for player " + playerId.toString().substring(0, 8));
+    }
+
+    @Nullable
+    public AudioChannel getHandheldChannel(UUID playerId) {
+        return handheldChannels.get(playerId);
+    }
+
+    public Map<UUID, AudioChannel> getHandheldChannels() {
+        return new HashMap<>(handheldChannels);
+    }
+
+    public boolean hasHandheldChannel(UUID playerId) {
+        return handheldChannels.containsKey(playerId);
+    }
+
+    // ✨ NEW: Get all audio channels (block + handheld)
+    public Collection<AudioChannel> getAllAudioChannels() {
+        List<AudioChannel> allChannels = new ArrayList<>();
+        allChannels.addAll(proximityChannels.values());
+        allChannels.addAll(handheldChannels.values());
+        if (primaryChannel != null) {
+            allChannels.add(primaryChannel);
+        }
+        return allChannels;
+    }
+
     // =================== CALL STATE MANAGEMENT ===================
 
-    /**
-     * Update call state
-     */
     public void setState(CallState newState) {
         this.state = newState;
         updateActivity();
     }
 
-    /**
-     * Get current call state
-     */
     public CallState getState() {
         return state;
     }
 
-    /**
-     * Update last activity time (called when audio is transmitted or other activity occurs)
-     */
     public void updateActivity() {
         this.lastActivityTime = System.currentTimeMillis();
     }
 
-    /**
-     * Check if call has been inactive too long
-     */
     public boolean hasTimedOut() {
         return (System.currentTimeMillis() - lastActivityTime) > INACTIVITY_TIMEOUT;
     }
 
-    /**
-     * Get time since last activity in milliseconds
-     */
     public long getTimeSinceLastActivity() {
         return System.currentTimeMillis() - lastActivityTime;
     }
 
-    /**
-     * Check if call should be automatically ended
-     */
     public boolean shouldAutoEnd() {
         return hasTimedOut() || getParticipantCount() == 0;
     }
 
     // =================== UTILITY METHODS ===================
 
-    /**
-     * Get all block positions involved in this call
-     */
     public Set<BlockPos> getInvolvedBlockPositions() {
         Set<BlockPos> positions = new HashSet<>();
         for (CallParticipant participant : snailParticipants.values()) {
@@ -344,24 +295,26 @@ public class CallSession {
         return positions;
     }
 
-    /**
-     * Check if this call involves a specific block position
-     */
+    // ✨ NEW: Get all handheld participant player IDs
+    public Set<UUID> getHandheldParticipantIds() {
+        Set<UUID> handheldPlayers = new HashSet<>();
+        for (CallParticipant participant : snailParticipants.values()) {
+            if (participant.isHandheld() && participant.hasActivePlayer()) {
+                handheldPlayers.add(participant.getPlayerId());
+            }
+        }
+        return handheldPlayers;
+    }
+
     public boolean involvesBlockPosition(BlockPos position) {
         return snailParticipants.values().stream()
                 .anyMatch(p -> p.isBlock() && position.equals(p.getBlockPosition()));
     }
 
-    /**
-     * Get call duration in milliseconds
-     */
     public long getCallDuration() {
         return System.currentTimeMillis() - creationTime;
     }
 
-    /**
-     * Create a summary string for debugging
-     */
     public String getSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("CallSession{id=%s, state=%s, duration=%ds, participants=%d, proximity=%d}",
@@ -375,6 +328,10 @@ public class CallSession {
 
         if (!proximityListeners.isEmpty()) {
             sb.append("\n  Proximity Listeners: ").append(proximityListeners.size());
+        }
+
+        if (!handheldChannels.isEmpty()) {
+            sb.append("\n  Handheld Channels: ").append(handheldChannels.size());
         }
 
         return sb.toString();
@@ -396,8 +353,8 @@ public class CallSession {
 
     @Override
     public String toString() {
-        return String.format("CallSession{id=%s, state=%s, participants=%d}",
-                callId.toString().substring(0, 8), state, getParticipantCount());
+        return String.format("CallSession{id=%s, state=%s, participants=%d, handheld=%d}",
+                callId.toString().substring(0, 8), state, getParticipantCount(), handheldChannels.size());
     }
 
     @Override

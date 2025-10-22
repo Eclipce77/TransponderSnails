@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:is_overworld",
+    "#minecraft:is_forest",
+    "#minecraft:is_jungle",
+    "#minecraft:is_beach",
+    "#minecraft:is_river"
+  ]
+}

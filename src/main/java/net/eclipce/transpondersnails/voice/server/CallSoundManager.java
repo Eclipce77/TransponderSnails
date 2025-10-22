@@ -112,11 +112,30 @@ public class CallSoundManager {
     }
 
     /**
+     * Play ringtone sound for a player with a handheld snail
+     * The sound follows the player as they move
+     */
+    public void playRingToneForPlayer(ServerPlayer player) {
+        UUID soundId = UUID.randomUUID();
+        playPlayerFollowingRepeatingSound(player, SNAIL_RINGING_SOUND, soundId,
+                SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        System.out.println("CallSoundManager: Started ringtone for player " + player.getName().getString());
+    }
+
+    /**
      * Play connection sound at snail location - AMBIENT sound that affects blockstate
      */
     public void playCallConnectedSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
         System.out.println("CallSoundManager: Played ambient connection sound at snail position " + snailPos);
+    }
+
+    /**
+     * Play connected sound for a player with a handheld snail
+     */
+    public void playConnectedSoundForPlayer(ServerPlayer player) {
+        playPlayerSound(player, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        System.out.println("CallSoundManager: Played connected sound for player " + player.getName().getString());
     }
 
     /**
@@ -128,11 +147,27 @@ public class CallSoundManager {
     }
 
     /**
+     * Play disconnected sound for a player with a handheld snail
+     */
+    public void playDisconnectedSoundForPlayer(ServerPlayer player) {
+        playPlayerSound(player, SNAIL_CALL_DISCONNECTED_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        System.out.println("CallSoundManager: Played disconnected sound for player " + player.getName().getString());
+    }
+
+    /**
      * Play pick up sound at snail location - INTERACTION sound that does NOT affect blockstate
      */
     public void playPickUpSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, HANDSET_CALL_PICK_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
         System.out.println("CallSoundManager: Played interaction pick up sound at snail position " + snailPos);
+    }
+
+    /**
+     * Play pick up sound for a player with a handheld snail
+     */
+    public void playPickUpSoundForPlayer(ServerPlayer player) {
+        playPlayerSound(player, HANDSET_CALL_PICK_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
+        System.out.println("CallSoundManager: Played pick up sound for player " + player.getName().getString());
     }
 
     /**
@@ -144,11 +179,27 @@ public class CallSoundManager {
     }
 
     /**
+     * Play hang up sound for a player with a handheld snail
+     */
+    public void playHangUpSoundForPlayer(ServerPlayer player) {
+        playPlayerSound(player, HANDSET_CALL_HANG_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
+        System.out.println("CallSoundManager: Played hang up sound for player " + player.getName().getString());
+    }
+
+    /**
      * Play busy sound at snail location - AMBIENT sound that affects blockstate
      */
     public void playBusySoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_BUSY_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
         System.out.println("CallSoundManager: Played ambient busy sound at snail position " + snailPos);
+    }
+
+    /**
+     * Play busy sound for a player with a handheld snail
+     */
+    public void playBusySoundForPlayer(ServerPlayer player) {
+        playPlayerSound(player, SNAIL_CALL_BUSY_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        System.out.println("CallSoundManager: Played busy sound for player " + player.getName().getString());
     }
 
     // =================== CORE SOUND METHODS WITH FASTER TIMING ===================
@@ -230,6 +281,64 @@ public class CallSoundManager {
         }, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
 
         System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " (" + category + ") at " + snailPos + " with " + intervalMs + "ms interval");
+    }
+
+    /**
+     * Play a one-shot sound at player's position
+     */
+    private void playPlayerSound(ServerPlayer player, ResourceLocation soundLocation, SoundCategory category) {
+        try {
+            SoundEvent soundEvent = SoundEvent.createVariableRangeEvent(soundLocation);
+
+            // Play sound at player's position
+            player.level().playSound(
+                    null,
+                    player.getX(),
+                    player.getY() + 1.5, // At head level
+                    player.getZ(),
+                    soundEvent,
+                    SoundSource.PLAYERS,
+                    1.0f, // volume
+                    1.0f  // pitch
+            );
+
+            // Also send directly to the player to ensure they hear it
+            player.playNotifySound(soundEvent, SoundSource.PLAYERS, 1.0f, 1.0f);
+
+        } catch (Exception e) {
+            System.err.println("CallSoundManager: Failed to play sound " + soundLocation + " for player " + player.getName().getString());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Play a repeating sound that follows a player (for handheld snails)
+     */
+    private void playPlayerFollowingRepeatingSound(ServerPlayer player, ResourceLocation soundLocation,
+                                                   UUID soundId, SoundType type, SoundCategory category) {
+        // Stop any existing sounds of this type for this player
+        stopPlayerSounds(player.getUUID(), type);
+
+        // Create sound instance (use player UUID as position key)
+        PlayerSoundInstance instance = new PlayerSoundInstance(player.getUUID(), player.level(),
+                soundLocation, type, category);
+        activeSounds.put(soundId, instance);
+
+        // Play the sound initially
+        playPlayerSound(player, soundLocation, category);
+
+        // Schedule repeating playback
+        instance.stopTask = scheduler.scheduleAtFixedRate(() -> {
+            ServerPlayer currentPlayer = getPlayerById(player.getUUID());
+            if (currentPlayer != null && activeSounds.containsKey(soundId)) {
+                playPlayerSound(currentPlayer, soundLocation, category);
+            } else {
+                // Player disconnected or sound stopped
+                activeSounds.remove(soundId);
+            }
+        }, 2000, 2000, TimeUnit.MILLISECONDS); // 2 second intervals for ringtone
+
+        System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " for player " + player.getName().getString());
     }
 
     /**
@@ -325,6 +434,27 @@ public class CallSoundManager {
         }
     }
 
+    /**
+     * Stop all sounds of a specific type for a player
+     */
+    private void stopPlayerSounds(UUID playerId, SoundType type) {
+        Iterator<Map.Entry<UUID, SoundInstance>> iterator = activeSounds.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, SoundInstance> entry = iterator.next();
+
+            if (entry.getValue() instanceof PlayerSoundInstance) {
+                PlayerSoundInstance instance = (PlayerSoundInstance) entry.getValue();
+                if (instance.playerId.equals(playerId) && instance.type == type) {
+                    if (instance.stopTask != null) {
+                        instance.stopTask.cancel(false);
+                    }
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
     // =================== BLOCKSTATE UPDATE METHODS ===================
 
     /**
@@ -373,7 +503,11 @@ public class CallSoundManager {
 
     // =================== EXISTING METHODS (enhanced with blockstate updates) ===================
 
+    /**
+     * Stop ringtone for a specific player (enhanced version)
+     */
     public void stopRingTone(ServerPlayer player) {
+        // Stop both positional ringtones (near blocks) and player-following ringtones
         Iterator<Map.Entry<UUID, SoundInstance>> iterator = activeSounds.entrySet().iterator();
         int stoppedCount = 0;
 
@@ -382,22 +516,32 @@ public class CallSoundManager {
             SoundInstance instance = entry.getValue();
 
             if (instance.type == SoundType.RING_TONE) {
-                double distance = Math.sqrt(
-                        Math.pow(instance.snailPosition.getX() + 0.5 - player.getX(), 2) +
-                                Math.pow(instance.snailPosition.getY() + 0.5 - player.getY(), 2) +
-                                Math.pow(instance.snailPosition.getZ() + 0.5 - player.getZ(), 2)
-                );
+                boolean shouldStop = false;
 
-                if (distance <= VoiceChatConstants.getSnailInteractionRange()) {
+                // Check if it's a player-following sound
+                if (instance instanceof PlayerSoundInstance) {
+                    PlayerSoundInstance playerInstance = (PlayerSoundInstance) instance;
+                    if (playerInstance.playerId.equals(player.getUUID())) {
+                        shouldStop = true;
+                    }
+                }
+                // Check if it's a positional sound near the player
+                else if (instance.snailPosition != null) {
+                    double distance = Math.sqrt(
+                            Math.pow(instance.snailPosition.getX() + 0.5 - player.getX(), 2) +
+                                    Math.pow(instance.snailPosition.getY() + 0.5 - player.getY(), 2) +
+                                    Math.pow(instance.snailPosition.getZ() + 0.5 - player.getZ(), 2)
+                    );
+
+                    if (distance <= VoiceChatConstants.getSnailInteractionRange()) {
+                        shouldStop = true;
+                    }
+                }
+
+                if (shouldStop) {
                     if (instance.stopTask != null) {
                         instance.stopTask.cancel(false);
                     }
-
-                    // Update blockstate tracking
-                    if (instance.category == SoundCategory.AMBIENT_SNAIL_SOUNDS) {
-                        updateAmbientSoundTracking(instance.snailPosition);
-                    }
-
                     iterator.remove();
                     stoppedCount++;
                 }
@@ -405,7 +549,7 @@ public class CallSoundManager {
         }
 
         if (stoppedCount > 0) {
-            System.out.println("CallSoundManager: Stopped " + stoppedCount + " nearby ringtone(s) for player " + player.getName().getString());
+            System.out.println("CallSoundManager: Stopped " + stoppedCount + " ringtone(s) for player " + player.getName().getString());
         }
     }
 
@@ -424,6 +568,27 @@ public class CallSoundManager {
         scheduler.shutdown();
 
         System.out.println("CallSoundManager: Cleanup complete");
+    }
+
+    /**
+     * Extended sound instance for player-following sounds
+     */
+    private static class PlayerSoundInstance extends SoundInstance {
+        final UUID playerId;
+
+        PlayerSoundInstance(UUID playerId, Level level, ResourceLocation soundLocation,
+                            SoundType type, SoundCategory category) {
+            super(null, level, soundLocation, type, category); // null position for player sounds
+            this.playerId = playerId;
+        }
+    }
+
+    /**
+     * Get player by UUID helper
+     */
+    private ServerPlayer getPlayerById(UUID playerId) {
+        return net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()
+                .getPlayerList().getPlayer(playerId);
     }
 
     // Utility methods

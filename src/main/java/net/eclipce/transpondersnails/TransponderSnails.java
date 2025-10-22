@@ -7,6 +7,8 @@ import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.commands.CallCommand;
 import net.eclipce.transpondersnails.commands.SnailNumberCommand;
+import net.eclipce.transpondersnails.commands.SpawnTestCommand;
+import net.eclipce.transpondersnails.commands.TransponderSnailItemCommand;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
@@ -141,6 +143,8 @@ public class TransponderSnails {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         CallCommand.register(event.getDispatcher());
         SnailNumberCommand.register(event.getDispatcher());
+        TransponderSnailItemCommand.register(event.getDispatcher());
+        SpawnTestCommand.register(event.getDispatcher());
     }
 
     // Handle player disconnection

@@ -11,9 +11,11 @@ import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.*;

@@ -2,8 +2,9 @@ package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
-import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+
+import net.eclipce.transpondersnails.entity.client.TransponderSnailItemProperties;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
 import net.eclipce.transpondersnails.entity.client.ModModelLayers;
 import net.eclipce.transpondersnails.item.DenDenMushiItem;
@@ -27,19 +28,17 @@ public class ModEventBusClientEvents {
         event.registerLayerDefinition(ModModelLayers.DEN_DEN_MUSHI_LAYER, DenDenMushiModel::createBodyLayer);
     }
 
-    // In your client setup event handler
     @SubscribeEvent
     public static void registerItemModelPredicates(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
+            // =================== DEN DEN MUSHI PROPERTIES ===================
+
             // Register shell color predicate
             ItemProperties.register(ModItems.DEN_DEN_MUSHI.get(),
                     new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
                     (stack, world, entity, seed) -> {
-                        // Return shell color ID directly as decimal (0.00, 0.01, 0.02, etc.)
                         int shellColor = DenDenMushiItem.getShellColor(stack);
                         float predicateValue = shellColor / 100.0f;
-                        System.out.println("Model Predicate Called: shell_color=" + shellColor +
-                                ", predicate_value=" + predicateValue);
                         return predicateValue;
                     });
 
@@ -50,7 +49,9 @@ public class ModEventBusClientEvents {
                         return DenDenMushiItem.isCaptured(stack) ? 1.0f : 0.0f;
                     });
 
-            // Add Transponder Snail shell color predicate
+            // =================== TRANSPONDER SNAIL BLOCK ITEM PROPERTIES ===================
+
+            // Shell color for block item
             ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL.get().asItem(),
                     new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
                     (stack, world, entity, seed) -> {
@@ -68,6 +69,13 @@ public class ModEventBusClientEvents {
                         }
                         return 0.0f; // Default white
                     });
+
+            // NEW: Call state for dynamic visuals
+            ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL.get().asItem(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                    TransponderSnailItemProperties::calculateCallState);
+
+            System.out.println("TransponderSnails: Registered item properties for dynamic models");
         });
     }
 
