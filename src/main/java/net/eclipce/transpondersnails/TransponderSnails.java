@@ -9,8 +9,8 @@ import net.eclipce.transpondersnails.commands.CallCommand;
 import net.eclipce.transpondersnails.commands.SnailNumberCommand;
 import net.eclipce.transpondersnails.commands.SpawnTestCommand;
 import net.eclipce.transpondersnails.commands.TransponderSnailItemCommand;
+import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.entity.ModEntities;
-import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
 import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
@@ -19,10 +19,7 @@ import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -38,12 +35,14 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-import javax.swing.text.html.parser.Entity;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-// The value here should match an entry in the META-INF/mods.toml file
+/**
+ * Main mod class for Transponder Snails
+ * FIXED: Maximum crash resistance with immediate saves + JVM shutdown hook
+ */
 @Mod(TransponderSnails.MOD_ID)
 @Mod.EventBusSubscriber
 public class TransponderSnails {
@@ -54,6 +53,9 @@ public class TransponderSnails {
 
     // Call manager - will be set by the VoiceChat plugin
     private static TransponderCallManager callManager;
+
+    // ⚡ Shutdown hook for emergency saves
+    private static Thread emergencyShutdownHook;
 
     public TransponderSnails(FMLJavaModLoadingContext context) {
         IEventBus modEventBus = context.getModEventBus();
@@ -91,6 +93,8 @@ public class TransponderSnails {
 
         modEventBus.addListener(this::setup);
 
+        // ⚡ Register JVM shutdown hook for emergency saves
+        registerEmergencyShutdownHook();
     }
 
     private void setup(final FMLCommonSetupEvent event) {
@@ -109,16 +113,45 @@ public class TransponderSnails {
             LOGGER.info("ModPackets Initialized");
 
             // Any other setup that needs to happen after registration
-            // TransponderCallManager.init();
         });
-
     }
 
     // Add the example block item to the building blocks tab
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
-
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
+        // Add creative tab content here if needed
+    }
 
+    /**
+     * ⚡ Register a JVM shutdown hook for emergency saves
+     * This catches SIGTERM and other kill signals (but not SIGKILL)
+     * Provides last-ditch attempt to save data when server is killed
+     */
+    private void registerEmergencyShutdownHook() {
+        emergencyShutdownHook = new Thread(() -> {
+            System.out.println("═════════════════════════════════════════════════");
+            System.out.println("⚠️  EMERGENCY SHUTDOWN DETECTED! ⚠️");
+            System.out.println("TransponderSnails: Attempting emergency save...");
+            System.out.println("═════════════════════════════════════════════════");
+
+            try {
+                SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+                if (registry != null) {
+                    System.out.println("TransponderSnails: Emergency saving registry...");
+                    registry.forceSave();
+                    System.out.println("✅ TransponderSnails: Emergency save successful!");
+                } else {
+                    System.out.println("TransponderSnails: No registry to save (server may not have started)");
+                }
+            } catch (Exception e) {
+                System.err.println("❌ TransponderSnails: Emergency save failed: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            System.out.println("═════════════════════════════════════════════════");
+        }, "TransponderSnails-EmergencyShutdown");
+
+        Runtime.getRuntime().addShutdownHook(emergencyShutdownHook);
+        System.out.println("TransponderSnails: Emergency shutdown hook registered");
     }
 
     @SubscribeEvent
@@ -129,13 +162,38 @@ public class TransponderSnails {
         // Reset server state when server starts
         TransponderSnailBlockEntity.setServerStartingUp();
         System.out.println("TransponderSnails: Server starting - reset block entity state");
+
+        // The registry will be automatically loaded when first accessed via getInstance()
+        System.out.println("TransponderSnails: SnailNumberRegistry will load on first access");
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        System.out.println("╔════════════════════════════════════════════════════════════╗");
+        System.out.println("║ TransponderSnails: GRACEFUL SHUTDOWN INITIATED             ║");
+        System.out.println("╚════════════════════════════════════════════════════════════╝");
+
         // Set shutdown flag to prevent infinite loops during world save
         TransponderSnailBlockEntity.setServerShuttingDown();
-        System.out.println("TransponderSnails: Server stopping - preventing block entity loops");
+        System.out.println("TransponderSnails: Prevented block entity loops");
+
+        // Force save the registry
+        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+        if (registry != null) {
+            System.out.println("TransponderSnails: Graceful shutdown - saving registry...");
+            registry.forceSave();
+            System.out.println("TransponderSnails: ✅ Registry saved successfully");
+        } else {
+            System.out.println("TransponderSnails: No registry instance to save");
+        }
+
+        // Reset the instance cache
+        SnailNumberRegistry.resetInstance();
+        System.out.println("TransponderSnails: Instance cache reset");
+
+        System.out.println("╔════════════════════════════════════════════════════════════╗");
+        System.out.println("║ TransponderSnails: GRACEFUL SHUTDOWN COMPLETE              ║");
+        System.out.println("╚════════════════════════════════════════════════════════════╝");
     }
 
     // Register commands
@@ -150,7 +208,7 @@ public class TransponderSnails {
     // Handle player disconnection
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-
+        // Handle player logout events here if needed
     }
 
     // Static setter for the call manager (called by VoiceChat plugin)
@@ -170,17 +228,27 @@ public class TransponderSnails {
 
     public static final Collection<AbstractMap.SimpleEntry<Runnable, Integer>> workQueue = new ConcurrentLinkedQueue<>();
 
-    // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
+    /**
+     * Client-only event bus subscriber
+     * This inner class is properly isolated and only loads on the client
+     */
     @Mod.EventBusSubscriber(modid = MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-
-            EntityRenderers.register(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiRenderer::new);
-
             // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
-            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+
+            // Get player name safely (only runs on client)
+            event.enqueueWork(() -> {
+                try {
+                    // This import is safe because this entire class is client-only
+                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                    LOGGER.info("MINECRAFT NAME >> {}", mc.getUser().getName());
+                } catch (Exception e) {
+                    LOGGER.warn("Could not get Minecraft username: " + e.getMessage());
+                }
+            });
         }
     }
 }

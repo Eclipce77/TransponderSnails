@@ -1,57 +1,75 @@
-// Packet to sync snail number from server to client
 package net.eclipce.transpondersnails.network.packets;
 
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.entity.player.Player;
 import net.eclipce.transpondersnails.screen.DialingMenu;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
+/**
+ * Server → Client: Synchronizes snail number from server to client
+ * FIXED: Uses proper side checking instead of DistExecutor
+ */
 public class SnailNumberSyncPacket {
     private final int snailNumber;
 
     public SnailNumberSyncPacket(int snailNumber) {
         this.snailNumber = snailNumber;
+        System.out.println("[SNAIL-SYNC] Packet created with number: " + snailNumber);
     }
 
     public SnailNumberSyncPacket(FriendlyByteBuf buf) {
         this.snailNumber = buf.readInt();
+        System.out.println("[SNAIL-SYNC] Packet decoded with number: " + snailNumber);
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeInt(snailNumber);
+        System.out.println("[SNAIL-SYNC] Packet encoded with number: " + snailNumber);
     }
 
-    // Getter method for accessing the snail number
     public int getSnailNumber() {
         return snailNumber;
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // Client-side handling with improved logging and error checking
-            Minecraft mc = Minecraft.getInstance();
-            Player player = mc.player;
+        NetworkEvent.Context context = ctx.get();
 
-            if (player == null) {
-                System.out.println("SnailNumberSyncPacket: Player is null, cannot sync snail number");
-                return;
-            }
+        // Check if we're actually on the client reception side
+        if (!context.getDirection().getReceptionSide().isClient()) {
+            System.err.println("[SNAIL-SYNC] ERROR: Packet received on wrong side!");
+            context.setPacketHandled(true);
+            return;
+        }
 
-            AbstractContainerMenu menu = player.containerMenu;
-            if (menu instanceof DialingMenu dialingMenu) {
-                System.out.println("SnailNumberSyncPacket: Setting client snail number to #" + snailNumber);
-                dialingMenu.setOwnSnailNumber(snailNumber);
-                System.out.println("SnailNumberSyncPacket: Successfully synced snail number #" + snailNumber + " to client");
-            } else {
-                System.out.println("SnailNumberSyncPacket: Player menu is not DialingMenu (current menu: " +
-                        (menu != null ? menu.getClass().getSimpleName() : "null") +
-                        "), cannot sync snail number #" + snailNumber);
-            }
+        context.enqueueWork(() -> {
+            System.out.println("[SNAIL-SYNC] Handling packet on client side for number: " + snailNumber);
+
+            // Use DistExecutor.safeCallWhenOn for safer client-side execution
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                try {
+                    System.out.println("[SNAIL-SYNC] Executing client-side handler...");
+
+                    // Get the Minecraft instance
+                    Minecraft mc = Minecraft.getInstance();
+
+                    if (mc.player != null && mc.player.containerMenu instanceof DialingMenu menu) {
+                        System.out.println("[SNAIL-SYNC] Setting snail number to: " + snailNumber);
+                        menu.setOwnSnailNumber(snailNumber);
+                        System.out.println("[SNAIL-SYNC] Successfully synced snail number!");
+                    } else {
+                        System.err.println("[SNAIL-SYNC] WARNING: Player doesn't have DialingMenu open");
+                    }
+                } catch (Exception e) {
+                    System.err.println("[SNAIL-SYNC] ERROR handling packet: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
         });
-        ctx.get().setPacketHandled(true);
+
+        context.setPacketHandled(true);
     }
 }

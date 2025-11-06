@@ -2,9 +2,12 @@
 package net.eclipce.transpondersnails.client;
 
 // Import your exact classes from the screen package
+import net.eclipce.transpondersnails.entity.ModEntities;
+import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
 import net.eclipce.transpondersnails.screen.DialingScreen;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -28,5 +31,8 @@ public class ClientSetup {
                         (minecraft, parentScreen) -> new ClientConfigScreen(parentScreen)
                 )
         );
+
+        EntityRenderers.register(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiRenderer::new);
+
     }
 }

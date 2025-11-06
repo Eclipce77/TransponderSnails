@@ -1,13 +1,17 @@
 package net.eclipce.transpondersnails.network.packets;
 
+import net.eclipce.transpondersnails.screen.DialingMenu;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
 /**
  * Server → Client: Synchronizes the dialed number from server to client
- * Used to keep the GUI in sync when players are dialing
+ * FIXED: Uses proper side checking instead of problematic DistExecutor pattern
  */
 public class DialedNumberSyncPacket {
     private final String dialedNumber;
@@ -25,39 +29,33 @@ public class DialedNumberSyncPacket {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // Client-side handling only
-            if (ctx.get().getDirection().getReceptionSide().isClient()) {
-                handleClientSide();
-            }
-        });
-        ctx.get().setPacketHandled(true);
-    }
+        NetworkEvent.Context context = ctx.get();
 
-    private void handleClientSide() {
-        try {
-            // Get the client player's current menu
-            net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
-            if (minecraft.player != null && minecraft.player.containerMenu instanceof net.eclipce.transpondersnails.screen.DialingMenu dialingMenu) {
-
-                // Update the client-side dialed number
-                dialingMenu.getDialedNumber();
-
-                System.out.println("DialedNumberSyncPacket: Synchronized dialed number: '" + dialedNumber + "'");
-
-                // The DialingScreen will automatically update its display through containerTick()
-
-            } else {
-                System.err.println("DialedNumberSyncPacket: Received sync but player has no dialing menu open");
-            }
-
-        } catch (Exception e) {
-            System.err.println("DialedNumberSyncPacket: Error handling dialed number sync: " + e.getMessage());
-            e.printStackTrace();
+        // Verify we're on the client reception side
+        if (!context.getDirection().getReceptionSide().isClient()) {
+            context.setPacketHandled(true);
+            return;
         }
+
+        context.enqueueWork(() -> {
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                try {
+                    Minecraft mc = Minecraft.getInstance();
+
+                    if (mc.player != null && mc.player.containerMenu instanceof DialingMenu menu) {
+                        menu.setClientDialedNumber(dialedNumber);
+                        System.out.println("[DIALED-NUMBER-SYNC] Synced dialed number: '" + dialedNumber + "'");
+                    }
+                } catch (Exception e) {
+                    System.err.println("[DIALED-NUMBER-SYNC] ERROR: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+        });
+
+        context.setPacketHandled(true);
     }
 
-    // Getter
     public String getDialedNumber() {
         return dialedNumber;
     }

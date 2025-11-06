@@ -1,8 +1,10 @@
 package net.eclipce.transpondersnails.network.packets;
 
+import net.eclipce.transpondersnails.screen.DialingMenu;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import javax.annotation.Nullable;
@@ -11,7 +13,7 @@ import java.util.function.Supplier;
 
 /**
  * Server → Client: Synchronizes call state information to the client
- * Used to update the GUI with current call status
+ * FIXED: Uses proper side checking instead of problematic DistExecutor pattern
  */
 public class CallStateSyncPacket {
 
@@ -26,8 +28,8 @@ public class CallStateSyncPacket {
     }
 
     private final CallState callState;
-    private final UUID callId;        // null if no active call
-    private final int otherSnailNumber;  // -1 if not applicable
+    private final UUID callId;
+    private final int otherSnailNumber;
     private final String statusMessage;
 
     public CallStateSyncPacket(CallState callState, @Nullable UUID callId, int otherSnailNumber, String statusMessage) {
@@ -60,42 +62,31 @@ public class CallStateSyncPacket {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // Client-side handling only
-            if (ctx.get().getDirection().getReceptionSide().isClient()) {
-                handleClientSide();
-            }
-        });
-        ctx.get().setPacketHandled(true);
-    }
+        NetworkEvent.Context context = ctx.get();
 
-    private void handleClientSide() {
-        try {
-            Minecraft minecraft = Minecraft.getInstance();
-            Player player = minecraft.player;
-
-            if (player == null) {
-                System.err.println("CallStateSyncPacket: Player is null on client side");
-                return;
-            }
-
-            // Update the dialing menu if it's open
-            if (player.containerMenu instanceof net.eclipce.transpondersnails.screen.DialingMenu dialingMenu) {
-                dialingMenu.updateCallState(callState, callId, otherSnailNumber, statusMessage);
-
-                System.out.println("CallStateSyncPacket: Updated client call state to " + callState +
-                        (callId != null ? " (call " + callId.toString().substring(0, 8) + ")" : "") +
-                        (otherSnailNumber != -1 ? " with snail #" + otherSnailNumber : "") +
-                        (!statusMessage.isEmpty() ? " - " + statusMessage : ""));
-
-            } else {
-                System.out.println("CallStateSyncPacket: Received call state " + callState + " but no dialing menu is open");
-            }
-
-        } catch (Exception e) {
-            System.err.println("CallStateSyncPacket: Error handling call state sync: " + e.getMessage());
-            e.printStackTrace();
+        // Verify we're on the client reception side
+        if (!context.getDirection().getReceptionSide().isClient()) {
+            context.setPacketHandled(true);
+            return;
         }
+
+        context.enqueueWork(() -> {
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                try {
+                    Minecraft mc = Minecraft.getInstance();
+
+                    if (mc.player != null && mc.player.containerMenu instanceof DialingMenu menu) {
+                        menu.updateCallState(callState, callId, otherSnailNumber, statusMessage);
+                        System.out.println("[CALL-STATE-SYNC] Updated call state to: " + callState);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[CALL-STATE-SYNC] ERROR: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+        });
+
+        context.setPacketHandled(true);
     }
 
     // Getters

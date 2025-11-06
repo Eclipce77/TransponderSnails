@@ -2,7 +2,6 @@ package net.eclipce.transpondersnails.data;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -17,6 +16,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * Server-side registry that manages the assignment and tracking of unique snail numbers.
  * Each Transponder Snail gets assigned a unique 4-digit number (1000-9999) that persists
  * across server restarts and is tied to the snail's UUID, not the player.
+ *
+ * FIXED: Immediate save on assignment - numbers persist even if server crashes/is killed
  */
 public class SnailNumberRegistry extends SavedData {
     private static final String DATA_NAME = "transponder_snails_registry";
@@ -44,16 +45,20 @@ public class SnailNumberRegistry extends SavedData {
     @Nullable
     public static SnailNumberRegistry getInstance() {
         if (ServerLifecycleHooks.getCurrentServer() == null) {
+            System.out.println("SnailNumberRegistry: Cannot get instance - server not running");
             return null; // Server not running
         }
 
         if (instance == null) {
+            System.out.println("SnailNumberRegistry: Creating new instance, loading from disk...");
             ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
             instance = overworld.getDataStorage().computeIfAbsent(
                     SnailNumberRegistry::load,
                     SnailNumberRegistry::new,
                     DATA_NAME
             );
+            System.out.println("SnailNumberRegistry: Registry loaded with " +
+                    instance.assignedNumbers.size() + " existing assignments");
         }
 
         return instance;
@@ -61,13 +66,16 @@ public class SnailNumberRegistry extends SavedData {
 
     /**
      * Assigns a snail number to the given UUID if it doesn't already have one
+     * FIXED: Now saves immediately to disk for crash resistance
      * @param snailUUID The unique identifier of the transponder snail
      * @return The assigned snail number, or -1 if assignment failed
      */
     public synchronized int assignNumberToSnail(@NotNull UUID snailUUID) {
         // Check if this snail already has a number
         if (snailToNumber.containsKey(snailUUID)) {
-            return snailToNumber.get(snailUUID);
+            int existingNumber = snailToNumber.get(snailUUID);
+            System.out.println("SnailNumberRegistry: UUID " + snailUUID + " already has number #" + existingNumber);
+            return existingNumber;
         }
 
         // Check if we've run out of available numbers
@@ -91,7 +99,13 @@ public class SnailNumberRegistry extends SavedData {
         // Mark data as dirty to ensure it saves
         setDirty();
 
-        System.out.println("SnailNumberRegistry: Assigned number " + newNumber + " to snail " + snailUUID);
+        // ⚡ CRITICAL FIX: Save immediately so data persists even if server crashes/is killed
+        // This is the key change that fixes gradle task kill persistence issues
+        System.out.println("SnailNumberRegistry: Assigned NEW number #" + newNumber + " to snail " + snailUUID);
+        System.out.println("SnailNumberRegistry: Saving immediately to disk...");
+        forceSave();
+        System.out.println("SnailNumberRegistry: Assignment saved! Total: " + assignedNumbers.size() + "/" + TOTAL_POSSIBLE_NUMBERS);
+
         return newNumber;
     }
 
@@ -141,6 +155,7 @@ public class SnailNumberRegistry extends SavedData {
 
     /**
      * Removes a snail number assignment (for debugging/admin use)
+     * FIXED: Now saves immediately after removal
      * WARNING: This should rarely be used as it can break existing calls
      * @param snailUUID The UUID of the snail to unassign
      * @return True if a number was removed, false if the UUID wasn't assigned
@@ -151,7 +166,12 @@ public class SnailNumberRegistry extends SavedData {
             numberToSnail.remove(number);
             assignedNumbers.remove(number);
             setDirty();
+
+            // Save immediately after removal
             System.out.println("SnailNumberRegistry: Removed assignment of number " + number + " from snail " + snailUUID);
+            forceSave();
+            System.out.println("SnailNumberRegistry: Removal saved to disk");
+
             return true;
         }
         return false;
@@ -225,6 +245,7 @@ public class SnailNumberRegistry extends SavedData {
         // Load assignments
         if (compound.contains("assignments", Tag.TAG_LIST)) {
             ListTag assignmentsList = compound.getList("assignments", Tag.TAG_COMPOUND);
+            System.out.println("SnailNumberRegistry: Found " + assignmentsList.size() + " assignments to load");
 
             for (int i = 0; i < assignmentsList.size(); i++) {
                 CompoundTag assignmentTag = assignmentsList.getCompound(i);
@@ -238,6 +259,11 @@ public class SnailNumberRegistry extends SavedData {
                         registry.snailToNumber.put(snailUUID, number);
                         registry.numberToSnail.put(number, snailUUID);
                         registry.assignedNumbers.add(number);
+
+                        // Log first few for verification
+                        if (i < 5) {
+                            System.out.println("  Loaded: UUID " + snailUUID + " -> #" + number);
+                        }
                     } else {
                         System.err.println("SnailNumberRegistry: Loaded invalid snail number " + number + " for UUID " + snailUUID + ", skipping");
                     }
@@ -246,9 +272,11 @@ public class SnailNumberRegistry extends SavedData {
                     System.err.println("SnailNumberRegistry: Failed to load assignment entry at index " + i + ": " + e.getMessage());
                 }
             }
+        } else {
+            System.out.println("SnailNumberRegistry: No existing assignments found - starting fresh");
         }
 
-        System.out.println("SnailNumberRegistry: Loaded " + registry.assignedNumbers.size() + " snail number assignments");
+        System.out.println("SnailNumberRegistry: LOADED " + registry.assignedNumbers.size() + " snail number assignments from disk");
         return registry;
     }
 
@@ -271,6 +299,7 @@ public class SnailNumberRegistry extends SavedData {
 
     /**
      * Clears all snail number assignments (DANGEROUS - for admin use only)
+     * FIXED: Now saves immediately after clearing
      * WARNING: This will break all existing calls and make all snails lose their numbers
      * @return The number of assignments that were cleared
      */
@@ -285,12 +314,17 @@ public class SnailNumberRegistry extends SavedData {
         // Mark data as dirty to ensure it saves
         setDirty();
 
+        // Save immediately after clearing
         System.out.println("SnailNumberRegistry: CLEARED ALL ASSIGNMENTS - " + clearedCount + " numbers freed");
+        forceSave();
+        System.out.println("SnailNumberRegistry: Clear operation saved to disk");
+
         return clearedCount;
     }
 
     /**
      * Attempts to restore a snail assignment that was lost during loading
+     * FIXED: Now saves immediately after restoration
      * This should only be used during world loading/validation
      * @param snailUUID The UUID of the snail to restore
      * @param preferredNumber The number the snail previously had
@@ -316,6 +350,9 @@ public class SnailNumberRegistry extends SavedData {
                 setDirty();
 
                 System.out.println("SnailNumberRegistry: Restored preferred assignment #" + preferredNumber + " to UUID " + snailUUID);
+                forceSave();
+                System.out.println("SnailNumberRegistry: Restoration saved to disk");
+
                 return preferredNumber;
             } else {
                 System.out.println("SnailNumberRegistry: Preferred number #" + preferredNumber + " is no longer available");
@@ -331,6 +368,9 @@ public class SnailNumberRegistry extends SavedData {
             setDirty();
 
             System.out.println("SnailNumberRegistry: Restored with new assignment #" + newNumber + " to UUID " + snailUUID);
+            forceSave();
+            System.out.println("SnailNumberRegistry: Restoration saved to disk");
+
             return newNumber;
         }
 
@@ -339,7 +379,9 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
-     * Force save the registry data (for debugging)
+     * Forces the registry to save immediately
+     * ⚡ KEY METHOD for crash resistance
+     * Useful for ensuring data is written before server shutdown or after critical changes
      */
     public void forceSave() {
         if (ServerLifecycleHooks.getCurrentServer() == null) {
@@ -348,9 +390,14 @@ public class SnailNumberRegistry extends SavedData {
         }
 
         try {
+            // CRITICAL: Mark as dirty before saving
+            setDirty();
+
             ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
             overworld.getDataStorage().save();
-            System.out.println("SnailNumberRegistry: Forced save completed with " + assignedNumbers.size() + " assignments");
+
+            // Success message only if not spamming
+            // System.out.println("SnailNumberRegistry: ✓ Data written to disk");
         } catch (Exception e) {
             System.err.println("SnailNumberRegistry: Error during force save: " + e.getMessage());
             e.printStackTrace();
@@ -381,9 +428,15 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
-     * Resets the instance cache - should only be called when server stops
+     * Resets the instance cache - MUST be called when server stops
      */
     public static void resetInstance() {
+        if (instance != null) {
+            System.out.println("SnailNumberRegistry: Resetting instance cache (" +
+                    instance.assignedNumbers.size() + " assignments will be reloaded on next start)");
+        } else {
+            System.out.println("SnailNumberRegistry: Instance already null, nothing to reset");
+        }
         instance = null;
     }
 }
