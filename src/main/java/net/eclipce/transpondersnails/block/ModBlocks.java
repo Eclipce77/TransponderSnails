@@ -27,9 +27,6 @@ public class ModBlocks {
     public static final RegistryObject<Block> TRANSPONDER_SNAIL = BLOCKS.register("transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
-    // REMOVED: Don't register the item here - it's in ModItems.java now
-    // The custom TransponderSnailItem is registered in ModItems.java
-
     private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
         registerBlockItem(name, toReturn);

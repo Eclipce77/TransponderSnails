@@ -19,6 +19,10 @@ public class ModRecipeSerializers {
             RECIPE_SERIALIZERS.register("den_den_mushi_stonecutting",
                     DenDenMushiStonecutterRecipe.Serializer::new);
 
+    public static final RegistryObject<RecipeSerializer<PortableSnailDyeRecipe>> PORTABLE_SNAIL_DYE_SERIALIZER =
+            RECIPE_SERIALIZERS.register("portable_snail_dye",
+                    PortableSnailDyeRecipeSerializer::new);
+
     public static void register(IEventBus eventBus) {
         RECIPE_SERIALIZERS.register(eventBus);
     }

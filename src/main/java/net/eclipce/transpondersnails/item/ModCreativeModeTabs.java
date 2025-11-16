@@ -5,6 +5,7 @@ import net.eclipce.transpondersnails.block.ModBlocks;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
@@ -20,6 +21,7 @@ public class ModCreativeModeTabs {
                     .displayItems((pParameters, pOutput) -> {
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.ROTARY_DIAL.get());
                         pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
                         pOutput.accept(ModItems.WIRE.get());

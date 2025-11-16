@@ -39,6 +39,8 @@ import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import static net.eclipce.transpondersnails.item.ModItemProperties.registerItemProperties;
+
 /**
  * Main mod class for Transponder Snails
  * FIXED: Maximum crash resistance with immediate saves + JVM shutdown hook
@@ -241,6 +243,8 @@ public class TransponderSnails {
 
             // Get player name safely (only runs on client)
             event.enqueueWork(() -> {
+                registerItemProperties();
+
                 try {
                     // This import is safe because this entire class is client-only
                     net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
