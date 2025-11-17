@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
+import net.eclipce.transpondersnails.block.custom.WireBlock;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.item.TransponderSnailItem;
 import net.minecraft.world.item.BlockItem;
@@ -26,6 +27,18 @@ public class ModBlocks {
     // Only register the BLOCK here, not the item
     public static final RegistryObject<Block> TRANSPONDER_SNAIL = BLOCKS.register("transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
+    public static final RegistryObject<Block> WIRE = BLOCKS.register("wire",
+            () -> new WireBlock(BlockBehaviour.Properties.of()
+                    .strength(0.0F) // Can be broken instantly
+                    .sound(SoundType.COPPER)
+                    .noCollission() // No collision
+                    .noOcclusion() // Allows light through
+                    .isRedstoneConductor((state, level, pos) -> true) // Redstone conductor
+                    .isSuffocating((state, level, pos) -> false) // Doesn't suffocate
+                    .isViewBlocking((state, level, pos) -> false) // Can see through
+            )
+    );
 
     private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);

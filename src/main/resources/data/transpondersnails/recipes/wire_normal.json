@@ -1,5 +1,5 @@
 {
-  "type": "transpondersnails:transponder_snail_crafting",
+  "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
     "   ",

@@ -2,16 +2,13 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    " N ",
+    "   ",
     "RSR",
     "RRR"
   ],
   "key": {
-    "N": {
-      "item": "minecraft:nautilus_shell"
-    },
     "S": {
-      "item": "transpondersnails:transponder_snail"
+      "item": "transpondersnails:baby_black_transponder_snail"
     },
     "R": {
       "item": "transpondersnails:rubberized_clay"

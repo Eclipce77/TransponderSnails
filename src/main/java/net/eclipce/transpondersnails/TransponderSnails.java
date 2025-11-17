@@ -19,6 +19,8 @@ import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
@@ -244,6 +246,12 @@ public class TransponderSnails {
             // Get player name safely (only runs on client)
             event.enqueueWork(() -> {
                 registerItemProperties();
+
+                // Register wire block as cutout (transparent)
+                ItemBlockRenderTypes.setRenderLayer(
+                        ModBlocks.WIRE.get(),
+                        RenderType.cutout()
+                );
 
                 try {
                     // This import is safe because this entire class is client-only

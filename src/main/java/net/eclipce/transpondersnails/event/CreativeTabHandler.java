@@ -31,5 +31,14 @@ public class CreativeTabHandler {
                     CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
             );
         }
+
+        if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
+
+            event.getEntries().putAfter(
+                    Items.STRING.getDefaultInstance(),
+                    ModItems.WIRE.get().getDefaultInstance(),
+                    CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+                    );
+        }
     }
 }

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "   ",
+    "NN ",
+    "   "
+  ],
+  "key": {
+    "N": {
+      "item": "transpondersnails:copper_nugget"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:wire",
+    "count": 1
+  }
+}

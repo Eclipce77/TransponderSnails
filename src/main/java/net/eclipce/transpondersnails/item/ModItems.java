@@ -3,6 +3,7 @@ package net.eclipce.transpondersnails.item;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.entity.ModEntities;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeSpawnEggItem;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -31,7 +32,7 @@ public class ModItems {
             () -> new Item(new Item.Properties()));
 
     public static final RegistryObject<Item> WIRE = ITEMS.register("wire",
-            () -> new Item(new Item.Properties()));
+            () -> new BlockItem(ModBlocks.WIRE.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> TRANSMITTER = ITEMS.register("transmitter",
             () -> new Item(new Item.Properties()));
@@ -42,6 +43,9 @@ public class ModItems {
     public static final RegistryObject<Item> TRANSPONDER_SNAIL = ITEMS.register("transponder_snail",
             () -> new TransponderSnailItem(ModBlocks.TRANSPONDER_SNAIL.get(),
                     new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> BABY_BLACK_TRANSPONDER_SNAIL = ITEMS.register("baby_black_transponder_snail",
+            () -> new Item(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> PORTABLE_BLACK_TRANSPONDER_SNAIL = ITEMS.register("portable_black_transponder_snail",
             () -> new PortableBlackTransponderSnailItem(new Item.Properties().stacksTo(1)));
