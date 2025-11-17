@@ -32,7 +32,7 @@ public class PortableBlackTransponderSnailItem extends Item {
 
     // Default colors for crafted items
     public static final DyeColor DEFAULT_CRAFTED_SHELL_COLOR = DyeColor.WHITE;
-    public static final DyeColor DEFAULT_CRAFTED_BAND_COLOR = DyeColor.BROWN;
+    public static final DyeColor DEFAULT_CRAFTED_BAND_COLOR = DyeColor.GRAY;
 
     // Default colors for creative menu
     public static final DyeColor DEFAULT_CREATIVE_SHELL_COLOR = DyeColor.YELLOW;

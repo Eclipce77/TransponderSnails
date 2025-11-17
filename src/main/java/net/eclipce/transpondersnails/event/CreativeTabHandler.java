@@ -24,6 +24,12 @@ public class CreativeTabHandler {
                     ModItems.COPPER_NUGGET.get().getDefaultInstance(),
                     CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
             );
+
+            event.getEntries().putAfter(
+                    Items.CLAY_BALL.getDefaultInstance(),
+                    ModItems.RUBBERIZED_CLAY.get().getDefaultInstance(),
+                    CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS
+            );
         }
     }
 }

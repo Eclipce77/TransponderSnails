@@ -3,8 +3,8 @@
   "category": "misc",
   "pattern": [
     " N ",
-    "LSL",
-    "LTL"
+    "RSR",
+    "RRR"
   ],
   "key": {
     "N": {
@@ -13,11 +13,8 @@
     "S": {
       "item": "transpondersnails:transponder_snail"
     },
-    "T": {
-      "item": "transpondersnails:transmitter"
-    },
-    "L": {
-      "item": "minecraft:leather"
+    "R": {
+      "item": "transpondersnails:rubberized_clay"
     }
   },
   "result": {

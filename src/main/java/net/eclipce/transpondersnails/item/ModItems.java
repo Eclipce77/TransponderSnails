@@ -27,6 +27,9 @@ public class ModItems {
     public static final RegistryObject<Item> COPPER_NUGGET = ITEMS.register("copper_nugget",
             () -> new Item(new Item.Properties()));
 
+    public static final RegistryObject<Item> RUBBERIZED_CLAY = ITEMS.register("rubberized_clay",
+            () -> new Item(new Item.Properties()));
+
     public static final RegistryObject<Item> WIRE = ITEMS.register("wire",
             () -> new Item(new Item.Properties()));
 
