@@ -4,9 +4,14 @@ import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 
+import net.eclipce.transpondersnails.entity.ModEntities;
+import net.eclipce.transpondersnails.entity.client.BabyBlackTransponderSnailRenderer;
+import net.eclipce.transpondersnails.entity.client.BlackTransponderSnailRenderer;
 import net.eclipce.transpondersnails.entity.client.TransponderSnailItemProperties;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
 import net.eclipce.transpondersnails.entity.client.ModModelLayers;
+import net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem;
+import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
 import net.eclipce.transpondersnails.item.DenDenMushiItem;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -26,6 +31,19 @@ public class ModEventBusClientEvents {
     @SubscribeEvent
     public static void registerLayer(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(ModModelLayers.DEN_DEN_MUSHI_LAYER, DenDenMushiModel::createBodyLayer);
+    }
+
+    @SubscribeEvent
+    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(
+                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                BabyBlackTransponderSnailRenderer::new
+        );
+
+        event.registerEntityRenderer(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+                BlackTransponderSnailRenderer::new);
+
+        System.out.println("Registered Baby Black Transponder Snail renderer!");
     }
 
     @SubscribeEvent
@@ -77,6 +95,37 @@ public class ModEventBusClientEvents {
 
             System.out.println("TransponderSnails: Registered item properties for dynamic models");
         });
+
+        // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
+
+        // Register shell color predicate for Baby Black Transponder Snail
+        // Uses same pattern as Den Den Mushi: color ID / 100.0f
+        // Color 0 (white) = 0.00, Color 1 (orange) = 0.01, ... Color 15 (black) = 0.15
+        ItemProperties.register(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, world, entity, seed) -> {
+                    int shellColor = BabyBlackTransponderSnailItem.getShellColor(stack);
+                    float predicateValue = shellColor / 100.0f;
+                    System.out.println("Baby Black Snail shell_color predicate: " + shellColor + " -> " + predicateValue);
+                    return predicateValue;
+                });
+
+        System.out.println("TransponderSnails: Registered Baby Black Transponder Snail item properties");
+
+        // ===================== BLACK TRANSPONDER SNAIL PROPERTIES =====================
+
+        // Black Transponder Snail shell_color property
+        ItemProperties.register(ModItems.BLACK_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, world, entity, seed) -> {
+                    int shellColor = BlackTransponderSnailItem.getShellColor(stack);
+                    float predicateValue = shellColor / 100.0f;
+                    // Debug output - remove once working
+                    // System.out.println("Black Transponder Snail shell_color predicate: " + shellColor + " -> " + predicateValue);
+                    return predicateValue;
+                });
+
+        System.out.println("TransponderSnails: Registered Black Transponder Snail item properties");
     }
 
     @SubscribeEvent

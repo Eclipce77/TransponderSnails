@@ -81,10 +81,9 @@ public class DenDenMushiEntity extends Animal {
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new BreedGoal(this, 1.15D));
         this.goalSelector.addGoal(1, new TemptGoal(this, 1.2D, Ingredient.of(Items.KELP), false));
-        this.goalSelector.addGoal(2, new RandomStrollGoal(this, 1.1D));
-        this.goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 3f));
-        this.goalSelector.addGoal(4, new RandomLookAroundGoal(this));
-        this.goalSelector.addGoal(5, new PanicGoal(this, 1.1D));
+        this.goalSelector.addGoal(2, new UnderwaterWalkingGoal(this, 2.2D));
+        this.goalSelector.addGoal(3, new RandomStrollGoal(this, 1.1D));
+        this.goalSelector.addGoal(4, new PanicGoal(this, 2.4D));
     }
 
     public static AttributeSupplier.Builder createAttributes() {

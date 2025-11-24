@@ -1,6 +1,6 @@
 package net.eclipce.transpondersnails.item;
 
-import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity;
+import net.eclipce.transpondersnails.entity.custom.BabyBlackTransponderSnailEntity;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -21,25 +21,24 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * Black Transponder Snail Item
- * Larger version of Baby Black Transponder Snail
+ * Baby Black Transponder Snail Item
  * Right-click on a block to place the entity
  */
-public class BlackTransponderSnailItem extends Item {
+public class BabyBlackTransponderSnailItem extends Item {
 
     // NBT tag keys
     private static final String SHELL_COLOR_TAG = "ShellColor";
     private static final String ENTITY_DATA_TAG = "EntityData";
 
-    public BlackTransponderSnailItem(Properties properties) {
+    public BabyBlackTransponderSnailItem(Properties properties) {
         super(properties);
     }
 
     /**
      * Create an item from an entity, preserving its shell color
      */
-    public static ItemStack createFromEntity(BlackTransponderSnailEntity entity) {
-        ItemStack stack = new ItemStack(ModItems.BLACK_TRANSPONDER_SNAIL.get());
+    public static ItemStack createFromEntity(BabyBlackTransponderSnailEntity entity) {
+        ItemStack stack = new ItemStack(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
         CompoundTag nbt = stack.getOrCreateTag();
 
         // Store shell color
@@ -51,7 +50,7 @@ public class BlackTransponderSnailItem extends Item {
         entity.addAdditionalSaveData(entityData);
         nbt.put(ENTITY_DATA_TAG, entityData);
 
-        System.out.println("Created Black Transponder Snail item with shell color: " +
+        System.out.println("Created Baby Black Snail item with shell color: " +
                 DyeColor.byId(entityShellColor).getName() + " (ID: " + entityShellColor + ")");
 
         return stack;
@@ -61,7 +60,7 @@ public class BlackTransponderSnailItem extends Item {
      * Apply item data to entity when placed.
      * If item has no color stored (e.g., from creative menu), generates random color.
      */
-    public static void applyToEntity(ItemStack stack, BlackTransponderSnailEntity entity, Level level) {
+    public static void applyToEntity(ItemStack stack, BabyBlackTransponderSnailEntity entity, Level level) {
         CompoundTag nbt = stack.getTag();
 
         // Check if item has shell color stored
@@ -132,8 +131,8 @@ public class BlackTransponderSnailItem extends Item {
         }
 
         // Create the entity
-        BlackTransponderSnailEntity snailEntity = new BlackTransponderSnailEntity(
-                ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+        BabyBlackTransponderSnailEntity snailEntity = new BabyBlackTransponderSnailEntity(
+                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
                 level
         );
 
@@ -147,20 +146,20 @@ public class BlackTransponderSnailItem extends Item {
         snailEntity.yRotO = yaw;
 
         // Apply stored data from item (including shell color)
-        // This handles creative menu items by generating random color
+        // This now handles creative menu items by generating random color
         applyToEntity(context.getItemInHand(), snailEntity, level);
 
         // Spawn the entity
         level.addFreshEntity(snailEntity);
 
-        // Play placement sound (slightly different from baby)
+        // Play placement sound
         level.playSound(
                 null,
                 spawnPos,
                 SoundEvents.SLIME_BLOCK_PLACE,
                 SoundSource.BLOCKS,
                 1.0F,
-                0.8F // Lower pitch for bigger snail
+                1.0F
         );
 
         // Decrease item stack count

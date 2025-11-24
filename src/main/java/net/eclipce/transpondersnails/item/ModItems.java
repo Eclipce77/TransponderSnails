@@ -44,8 +44,11 @@ public class ModItems {
             () -> new TransponderSnailItem(ModBlocks.TRANSPONDER_SNAIL.get(),
                     new Item.Properties().stacksTo(1)));
 
+    public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL = ITEMS.register("black_transponder_snail",
+            () -> new BlackTransponderSnailItem(new Item.Properties().stacksTo(1)));
+
     public static final RegistryObject<Item> BABY_BLACK_TRANSPONDER_SNAIL = ITEMS.register("baby_black_transponder_snail",
-            () -> new Item(new Item.Properties().stacksTo(1)));
+            () -> new BabyBlackTransponderSnailItem(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> PORTABLE_BLACK_TRANSPONDER_SNAIL = ITEMS.register("portable_black_transponder_snail",
             () -> new PortableBlackTransponderSnailItem(new Item.Properties().stacksTo(1)));

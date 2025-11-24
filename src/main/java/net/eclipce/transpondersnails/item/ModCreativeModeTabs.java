@@ -21,6 +21,7 @@ public class ModCreativeModeTabs {
                     .displayItems((pParameters, pOutput) -> {
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.ROTARY_DIAL.get());

@@ -4,6 +4,8 @@ import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
 import net.eclipce.transpondersnails.entity.client.ModModelLayers;
+import net.eclipce.transpondersnails.entity.custom.BabyBlackTransponderSnailEntity;
+import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity;
 import net.eclipce.transpondersnails.entity.custom.DenDenMushiEntity;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
@@ -16,5 +18,12 @@ public class ModEventBusEvents {
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
+
+        event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                BabyBlackTransponderSnailEntity.createAttributes().build());
+
+        event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+                BlackTransponderSnailEntity.createAttributes().build());
+
     }
 }

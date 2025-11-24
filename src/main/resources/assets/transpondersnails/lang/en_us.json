@@ -1,5 +1,7 @@
 {
   "entity.transpondersnails.den_den_mushi": "Den Den Mushi",
+  "entity.transpondersnails.black_transponder_snail": "Black Transponder Snail",
+  "entity.transpondersnails.baby_black_transponder_snail": "Baby Black Transponder Snail",
 
   "block.transpondersnails.transponder_snail": "Transponder Snail",
   "block.transpondersnails.white_transponder_snail": "White Transponder Snail",
@@ -12,6 +14,7 @@
 
   "item.transpondersnails.den_den_mushi": "Den Den Mushi",
   "item.transpondersnails.baby_transponder_snail": "Baby Transponder Snail",
+  "item.transpondersnails.black_transponder_snail": "Black Transponder Snail",
   "item.transpondersnails.baby_black_transponder_snail": "Baby Black Transponder Snail",
   "item.transpondersnails.portable_black_transponder_snail": "Portable Black Transponder Snail",
   "item.transpondersnails.den_den_mushi_spawn_egg": "Den Den Mushi Spawn Egg",
