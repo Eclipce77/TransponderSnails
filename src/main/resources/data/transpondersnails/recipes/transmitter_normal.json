@@ -3,15 +3,12 @@
   "category": "misc",
   "pattern": [
     "NCN",
-    "NPN",
+    "NCN",
     "NNN"
   ],
   "key": {
     "N": {
-      "item": "minecraft:gold_nugget"
-    },
-    "P": {
-      "item": "minecraft:compass"
+      "item": "transpondersnails:copper_nugget"
     },
     "C": {
       "item": "transpondersnails:wire"

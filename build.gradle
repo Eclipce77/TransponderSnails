@@ -86,6 +86,9 @@ minecraft {
         client {
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             property 'forge.enabledGameTestNamespaces', mod_id
+
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
         }
 
         server {
@@ -160,6 +163,11 @@ minecraft {
                 includeGroup "curse.maven"
             }
         }
+
+        maven {
+            name = "Illusive Soulworks maven"
+            url = "https://maven.theillusivec4.top/"
+        }
     }
 
     dependencies {
@@ -191,6 +199,11 @@ minecraft {
 
         // Example: Include voicechat only at runtime, NOT in datagen
         runtimeOnly fg.deobf("curse.maven:simplevoicechat-416089:6439524")
+
+        // Compile against only the API artifact
+        compileOnly(fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}:api"))
+        // Use the full Curios API jar at runtime
+        runtimeOnly(fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}"))
 
         // For datagen, don't include voicechat, only your main mod classes
         datagenImplementation sourceSets.main.output

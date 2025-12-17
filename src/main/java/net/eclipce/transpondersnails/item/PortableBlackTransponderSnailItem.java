@@ -4,6 +4,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
@@ -17,13 +18,16 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import top.theillusivec4.curios.api.SlotContext;
+import top.theillusivec4.curios.api.type.capability.ICurioItem;
 
 import java.util.List;
 
 /**
- * Portable Black Transponder Snail - Dyeable Version
+ * Portable Black Transponder Snail - Dyeable Version with Curios Support
+ * Right-click opens/closes the snail. Must manually place in Curios slot to equip.
  */
-public class PortableBlackTransponderSnailItem extends Item {
+public class PortableBlackTransponderSnailItem extends Item implements ICurioItem {
 
     private static final String OPEN_STATE_TAG = "is_open";
     private static final String WAS_IN_HAND_TAG = "was_in_hand";
@@ -41,6 +45,61 @@ public class PortableBlackTransponderSnailItem extends Item {
     public PortableBlackTransponderSnailItem(Properties properties) {
         super(properties);
     }
+
+    // =================== ICurioItem Implementation ===================
+
+    /**
+     * Called when the item is equipped in a Curio slot
+     */
+    @Override
+    public void onEquip(SlotContext slotContext, ItemStack prevStack, ItemStack stack) {
+        ICurioItem.super.onEquip(slotContext, prevStack, stack);
+
+        // Play equip sound
+        slotContext.entity().playSound(SoundEvents.ARMOR_EQUIP_LEATHER, 1.0F, 1.0F);
+
+        // Ensure colors are initialized
+        ensureColorsInitialized(stack, false);
+
+        // Debug log
+        System.out.println("Portable Snail equipped in " + slotContext.identifier() + " slot " + slotContext.index());
+    }
+
+    /**
+     * Called when the item is unequipped from a Curio slot
+     */
+    @Override
+    public void onUnequip(SlotContext slotContext, ItemStack newStack, ItemStack stack) {
+        ICurioItem.super.onUnequip(slotContext, newStack, stack);
+
+        // Play unequip sound
+        slotContext.entity().playSound(SoundEvents.ARMOR_EQUIP_LEATHER, 1.0F, 0.8F);
+
+        // Debug log
+        System.out.println("Portable Snail unequipped from " + slotContext.identifier() + " slot " + slotContext.index());
+    }
+
+    /**
+     * Called every tick while equipped in a Curio slot
+     */
+    @Override
+    public void curioTick(SlotContext slotContext, ItemStack stack) {
+        ICurioItem.super.curioTick(slotContext, stack);
+
+        // You can add calling functionality here later
+        // For now, just ensure the snail maintains its state
+    }
+
+    /**
+     * Can this item be equipped from using (right-clicking)?
+     * Return false so right-click opens/closes the snail instead of equipping
+     */
+    @Override
+    public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
+        return false; // Must manually place in Curios slot - right-click opens/closes
+    }
+
+    // =================== Original Item Functionality ===================
 
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(@NotNull Level level, @NotNull Player player, @NotNull InteractionHand hand) {
@@ -241,7 +300,7 @@ public class PortableBlackTransponderSnailItem extends Item {
         tooltip.add(Component.literal("Band: " + capitalize(bandColor.getName()))
                 .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
 
-        tooltip.add(Component.literal("Right-click to open/close")
+        tooltip.add(Component.literal("Right-Click to Open/Close")
                 .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));
     }
 

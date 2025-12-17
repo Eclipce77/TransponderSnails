@@ -2,22 +2,19 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    "NPN",
+    "NIN",
     "NIN",
     "NCN"
   ],
   "key": {
     "N": {
-      "item": "minecraft:gold_nugget"
+      "item": "transpondersnails:copper_nugget"
     },
     "I": {
       "item": "minecraft:iron_nugget"
     },
     "C": {
       "item": "transpondersnails:wire"
-    },
-    "P": {
-      "item": "minecraft:light_weighted_pressure_plate"
     }
   },
   "result": {

@@ -65,6 +65,7 @@ public class ModConfig {
         public final ForgeConfigSpec.DoubleValue handheldSnailRange;
         public final ForgeConfigSpec.LongValue ringTimeoutMs;
         public final ForgeConfigSpec.DoubleValue snailInteractionRange;
+        public final ForgeConfigSpec.BooleanValue enablePhoneFilter;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("Transponder Snails Server Configuration")
@@ -82,6 +83,12 @@ public class ModConfig {
                     .comment("      .%%%%%%%%%%%%%%%* ")
                     .comment("These settings control gameplay mechanics and are synced to all players")
                     .push("gameplay");
+
+            builder.pop();
+
+            // Audio processing settings
+            builder.comment("Snail Settings Settings")
+                    .push("snails");
 
             locationalSnailRange = builder
                     .comment("Range in blocks for voice chat through placed Transponder Snail blocks")
@@ -104,6 +111,16 @@ public class ModConfig {
                     .defineInRange("snail_interaction_range", 10.0, 1.0, 50.0);
 
             builder.pop();
+
+            // Audio processing settings
+            builder.comment("Audio Processing Settings")
+                    .push("audio");
+
+            enablePhoneFilter = builder
+                    .comment("Enable phone-call sounding audio for all Transponder Snail calls")
+                    .define("enable_phone_filter", true);
+
+            builder.pop();
         }
     }
 
@@ -113,6 +130,7 @@ public class ModConfig {
     private static final double DEFAULT_HANDHELD_RANGE = 3.0;
     private static final long DEFAULT_RING_TIMEOUT = 30000L;
     private static final double DEFAULT_INTERACTION_RANGE = 10.0;
+    private static final boolean DEFAULT_ENABLE_PHONE_FILTER = true;
 
     // Cache for client values
     private static boolean cachedEnableNumpad = DEFAULT_ENABLE_NUMPAD;
@@ -122,6 +140,7 @@ public class ModConfig {
     private static double cachedHandheldRange = DEFAULT_HANDHELD_RANGE;
     private static long cachedRingTimeout = DEFAULT_RING_TIMEOUT;
     private static double cachedInteractionRange = DEFAULT_INTERACTION_RANGE;
+    private static boolean cachedEnablePhoneFilter = DEFAULT_ENABLE_PHONE_FILTER;
 
     /**
      * Called when config is loaded or changed
@@ -139,12 +158,14 @@ public class ModConfig {
             cachedHandheldRange = getValidatedValue(SERVER.handheldSnailRange.get(), DEFAULT_HANDHELD_RANGE, 1.0, 50.0);
             cachedRingTimeout = getValidatedValue(SERVER.ringTimeoutMs.get(), DEFAULT_RING_TIMEOUT, 5000L, 300000L);
             cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
+            cachedEnablePhoneFilter = SERVER.enablePhoneFilter.get();
 
             System.out.println("TransponderSnails server config loaded:");
             System.out.println("  Locational Snail Range: " + cachedLocationalRange);
             System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
             System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
             System.out.println("  Interaction Range: " + cachedInteractionRange);
+            System.out.println("  Phone Filter Enabled: " + cachedEnablePhoneFilter);
         }
     }
 
@@ -216,5 +237,9 @@ public class ModConfig {
             return DEFAULT_INTERACTION_RANGE;
         }
         return cachedInteractionRange;
+    }
+
+    public static boolean isPhoneFilterEnabled() {
+        return cachedEnablePhoneFilter;
     }
 }

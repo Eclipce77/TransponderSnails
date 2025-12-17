@@ -68,6 +68,12 @@ description='''Transponder Snails from One Piece in Minecraft'''
     versionRange="[1.20.1-2.5.27,)"
     ordering="AFTER"
     side="BOTH"
+[[dependencies.transpondersnails]]
+    modId="curios"
+    mandatory=false
+    versionRange="[5.14.1+1.20.1,)"
+    ordering="AFTER"
+    side="BOTH"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't

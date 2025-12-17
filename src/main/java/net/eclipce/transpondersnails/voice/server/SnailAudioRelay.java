@@ -4,9 +4,13 @@ import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
+import de.maxhenkel.voicechat.api.opus.OpusDecoder;
+import de.maxhenkel.voicechat.api.opus.OpusEncoder;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
+import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -23,11 +27,17 @@ import java.util.concurrent.TimeUnit;
  * - Direct Opus transmission (Tier 1)
  * - Smart caching and optimizations (Tier 2)
  * - Full handheld snail audio forwarding (NEW)
+ * - Phone audio filtering for immersive call quality (NEW)
  */
 public class SnailAudioRelay {
 
     private final VoicechatServerApi voiceChatApi;
     private final TransponderCallManager callManager;
+
+    // ✨ NEW: Phone audio filter
+    private final PhoneAudioFilter phoneFilter;
+    private final OpusDecoder opusDecoder;
+    private final OpusEncoder opusEncoder;
 
     // TIER 2: Simplified cache - only cache what we need
     private final Map<UUID, CallSessionCache> playerSessionCache = new ConcurrentHashMap<>();
@@ -43,10 +53,19 @@ public class SnailAudioRelay {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 
+        // ✨ NEW: Initialize phone filter and codecs
+        this.phoneFilter = new PhoneAudioFilter();
+        this.opusDecoder = voiceChatApi.createDecoder();
+        this.opusEncoder = voiceChatApi.createEncoder();
+
         // TIER 2: Less frequent cleanup for better performance
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 200, 200, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld support system");
+        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld support + Phone Filter system");
+        System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED" : "DISABLED"));
+        if (ModConfig.isPhoneFilterEnabled()) {
+            System.out.println("  " + phoneFilter.getDescription());
+        }
     }
 
     /**
@@ -123,13 +142,57 @@ public class SnailAudioRelay {
     }
 
     /**
+     * ✨ NEW: Process audio through phone filter (if enabled)
+     * This method handles the decode -> filter -> re-encode pipeline
+     */
+    private byte[] processAudioWithFilter(byte[] opusData) {
+        // Check if phone filter is enabled in config
+        if (!ModConfig.isPhoneFilterEnabled()) {
+            // Filter disabled - pass through unchanged
+            return opusData;
+        }
+
+        try {
+            // Decode Opus to PCM (16-bit samples at 48kHz)
+            short[] pcmSamples = opusDecoder.decode(opusData);
+
+            if (pcmSamples == null || pcmSamples.length == 0) {
+                // Decode failed - return original
+                return opusData;
+            }
+
+            // Apply phone filter (bandpass 300Hz-3400Hz)
+            short[] filteredSamples = phoneFilter.process(pcmSamples);
+
+            // Re-encode to Opus
+            byte[] filteredOpus = opusEncoder.encode(filteredSamples);
+
+            if (filteredOpus == null || filteredOpus.length == 0) {
+                // Encode failed - return original
+                return opusData;
+            }
+
+            return filteredOpus;
+
+        } catch (Exception e) {
+            // Error in filtering - log and return original
+            System.err.println("SnailAudioRelay: Error applying phone filter: " + e.getMessage());
+            return opusData;
+        }
+    }
+
+    /**
      * Forward Opus bytes directly to block snail audio channel
+     * ✨ UPDATED: Now applies phone filter if enabled
      */
     private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession) {
         try {
+            // Process audio through filter (no-op if filter disabled)
+            byte[] processedAudio = processAudioWithFilter(opusData);
+
             LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
             if (channel != null) {
-                channel.send(opusData);
+                channel.send(processedAudio);
             }
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to " + targetPos + ": " + e.getMessage());
@@ -139,12 +202,16 @@ public class SnailAudioRelay {
     /**
      * ✨ NEW: Forward Opus bytes to handheld snail participant
      * This enables handheld-to-handheld and block-to-handheld audio!
+     * ✨ UPDATED: Now applies phone filter if enabled
      */
     private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession) {
         try {
+            // Process audio through filter (no-op if filter disabled)
+            byte[] processedAudio = processAudioWithFilter(opusData);
+
             AudioChannel channel = callSession.getHandheldChannel(playerId);
             if (channel != null) {
-                channel.send(opusData);
+                channel.send(processedAudio);
             } else {
                 // Debug: Channel missing (this shouldn't happen if everything is set up correctly)
                 System.err.println("SnailAudioRelay: No handheld channel found for player " +
@@ -318,6 +385,7 @@ public class SnailAudioRelay {
 
     /**
      * Shutdown cleanup
+     * ✨ UPDATED: Now includes codec cleanup
      */
     public void shutdown() {
         cleanupExecutor.shutdown();
@@ -328,6 +396,18 @@ public class SnailAudioRelay {
         } catch (InterruptedException e) {
             cleanupExecutor.shutdownNow();
             Thread.currentThread().interrupt();
+        }
+
+        // Close codecs
+        try {
+            if (opusDecoder != null) {
+                opusDecoder.close();
+            }
+            if (opusEncoder != null) {
+                opusEncoder.close();
+            }
+        } catch (Exception e) {
+            System.err.println("SnailAudioRelay: Error closing codecs: " + e.getMessage());
         }
 
         playerSessionCache.clear();
