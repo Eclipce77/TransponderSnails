@@ -10,10 +10,7 @@ import net.eclipce.transpondersnails.entity.client.BlackTransponderSnailRenderer
 import net.eclipce.transpondersnails.entity.client.TransponderSnailItemProperties;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
 import net.eclipce.transpondersnails.entity.client.ModModelLayers;
-import net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem;
-import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
-import net.eclipce.transpondersnails.item.DenDenMushiItem;
-import net.eclipce.transpondersnails.item.ModItems;
+import net.eclipce.transpondersnails.item.*;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -158,6 +155,19 @@ public class ModEventBusClientEvents {
 
             return -1;
         }, ModItems.DEN_DEN_MUSHI.get());
+
+        // Register existing Baby Den Den Mushi item coloring
+        event.register((stack, tintIndex) -> {
+            if (!(stack.getItem() instanceof BabyDenDenMushiItem)) {
+                return -1;
+            }
+
+            if (tintIndex == 0 && BabyDenDenMushiItem.isCaptured(stack)) {
+                return BabyDenDenMushiItem.getBodyColor(stack);
+            }
+
+            return -1;
+        }, ModItems.BABY_DEN_DEN_MUSHI.get());
 
         // Register Transponder Snail block item coloring
         event.register((stack, tintIndex) -> {

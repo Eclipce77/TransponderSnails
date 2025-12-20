@@ -1,5 +1,6 @@
 {
   "entity.transpondersnails.den_den_mushi": "Den Den Mushi",
+  "entity.transpondersnails.baby_den_den_mushi": "Baby Den Den Mushi",
   "entity.transpondersnails.black_transponder_snail": "Black Transponder Snail",
   "entity.transpondersnails.baby_black_transponder_snail": "Baby Black Transponder Snail",
 
@@ -13,11 +14,14 @@
   "block.transpondersnails.wire": "Wire",
 
   "item.transpondersnails.den_den_mushi": "Den Den Mushi",
+  "item.transpondersnails.baby_den_den_mushi": "Baby Den Den Mushi",
   "item.transpondersnails.baby_transponder_snail": "Baby Transponder Snail",
   "item.transpondersnails.black_transponder_snail": "Black Transponder Snail",
   "item.transpondersnails.baby_black_transponder_snail": "Baby Black Transponder Snail",
   "item.transpondersnails.portable_black_transponder_snail": "Portable Black Transponder Snail",
   "item.transpondersnails.den_den_mushi_spawn_egg": "Den Den Mushi Spawn Egg",
+  "item.transpondersnails.black_transponder_snail_spawn_egg": "Black Transponder Snail Spawn Egg",
+  "item.transpondersnails.baby_black_transponder_snail_spawn_egg": "Baby Black Transponder Snail Spawn Egg",
 
   "item.transpondersnails.rotary_dial": "Rotary Dial",
   "item.transpondersnails.copper_nugget": "Copper Nugget",

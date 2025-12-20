@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.entity.custom;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
+import net.eclipce.transpondersnails.item.BabyDenDenMushiItem;
 import net.eclipce.transpondersnails.item.DenDenMushiItem;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -116,7 +117,33 @@ public class DenDenMushiEntity extends Animal {
     @Nullable
     @Override
     public AgeableMob getBreedOffspring(ServerLevel pLevel, AgeableMob pOtherParent) {
-        return ModEntities.DEN_DEN_MUSHI.get().create(pLevel);
+        DenDenMushiEntity baby = ModEntities.DEN_DEN_MUSHI.get().create(pLevel);
+
+        if (baby != null && pOtherParent instanceof DenDenMushiEntity otherDenDen) {
+            // Inherit traits from parents - 50% chance for each trait from each parent
+
+            // Inherit body color (50% from this parent, 50% from other parent)
+            int babyBodyColor = this.random.nextBoolean() ?
+                    this.getBodyColor() : otherDenDen.getBodyColor();
+
+            // Inherit shell color (50% from this parent, 50% from other parent)
+            int babyShellColor = this.random.nextBoolean() ?
+                    this.getShellColor() : otherDenDen.getShellColor();
+
+            // Set the baby's colors
+            baby.setBodyColor(babyBodyColor);
+            baby.setShellColor(babyShellColor);
+
+            System.out.println("BREEDING: Created baby with inherited colors");
+            System.out.println("  Parent 1 - Body: #" + Integer.toHexString(this.getBodyColor()).toUpperCase() +
+                    ", Shell: " + DyeColor.byId(this.getShellColor()).getName());
+            System.out.println("  Parent 2 - Body: #" + Integer.toHexString(otherDenDen.getBodyColor()).toUpperCase() +
+                    ", Shell: " + DyeColor.byId(otherDenDen.getShellColor()).getName());
+            System.out.println("  Baby - Body: #" + Integer.toHexString(babyBodyColor).toUpperCase() +
+                    ", Shell: " + DyeColor.byId(babyShellColor).getName());
+        }
+
+        return baby;
     }
 
     @Override
@@ -263,13 +290,21 @@ public class DenDenMushiEntity extends Animal {
                 System.out.println("Entity Shell Color (raw data): " + this.entityData.get(SHELL_COLOR));
                 System.out.println("Entity Body Color: #" + Integer.toHexString(this.getBodyColor()).toUpperCase());
 
-                // Create item with this entity's data
-                ItemStack denDenMushiItem = DenDenMushiItem.createFromEntity(this);
+                System.out.println("Entity is baby: " + this.isBaby());
 
-                // Debug: Verify the created item
-                System.out.println("Created item shell color: " + DenDenMushiItem.getShellColor(denDenMushiItem));
-                System.out.println("Created item body color: #" +
-                        Integer.toHexString(DenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+                // Create item with this entity's data - use BabyDenDenMushiItem for babies
+                ItemStack denDenMushiItem;
+                if (this.isBaby()) {
+                    denDenMushiItem = BabyDenDenMushiItem.createFromEntity(this);
+                    System.out.println("Created BABY item shell color: " + BabyDenDenMushiItem.getShellColor(denDenMushiItem));
+                    System.out.println("Created BABY item body color: #" +
+                            Integer.toHexString(BabyDenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+                } else {
+                    denDenMushiItem = DenDenMushiItem.createFromEntity(this);
+                    System.out.println("Created ADULT item shell color: " + DenDenMushiItem.getShellColor(denDenMushiItem));
+                    System.out.println("Created ADULT item body color: #" +
+                            Integer.toHexString(DenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+                }
 
                 // Give item to player
                 if (!player.getInventory().add(denDenMushiItem)) {
