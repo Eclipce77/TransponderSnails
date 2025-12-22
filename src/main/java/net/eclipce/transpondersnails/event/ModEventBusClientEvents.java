@@ -91,7 +91,35 @@ public class ModEventBusClientEvents {
                     TransponderSnailItemProperties::calculateCallState);
 
             System.out.println("TransponderSnails: Registered item properties for dynamic models");
+
+            // Shell color for block item
+            ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get().asItem(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        CompoundTag nbt = stack.getTag();
+                        if (nbt != null) {
+                            if (nbt.contains("shell_color")) {
+                                return nbt.getInt("shell_color") / 100.0f;
+                            }
+                            if (nbt.contains("BlockEntityTag")) {
+                                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                                if (beTag.contains("ShellColor")) {
+                                    return beTag.getInt("ShellColor") / 100.0f;
+                                }
+                            }
+                        }
+                        return 0.0f; // Default white
+                    });
+
+            // NEW: Call state for dynamic visuals
+            ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get().asItem(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                    TransponderSnailItemProperties::calculateCallState);
+
+            System.out.println("TransponderSnails: Registered item properties for dynamic models");
         });
+
+
 
         // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
 
@@ -187,6 +215,24 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL.get());
+
+        event.register((stack, tintIndex) -> {
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null) {
+                    if (nbt.contains("body_color")) {
+                        return nbt.getInt("body_color");
+                    }
+                    if (nbt.contains("BlockEntityTag")) {
+                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                        if (beTag.contains("BodyColor")) {
+                            return beTag.getInt("BodyColor");
+                        }
+                    }
+                }
+            }
+            return -1;
+        }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
     }
 
     @SubscribeEvent
@@ -207,5 +253,22 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL.get());
+
+        event.register((state, level, pos, tintIndex) -> {
+            if (tintIndex == 0 && level != null && pos != null) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof TransponderSnailBlockEntity snailBE) {
+                    int color = snailBE.getBodyColor();
+                    System.out.println("BlockColors handler - Position: " + pos +
+                            ", Body color: #" + Integer.toHexString(color) +
+                            ", Initialized: " + snailBE.isColorsInitialized());
+                    return color;
+                } else {
+                    System.out.println("BlockColors handler - Position: " + pos +
+                            ", BE is null or wrong type");
+                }
+            }
+            return -1;
+        }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
     }
 }

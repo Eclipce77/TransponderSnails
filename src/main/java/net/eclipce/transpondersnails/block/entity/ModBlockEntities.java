@@ -17,6 +17,11 @@ public class ModBlockEntities {
                     BlockEntityType.Builder.of(TransponderSnailBlockEntity::new,
                             ModBlocks.TRANSPONDER_SNAIL.get()).build(null));
 
+    public static final RegistryObject<BlockEntityType<TransponderSnailBlockEntity>> TRANSPONDER_SNAIL_TRANSMITTER_BE =
+            BLOCK_ENTITIES.register("transponder_snail_transmitter_be", () ->
+                    BlockEntityType.Builder.of(TransponderSnailBlockEntity::new,
+                            ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()).build(null));
+
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);
     }

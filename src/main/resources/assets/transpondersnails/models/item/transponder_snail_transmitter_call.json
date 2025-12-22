@@ -1,0 +1,131 @@
+{
+  "parent": "transpondersnails:block/transponder_snail_transmitter_call",
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [
+        0,
+        148,
+        0
+      ],
+      "translation": [
+        0,
+        5.6,
+        1.75
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        0,
+        148,
+        0
+      ],
+      "translation": [
+        0,
+        5.6,
+        1.25
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        -3,
+        142,
+        -7
+      ],
+      "translation": [
+        0.25,
+        6.5,
+        1.25
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        -3,
+        142,
+        -7
+      ],
+      "translation": [
+        0.25,
+        6.5,
+        1.25
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "ground": {
+      "translation": [
+        0,
+        3.4,
+        0
+      ],
+      "scale": [
+        0.85,
+        0.85,
+        0.85
+      ]
+    },
+    "gui": {
+      "rotation": [
+        12,
+        137,
+        0
+      ],
+      "translation": [
+        0,
+        2.75,
+        0
+      ],
+      "scale": [
+        0.9,
+        0.9,
+        0.9
+      ]
+    },
+    "head": {
+      "translation": [
+        0,
+        1.75,
+        0
+      ],
+      "scale": [
+        0,
+        0,
+        0
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        -90,
+        0
+      ],
+      "translation": [
+        0,
+        2.75,
+        0
+      ],
+      "scale": [
+        0.35,
+        1,
+        1
+      ]
+    }
+  }
+}

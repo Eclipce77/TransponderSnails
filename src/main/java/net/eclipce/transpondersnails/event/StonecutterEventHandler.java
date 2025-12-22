@@ -35,6 +35,11 @@ public class StonecutterEventHandler {
                 lastInputs.put(playerId, input.copy());
             }
 
+            // Store the current input
+            if (!input.isEmpty() && input.getItem() == ModItems.TRANSPONDER_SNAIL_TRANSMITTER.get()) {
+                lastInputs.put(playerId, input.copy());
+            }
+
             // Check result slot (slot 1 in stonecutter)
             ItemStack result = menu.getSlot(1).getItem();
 

@@ -28,6 +28,9 @@ public class ModBlocks {
     public static final RegistryObject<Block> TRANSPONDER_SNAIL = BLOCKS.register("transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
+    public static final RegistryObject<Block> TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("transponder_snail_transmitter",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
     public static final RegistryObject<Block> WIRE = BLOCKS.register("wire",
             () -> new WireBlock(BlockBehaviour.Properties.of()
                     .strength(0.0F) // Can be broken instantly

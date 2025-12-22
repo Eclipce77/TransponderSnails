@@ -1,0 +1,20 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    "   ",
+    " DT",
+    "   "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:transponder_snail"
+    },
+    "T": {
+      "item": "transpondersnails:transmitter"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:transponder_snail_transmitter"
+  }
+}

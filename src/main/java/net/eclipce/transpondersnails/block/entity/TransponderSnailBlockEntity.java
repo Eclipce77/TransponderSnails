@@ -89,6 +89,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
     public TransponderSnailBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), pPos, pBlockState);
+
     }
 
     @Override

@@ -3,15 +3,12 @@
   "category": "misc",
   "pattern": [
     " MC",
-    "RDT",
+    "RD ",
     "   "
   ],
   "key": {
     "D": {
       "item": "transpondersnails:den_den_mushi"
-    },
-    "T": {
-      "item": "transpondersnails:transmitter"
     },
     "C": {
       "item": "transpondersnails:wire"

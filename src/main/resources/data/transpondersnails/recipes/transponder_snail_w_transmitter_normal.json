@@ -1,0 +1,29 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    " MC",
+    "RDT",
+    "   "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:den_den_mushi"
+    },
+    "T": {
+      "item": "transpondersnails:transmitter"
+    },
+    "C": {
+      "item": "transpondersnails:wire"
+    },
+    "M": {
+      "item": "transpondersnails:microphone_capsule"
+    },
+    "R": {
+      "item": "transpondersnails:rotary_dial"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:transponder_snail_transmitter"
+  }
+}

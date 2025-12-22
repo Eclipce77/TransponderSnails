@@ -53,6 +53,9 @@ public class SnailNBTHandler {
             if (blockItem.getBlock() == ModBlocks.TRANSPONDER_SNAIL.get()) {
                 return SnailType.BLOCK;
             }
+            if (blockItem.getBlock() == ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()) {
+                return SnailType.BLOCK;
+            }
         }
 
         // Check if it's a handheld Transponder Snail item

@@ -68,6 +68,39 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
             }
         }
 
+        if (!input.isEmpty() && input.getItem() == ModItems.TRANSPONDER_SNAIL_TRANSMITTER.get()) {
+            CompoundTag inputNbt = input.getTag();
+
+            if (inputNbt != null) {
+                // Check for colors in top-level NBT
+                if (inputNbt.contains("body_color") && inputNbt.contains("shell_color")) {
+                    int bodyColor = inputNbt.getInt("body_color");
+                    int shellColor = inputNbt.getInt("shell_color");
+
+                    // Transfer colors to Den Den Mushi
+                    DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                    DenDenMushiItem.setCaptured(result, true);
+
+                    System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from Transponder Snail - Body: #" +
+                            Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
+                }
+                // Also check BlockEntityTag (for items that were placed as blocks)
+                else if (inputNbt.contains("BlockEntityTag")) {
+                    CompoundTag blockEntityTag = inputNbt.getCompound("BlockEntityTag");
+                    if (blockEntityTag.contains("BodyColor") && blockEntityTag.contains("ShellColor")) {
+                        int bodyColor = blockEntityTag.getInt("BodyColor");
+                        int shellColor = blockEntityTag.getInt("ShellColor");
+
+                        DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                        DenDenMushiItem.setCaptured(result, true);
+
+                        System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from BlockEntityTag - Body: #" +
+                                Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
+                    }
+                }
+            }
+        }
+
         return result;
     }
 
