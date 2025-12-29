@@ -72,6 +72,12 @@ public class ModItems {
     public static final RegistryObject<Item> PORTABLE_BLACK_TRANSPONDER_SNAIL = ITEMS.register("portable_black_transponder_snail",
             () -> new PortableBlackTransponderSnailItem(new Item.Properties().stacksTo(1)));
 
+    public static final RegistryObject<Item> WHITE_DEN_DEN_MUSHI = ITEMS.register("white_den_den_mushi",
+            () -> new Item(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> WHITE_TRANSPONDER_SNAIL = ITEMS.register("white_transponder_snail",
+            () -> new BlockItem(ModBlocks.WHITE_TRANSPONDER_SNAIL.get(), new Item.Properties().stacksTo(1)));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

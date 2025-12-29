@@ -19,16 +19,17 @@ public class ModCreativeModeTabs {
             () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.TRANSPONDER_SNAIL.get()))
                     .title(Component.translatable("creativetab.transpondersnails"))
                     .displayItems((pParameters, pOutput) -> {
-                        pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
-                        pOutput.accept(ModItems.BABY_DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.ROTARY_DIAL.get());
                         pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
                         pOutput.accept(ModItems.TRANSMITTER.get());
+                        pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
+                        pOutput.accept(ModItems.WHITE_DEN_DEN_MUSHI.get());
                     })
                     .build());
 

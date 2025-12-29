@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
+import net.eclipce.transpondersnails.block.custom.WhiteTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WireBlock;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.item.TransponderSnailItem;
@@ -30,6 +31,9 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("transponder_snail_transmitter",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
+    public static final RegistryObject<Block> WHITE_TRANSPONDER_SNAIL = BLOCKS.register("white_transponder_snail",
+            () -> new WhiteTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
     public static final RegistryObject<Block> WIRE = BLOCKS.register("wire",
             () -> new WireBlock(BlockBehaviour.Properties.of()
