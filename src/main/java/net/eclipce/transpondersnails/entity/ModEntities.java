@@ -3,10 +3,15 @@ package net.eclipce.transpondersnails.entity;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.entity.custom.BabyBlackTransponderSnailEntity;
 import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity;
+import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailSpawnConditions;
 import net.eclipce.transpondersnails.entity.custom.DenDenMushiEntity;
+import net.eclipce.transpondersnails.entity.custom.DenDenMushiSpawnConditions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
+import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.DeferredRegister;
@@ -32,11 +37,11 @@ public class ModEntities {
                             )
                             .sized(0.16F, 0.12F) // Width and Height (hitbox size)
                             .clientTrackingRange(8) // How far away clients can see this entity
-                            .updateInterval(3) // Update every 20 ticks (1 second)
+                            .updateInterval(3) // Update every 3 ticks
                             .build("baby_black_transponder_snail")
             );
 
-    // Baby Black Transponder Snail Entity
+    // Black Transponder Snail Entity
     public static final RegistryObject<EntityType<BlackTransponderSnailEntity>> BLACK_TRANSPONDER_SNAIL =
             ENTITY_TYPES.register("black_transponder_snail",
                     () -> EntityType.Builder.<BlackTransponderSnailEntity>of(
@@ -45,7 +50,7 @@ public class ModEntities {
                             )
                             .sized(0.75F, 0.35F) // Width and Height (hitbox size)
                             .clientTrackingRange(10) // How far away clients can see this entity
-                            .updateInterval(3) // Update every 20 ticks (1 second)
+                            .updateInterval(3) // Update every 3 ticks
                             .build("black_transponder_snail")
             );
 
@@ -56,6 +61,46 @@ public class ModEntities {
     @SubscribeEvent
     public static void onAttributeCreate(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
+        event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
+        event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailEntity.createAttributes().build());
     }
 
+    /**
+     * Register spawn placements for all snail entities
+     * This determines WHERE entities can spawn (heightmap type, spawn conditions)
+     */
+    @SubscribeEvent
+    public static void registerSpawnPlacements(SpawnPlacementRegisterEvent event) {
+        System.out.println("TransponderSnails: Registering spawn placements");
+
+        // Den Den Mushi - spawns on surface (land or shallow water)
+        event.register(
+                ModEntities.DEN_DEN_MUSHI.get(),
+                SpawnPlacements.Type.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                DenDenMushiSpawnConditions::checkDenDenMushiSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE
+        );
+        System.out.println("  ✓ Den Den Mushi spawn placement registered");
+
+        // Black Transponder Snail - spawns underwater
+        event.register(
+                ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+                SpawnPlacements.Type.IN_WATER,
+                Heightmap.Types.OCEAN_FLOOR,
+                BlackTransponderSnailSpawnConditions::checkBlackTransponderSnailSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE
+        );
+        System.out.println("  ✓ Black Transponder Snail spawn placement registered");
+
+        // Baby Black Transponder Snail - spawns underwater
+        event.register(
+                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                SpawnPlacements.Type.IN_WATER,
+                Heightmap.Types.OCEAN_FLOOR,
+                BlackTransponderSnailSpawnConditions::checkBabyBlackTransponderSnailSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE
+        );
+        System.out.println("  ✓ Baby Black Transponder Snail spawn placement registered");
+    }
 }

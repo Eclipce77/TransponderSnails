@@ -1,5 +1,6 @@
 package net.eclipce.transpondersnails.entity.custom;
 
+import net.eclipce.transpondersnails.config.ModConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
@@ -14,12 +15,12 @@ import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * Spawn conditions for Den Den Mushi entities
- * Simplified to spawn like vanilla passive mobs
+ * Simplified to spawn like vanilla passive mobs, with config support
  */
 public class DenDenMushiSpawnConditions {
 
     /**
-     * Main spawn check - simplified version
+     * Main spawn check - now with config support
      */
     public static boolean checkDenDenMushiSpawnRules(EntityType<? extends PathfinderMob> entityType,
                                                      ServerLevelAccessor level,
@@ -29,16 +30,39 @@ public class DenDenMushiSpawnConditions {
 
         System.out.println("=== DEN DEN MUSHI SPAWN ATTEMPT at " + pos + " ===");
 
-        // Dimension check removed - biome modifier handles this!
+        // 1. Check if Den Den Mushi spawning is enabled in config
+        if (!ModConfig.isSnailSpawnEnabled("den_den_mushi")) {
+            System.out.println("REJECTED: den_den_mushi spawning is disabled in config");
+            return false;
+        }
 
-        // 1. Don't spawn in caves (unless structure spawn)
+        // 2. Check spawn rate from config
+        double spawnRate = ModConfig.getDenDenMushiSpawnRate();
+        if (spawnRate <= 0) {
+            System.out.println("REJECTED: Spawn rate is 0%");
+            return false;
+        }
+
+        // Apply spawn rate as a random chance
+        if (spawnRate < 100.0) {
+            double roll = random.nextDouble() * 100.0;
+            if (roll > spawnRate) {
+                System.out.println("REJECTED: Failed spawn rate check (" + String.format("%.1f", roll) +
+                        " > " + spawnRate + "%)");
+                return false;
+            }
+            System.out.println("✓ Passed spawn rate check (" + String.format("%.1f", roll) +
+                    " <= " + spawnRate + "%)");
+        }
+
+        // 3. Don't spawn in caves (unless structure spawn)
         if (spawnType != MobSpawnType.STRUCTURE && isInCave(level, pos)) {
             System.out.println("REJECTED: In cave");
             return false;
         }
         System.out.println("✓ Not in cave");
 
-        // 2. Check if position is valid
+        // 4. Check if position is valid
         if (!hasValidSpawnSpace(level, pos)) {
             System.out.println("REJECTED: Invalid spawn space");
             return false;
@@ -47,30 +71,6 @@ public class DenDenMushiSpawnConditions {
 
         System.out.println("✓✓✓ SPAWN APPROVED ✓✓✓");
         return true;
-    }
-
-    /**
-     * Check if in Overworld dimension
-     */
-    private static boolean isOverworld(LevelAccessor level) {
-        // For spawn checks, level is ServerLevelAccessor which we need to handle differently
-        if (level instanceof ServerLevel serverLevel) {
-            return serverLevel.dimension() == Level.OVERWORLD;
-        }
-
-        // Fallback: check dimension key string
-        try {
-            // This should work for ServerLevelAccessor
-            if (level.getLevelData() != null) {
-                // If we can't get dimension directly, assume overworld for now
-                // The biome modifier already restricts to overworld biomes
-                return true;
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to check dimension: " + e.getMessage());
-        }
-
-        return false;
     }
 
     /**
