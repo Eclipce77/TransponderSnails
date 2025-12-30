@@ -370,5 +370,103 @@
 				}
 			]
 		}
+	],
+	"overrides": [
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.0
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_white"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.1
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_orange"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.2
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_magenta"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.3
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_light_blue"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.4
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_yellow"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.5
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_lime"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.6
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_pink"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.7
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_gray"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.8
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_light_gray"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 0.9
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_cyan"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.0
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_purple"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.1
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_blue"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.2
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_brown"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.3
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_green"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.4
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_red"
+		},
+		{
+			"predicate": {
+				"transpondersnails:shell_color": 1.5
+			},
+			"model": "transpondersnails:item/white_den_den_mushi/shell_black"
+		}
 	]
 }

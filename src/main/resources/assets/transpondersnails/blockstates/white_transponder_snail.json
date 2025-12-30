@@ -1,19 +1,244 @@
 {
   "variants": {
-    "facing=north": {
-      "model": "transpondersnails:block/white_transponder_snail"
+    "facing=north,shell_color=0": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_white"
     },
-    "facing=south": {
-      "model": "transpondersnails:block/white_transponder_snail",
+    "facing=south,shell_color=0": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_white",
       "y": 180
     },
-    "facing=west": {
-      "model": "transpondersnails:block/white_transponder_snail",
+    "facing=east,shell_color=0": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_white",
+      "y": 90
+    },
+    "facing=west,shell_color=0": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_white",
       "y": 270
     },
-    "facing=east": {
-      "model": "transpondersnails:block/white_transponder_snail",
+    "facing=north,shell_color=1": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_orange"
+    },
+    "facing=south,shell_color=1": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_orange",
+      "y": 180
+    },
+    "facing=east,shell_color=1": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_orange",
       "y": 90
+    },
+    "facing=west,shell_color=1": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_orange",
+      "y": 270
+    },
+    "facing=north,shell_color=2": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_magenta"
+    },
+    "facing=south,shell_color=2": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_magenta",
+      "y": 180
+    },
+    "facing=east,shell_color=2": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_magenta",
+      "y": 90
+    },
+    "facing=west,shell_color=2": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_magenta",
+      "y": 270
+    },
+    "facing=north,shell_color=3": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_blue"
+    },
+    "facing=south,shell_color=3": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_blue",
+      "y": 180
+    },
+    "facing=east,shell_color=3": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_blue",
+      "y": 90
+    },
+    "facing=west,shell_color=3": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_blue",
+      "y": 270
+    },
+    "facing=north,shell_color=4": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_yellow"
+    },
+    "facing=south,shell_color=4": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_yellow",
+      "y": 180
+    },
+    "facing=east,shell_color=4": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_yellow",
+      "y": 90
+    },
+    "facing=west,shell_color=4": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_yellow",
+      "y": 270
+    },
+    "facing=north,shell_color=5": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_lime"
+    },
+    "facing=south,shell_color=5": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_lime",
+      "y": 180
+    },
+    "facing=east,shell_color=5": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_lime",
+      "y": 90
+    },
+    "facing=west,shell_color=5": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_lime",
+      "y": 270
+    },
+    "facing=north,shell_color=6": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_pink"
+    },
+    "facing=south,shell_color=6": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_pink",
+      "y": 180
+    },
+    "facing=east,shell_color=6": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_pink",
+      "y": 90
+    },
+    "facing=west,shell_color=6": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_pink",
+      "y": 270
+    },
+    "facing=north,shell_color=7": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_gray"
+    },
+    "facing=south,shell_color=7": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_gray",
+      "y": 180
+    },
+    "facing=east,shell_color=7": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_gray",
+      "y": 90
+    },
+    "facing=west,shell_color=7": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_gray",
+      "y": 270
+    },
+    "facing=north,shell_color=8": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_gray"
+    },
+    "facing=south,shell_color=8": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_gray",
+      "y": 180
+    },
+    "facing=east,shell_color=8": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_gray",
+      "y": 90
+    },
+    "facing=west,shell_color=8": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_light_gray",
+      "y": 270
+    },
+    "facing=north,shell_color=9": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_cyan"
+    },
+    "facing=south,shell_color=9": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_cyan",
+      "y": 180
+    },
+    "facing=east,shell_color=9": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_cyan",
+      "y": 90
+    },
+    "facing=west,shell_color=9": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_cyan",
+      "y": 270
+    },
+    "facing=north,shell_color=10": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_purple"
+    },
+    "facing=south,shell_color=10": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_purple",
+      "y": 180
+    },
+    "facing=east,shell_color=10": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_purple",
+      "y": 90
+    },
+    "facing=west,shell_color=10": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_purple",
+      "y": 270
+    },
+    "facing=north,shell_color=11": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_blue"
+    },
+    "facing=south,shell_color=11": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_blue",
+      "y": 180
+    },
+    "facing=east,shell_color=11": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_blue",
+      "y": 90
+    },
+    "facing=west,shell_color=11": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_blue",
+      "y": 270
+    },
+    "facing=north,shell_color=12": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_brown"
+    },
+    "facing=south,shell_color=12": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_brown",
+      "y": 180
+    },
+    "facing=east,shell_color=12": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_brown",
+      "y": 90
+    },
+    "facing=west,shell_color=12": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_brown",
+      "y": 270
+    },
+    "facing=north,shell_color=13": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_green"
+    },
+    "facing=south,shell_color=13": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_green",
+      "y": 180
+    },
+    "facing=east,shell_color=13": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_green",
+      "y": 90
+    },
+    "facing=west,shell_color=13": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_green",
+      "y": 270
+    },
+    "facing=north,shell_color=14": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_red"
+    },
+    "facing=south,shell_color=14": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_red",
+      "y": 180
+    },
+    "facing=east,shell_color=14": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_red",
+      "y": 90
+    },
+    "facing=west,shell_color=14": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_red",
+      "y": 270
+    },
+    "facing=north,shell_color=15": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_black"
+    },
+    "facing=south,shell_color=15": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_black",
+      "y": 180
+    },
+    "facing=east,shell_color=15": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_black",
+      "y": 90
+    },
+    "facing=west,shell_color=15": {
+      "model": "transpondersnails:block/white_transponder_snail/shell_black",
+      "y": 270
     }
   }
 }

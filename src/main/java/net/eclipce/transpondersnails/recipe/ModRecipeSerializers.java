@@ -23,6 +23,10 @@ public class ModRecipeSerializers {
             RECIPE_SERIALIZERS.register("portable_snail_dye",
                     PortableSnailDyeRecipeSerializer::new);
 
+    public static final RegistryObject<RecipeSerializer<ShellDyeRecipe>> SHELL_DYE_SERIALIZER =
+            RECIPE_SERIALIZERS.register("shell_dye",
+                    ShellDyeRecipeSerializer::new);
+
     public static void register(IEventBus eventBus) {
         RECIPE_SERIALIZERS.register(eventBus);
     }

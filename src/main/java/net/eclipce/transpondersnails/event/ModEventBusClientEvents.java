@@ -119,8 +119,6 @@ public class ModEventBusClientEvents {
             System.out.println("TransponderSnails: Registered item properties for dynamic models");
         });
 
-
-
         // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
 
         // Register shell color predicate for Baby Black Transponder Snail
@@ -151,6 +149,35 @@ public class ModEventBusClientEvents {
                 });
 
         System.out.println("TransponderSnails: Registered Black Transponder Snail item properties");
+
+        // =================== WHITE DEN DEN MUSHI PROPERTIES ===================
+
+        // Register shell color predicate for White Den Den Mushi
+        // Uses same 0.1 increment pattern as regular Den Den Mushi
+        ItemProperties.register(ModItems.WHITE_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, world, entity, seed) -> {
+                    int shellColor = WhiteDenDenMushiItem.getShellColor(stack);
+                    float predicateValue = shellColor * 0.1f;
+                    return predicateValue;
+                });
+
+        System.out.println("TransponderSnails: Registered White Den Den Mushi item properties");
+
+        // =================== WHITE TRANSPONDER SNAIL BLOCK ITEM PROPERTIES ===================
+
+        // Register shell color predicate for White Transponder Snail block item
+        ItemProperties.register(ModBlocks.WHITE_TRANSPONDER_SNAIL.get().asItem(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, world, entity, seed) -> {
+                    CompoundTag nbt = stack.getTag();
+                    if (nbt != null && nbt.contains("shell_color")) {
+                        return nbt.getInt("shell_color") * 0.1f;
+                    }
+                    return 0.0f; // Default white
+                });
+
+        System.out.println("TransponderSnails: Registered White Transponder Snail block item properties");
     }
 
     @SubscribeEvent

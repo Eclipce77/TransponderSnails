@@ -63,24 +63,62 @@ public class DenDenMushiItem extends Item {
         return stack;
     }
 
-    // Apply item data to entity when placed
+    // FIXED: Apply item data to entity when placed
+    // Prevents EntityData from overwriting freshly dyed colors
     public static void applyToEntity(ItemStack stack, DenDenMushiEntity entity) {
         CompoundTag nbt = stack.getTag();
         if (nbt == null) return;
 
-        // Apply colors
-        if (nbt.contains(BODY_COLOR_TAG)) {
-            entity.setBodyColor(nbt.getInt(BODY_COLOR_TAG));
+        System.out.println("=== applyToEntity DEBUG ===");
+        System.out.println("Item NBT: " + nbt);
+        System.out.println("Item has BodyColor: " + nbt.contains(BODY_COLOR_TAG));
+        System.out.println("Item has ShellColor: " + nbt.contains(SHELL_COLOR_TAG));
+        System.out.println("Item has EntityData: " + nbt.contains(ENTITY_DATA_TAG));
+
+        // Apply colors from top-level NBT FIRST
+        boolean hasTopLevelBodyColor = nbt.contains(BODY_COLOR_TAG);
+        boolean hasTopLevelShellColor = nbt.contains(SHELL_COLOR_TAG);
+
+        if (hasTopLevelBodyColor) {
+            int bodyColor = nbt.getInt(BODY_COLOR_TAG);
+            entity.setBodyColor(bodyColor);
+            System.out.println("  Applied top-level body color: #" + Integer.toHexString(bodyColor));
         }
-        if (nbt.contains(SHELL_COLOR_TAG)) {
-            entity.setShellColor(nbt.getInt(SHELL_COLOR_TAG));
+        if (hasTopLevelShellColor) {
+            int shellColor = nbt.getInt(SHELL_COLOR_TAG);
+            entity.setShellColor(shellColor);
+            System.out.println("  Applied top-level shell color: " + shellColor);
         }
 
-        // Apply other entity data
+        // Apply other entity data, but ONLY if we didn't already set colors
+        // This prevents EntityData from overwriting freshly dyed colors
         if (nbt.contains(ENTITY_DATA_TAG)) {
             CompoundTag entityData = nbt.getCompound(ENTITY_DATA_TAG);
-            entity.readAdditionalSaveData(entityData);
+
+            // If top-level colors exist, remove them from EntityData to prevent overwrite
+            if (hasTopLevelBodyColor || hasTopLevelShellColor) {
+                // Create a copy of entityData without color data
+                CompoundTag sanitizedEntityData = entityData.copy();
+                if (hasTopLevelBodyColor) {
+                    sanitizedEntityData.remove("BodyColor");
+                    System.out.println("  Removed BodyColor from EntityData to prevent overwrite");
+                }
+                if (hasTopLevelShellColor) {
+                    sanitizedEntityData.remove("ShellColor");
+                    System.out.println("  Removed ShellColor from EntityData to prevent overwrite");
+                }
+                entity.readAdditionalSaveData(sanitizedEntityData);
+            } else {
+                // No top-level colors, use EntityData as-is
+                entity.readAdditionalSaveData(entityData);
+                System.out.println("  Applied EntityData colors (no top-level override)");
+            }
         }
+
+        System.out.println("After applyToEntity:");
+        System.out.println("  Entity body color: #" + Integer.toHexString(entity.getBodyColor()));
+        System.out.println("  Entity shell color: " + entity.getShellColor());
+        System.out.println("=========================");
     }
 
     // Get colors for rendering and tooltips
