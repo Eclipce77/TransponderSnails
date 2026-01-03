@@ -40,6 +40,16 @@ public class ModItemProperties {
                 }
         );
 
+        // White Den Den Mushi shell color (ADDED)
+        ItemProperties.register(
+                ModItems.WHITE_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, level, entity, seed) -> {
+                    int shellColor = WhiteDenDenMushiItem.getShellColor(stack);
+                    return shellColor * 0.1f;
+                }
+        );
+
         System.out.println("Registered Den Den Mushi item properties with fixed predicates");
 
         // Register the "open" property (0.0 = closed, 1.0 = open)

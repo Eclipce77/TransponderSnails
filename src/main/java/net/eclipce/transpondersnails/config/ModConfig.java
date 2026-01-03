@@ -156,6 +156,11 @@ public class ModConfig {
         public final ForgeConfigSpec.IntValue babyBlackTransponderSnailMinGroup;
         public final ForgeConfigSpec.IntValue babyBlackTransponderSnailMaxGroup;
 
+        // White Den Den Mushi (land snail - white body variant)
+        public final ForgeConfigSpec.DoubleValue whiteDenDenMushiSpawnRate;
+        public final ForgeConfigSpec.IntValue whiteDenDenMushiMinGroup;
+        public final ForgeConfigSpec.IntValue whiteDenDenMushiMaxGroup;
+
         public SpawnConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("=".repeat(60))
                     .comment("SPAWN CONFIGURATION")
@@ -195,7 +200,7 @@ public class ModConfig {
             disabledSnails = builder
                     .comment("List of snails that should NOT spawn naturally")
                     .comment("Leave empty to allow all snails to spawn")
-                    .comment("Valid values: 'den_den_mushi', 'black_transponder_snail', 'baby_black_transponder_snail'")
+                    .comment("Valid values: 'den_den_mushi', 'white_den_den_mushi', 'black_transponder_snail', 'baby_black_transponder_snail'")
                     .comment("Example: ['baby_black_transponder_snail'] to disable only baby black snails")
                     .defineList("disabled_snails",
                             Arrays.asList(),
@@ -269,6 +274,28 @@ public class ModConfig {
 
             builder.pop(); // baby_black_transponder_snail
 
+            // White Den Den Mushi Configuration
+            builder.comment("")
+                    .comment("White Den Den Mushi (Land Snail - White Body Variant)")
+                    .comment("-".repeat(60))
+                    .comment("Spawns on land like regular Den Den Mushi")
+                    .push("white_den_den_mushi");
+
+            whiteDenDenMushiSpawnRate = builder
+                    .comment("Spawn rate percentage (0-100, decimals allowed)")
+                    .comment("100 = normal spawn rate, 50 = half as common, 0 = disabled")
+                    .defineInRange("spawn_rate", 100.0, 0.0, 100.0);
+
+            whiteDenDenMushiMinGroup = builder
+                    .comment("Minimum group size when spawning")
+                    .defineInRange("min_group_size", 1, 1, 64);
+
+            whiteDenDenMushiMaxGroup = builder
+                    .comment("Maximum group size when spawning")
+                    .defineInRange("max_group_size", 2, 1, 64);
+
+            builder.pop(); // white_den_den_mushi
+
             builder.pop(); // spawning
         }
     }
@@ -285,6 +312,7 @@ public class ModConfig {
     private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
     private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
     private static final double DEFAULT_BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
+    private static final double DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
 
     // Cache for client values
     private static boolean cachedEnableNumpad = DEFAULT_ENABLE_NUMPAD;
@@ -315,6 +343,10 @@ public class ModConfig {
     private static double cachedBabyBlackTransponderSnailSpawnRate = DEFAULT_BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE;
     private static int cachedBabyBlackTransponderSnailMinGroup = 1;
     private static int cachedBabyBlackTransponderSnailMaxGroup = 2;
+
+    private static double cachedWhiteDenDenMushiSpawnRate = DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE;
+    private static int cachedWhiteDenDenMushiMinGroup = 1;
+    private static int cachedWhiteDenDenMushiMaxGroup = 2;
 
     /**
      * Called when config is loaded or changed
@@ -351,6 +383,10 @@ public class ModConfig {
             cachedBabyBlackTransponderSnailMinGroup = SERVER.spawning.babyBlackTransponderSnailMinGroup.get();
             cachedBabyBlackTransponderSnailMaxGroup = SERVER.spawning.babyBlackTransponderSnailMaxGroup.get();
 
+            cachedWhiteDenDenMushiSpawnRate = getValidatedValue(SERVER.spawning.whiteDenDenMushiSpawnRate.get(), DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
+            cachedWhiteDenDenMushiMinGroup = SERVER.spawning.whiteDenDenMushiMinGroup.get();
+            cachedWhiteDenDenMushiMaxGroup = SERVER.spawning.whiteDenDenMushiMaxGroup.get();
+
             System.out.println("TransponderSnails server config loaded:");
             System.out.println("  Locational Snail Range: " + cachedLocationalRange);
             System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
@@ -364,6 +400,7 @@ public class ModConfig {
             System.out.println("    Den Den Mushi: " + cachedDenDenMushiSpawnRate + "% (Groups: " + cachedDenDenMushiMinGroup + "-" + cachedDenDenMushiMaxGroup + ")");
             System.out.println("    Black Transponder Snail: " + cachedBlackTransponderSnailSpawnRate + "% (Groups: " + cachedBlackTransponderSnailMinGroup + "-" + cachedBlackTransponderSnailMaxGroup + ")");
             System.out.println("    Baby Black Transponder Snail: " + cachedBabyBlackTransponderSnailSpawnRate + "% (Groups: " + cachedBabyBlackTransponderSnailMinGroup + "-" + cachedBabyBlackTransponderSnailMaxGroup + ")");
+            System.out.println("    White Den Den Mushi: " + cachedWhiteDenDenMushiSpawnRate + "% (Groups: " + cachedWhiteDenDenMushiMinGroup + "-" + cachedWhiteDenDenMushiMaxGroup + ")");
         }
     }
 
@@ -487,5 +524,18 @@ public class ModConfig {
 
     public static int getBabyBlackTransponderSnailMaxGroup() {
         return cachedBabyBlackTransponderSnailMaxGroup;
+    }
+
+    // White Den Den Mushi spawn getters
+    public static double getWhiteDenDenMushiSpawnRate() {
+        return cachedWhiteDenDenMushiSpawnRate;
+    }
+
+    public static int getWhiteDenDenMushiMinGroup() {
+        return cachedWhiteDenDenMushiMinGroup;
+    }
+
+    public static int getWhiteDenDenMushiMaxGroup() {
+        return cachedWhiteDenDenMushiMaxGroup;
     }
 }

@@ -4,6 +4,7 @@ package net.eclipce.transpondersnails.client;
 // Import your exact classes from the screen package
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
+import net.eclipce.transpondersnails.entity.client.WhiteDenDenMushiRenderer;
 import net.eclipce.transpondersnails.screen.DialingScreen;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.minecraft.client.gui.screens.MenuScreens;
@@ -33,6 +34,9 @@ public class ClientSetup {
         );
 
         EntityRenderers.register(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiRenderer::new);
+        EntityRenderers.register(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiRenderer::new);
+
+        System.out.println("Registered entity renderers");
 
     }
 }

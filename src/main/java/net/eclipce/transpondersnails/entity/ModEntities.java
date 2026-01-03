@@ -1,11 +1,7 @@
 package net.eclipce.transpondersnails.entity;
 
 import net.eclipce.transpondersnails.TransponderSnails;
-import net.eclipce.transpondersnails.entity.custom.BabyBlackTransponderSnailEntity;
-import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity;
-import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailSpawnConditions;
-import net.eclipce.transpondersnails.entity.custom.DenDenMushiEntity;
-import net.eclipce.transpondersnails.entity.custom.DenDenMushiSpawnConditions;
+import net.eclipce.transpondersnails.entity.custom.*;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.SpawnPlacements;
@@ -14,6 +10,7 @@ import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
@@ -27,6 +24,13 @@ public class ModEntities {
                     .sized(0.77f, 0.77f)
                     .clientTrackingRange(10)
                     .build("den_den_mushi"));
+
+    // White Den Den Mushi (FIXED: uses WhiteDenDenMushiEntity type)
+    public static final RegistryObject<EntityType<WhiteDenDenMushiEntity>> WHITE_DEN_DEN_MUSHI =
+            ENTITY_TYPES.register("white_den_den_mushi", () -> EntityType.Builder.of(WhiteDenDenMushiEntity::new, MobCategory.CREATURE)
+                    .sized(0.77f, 0.77f)
+                    .clientTrackingRange(10)
+                    .build("white_den_den_mushi"));
 
     // Baby Black Transponder Snail Entity
     public static final RegistryObject<EntityType<BabyBlackTransponderSnailEntity>> BABY_BLACK_TRANSPONDER_SNAIL =
@@ -61,6 +65,7 @@ public class ModEntities {
     @SubscribeEvent
     public static void onAttributeCreate(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
+        event.put(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
         event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailEntity.createAttributes().build());
     }
@@ -82,6 +87,16 @@ public class ModEntities {
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
         System.out.println("  ✓ Den Den Mushi spawn placement registered");
+
+        // White Den Den Mushi - spawns on surface (same as regular)
+        event.register(
+                ModEntities.WHITE_DEN_DEN_MUSHI.get(),
+                SpawnPlacements.Type.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                WhiteDenDenMushiSpawnConditions::checkWhiteDenDenMushiSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE
+        );
+        System.out.println("  ✓ White Den Den Mushi spawn placement registered");
 
         // Black Transponder Snail - spawns underwater
         event.register(
