@@ -25,7 +25,7 @@ public class WhiteDenDenMushiRenderer extends MobRenderer<WhiteDenDenMushiEntity
 
     // White body texture
     private static final ResourceLocation WHITE_BODY_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
-            "textures/entity/white_den_den_mushi/snail/white_den_den_mushi-2.png");
+            "textures/entity/white_den_den_mushi/snail/white_den_den_mushi.png");
 
     // Eyes texture (reused from regular Den Den Mushi)
     private static final ResourceLocation EYES_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
