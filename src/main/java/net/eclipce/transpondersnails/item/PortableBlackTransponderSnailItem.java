@@ -3,6 +3,7 @@ package net.eclipce.transpondersnails.item;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
@@ -101,28 +102,77 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
 
     // =================== Original Item Functionality ===================
 
+    /**
+     * FIXED VERSION with forced client/server sync
+     */
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(@NotNull Level level, @NotNull Player player, @NotNull InteractionHand hand) {
-        ItemStack oldStack = player.getItemInHand(hand);
-        boolean currentState = isOpen(oldStack);
+        ItemStack stack = player.getItemInHand(hand);
+        boolean currentState = isOpen(stack);
         boolean newState = !currentState;
 
-        ItemStack newStack = oldStack.copy();
-        setOpen(newStack, newState);
-        markInHand(newStack, true);
-        player.setItemInHand(hand, newStack);
+        // ✅ DIAGNOSTIC LOGGING
+        System.out.println("====== USE() CALLED ======");
+        System.out.println("Side: " + (level.isClientSide ? "CLIENT" : "SERVER"));
+        System.out.println("Hand: " + hand);
+        System.out.println("Stack identity: " + System.identityHashCode(stack));
+        System.out.println("Stack.getTag() identity: " + (stack.getTag() != null ? System.identityHashCode(stack.getTag()) : "null"));
+        System.out.println("Before: isOpen=" + currentState);
 
+        // Toggle state directly on the stack
+        setOpen(stack, newState);
+        markInHand(stack, true);
+
+        System.out.println("After: isOpen=" + isOpen(stack));
+        System.out.println("NBT: " + stack.getTag());
+        System.out.println("========================");
+
+        // CLIENT SIDE: Force refresh
+        if (level.isClientSide) {
+            // Trigger model update on client
+            player.inventoryMenu.broadcastChanges();
+        }
+
+        // SERVER SIDE: Messages and interception
         if (!level.isClientSide) {
             player.displayClientMessage(
                     Component.literal(currentState ? "Snail closed" : "Snail opened"),
                     true
             );
+
             if (player instanceof ServerPlayer serverPlayer) {
+                // Force inventory sync
                 serverPlayer.inventoryMenu.broadcastChanges();
+
+                // ✅ CRITICAL: Force this specific slot to sync to client
+                int slot = hand == InteractionHand.MAIN_HAND ?
+                        serverPlayer.getInventory().selected + 36 : 45;
+
+                serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(
+                        -2,    // Player inventory container
+                        0,     // State ID
+                        slot,  // Slot number
+                        stack  // The updated stack
+                ));
+
+                System.out.println("[SYNC] Sent slot update packet to client for slot " + slot);
+
+                // ✨ INTERCEPTION: Handle interception when snail state changes
+                var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
+                if (callManager != null) {
+                    if (newState) {
+                        // Snail was just opened - attempt to start interception
+                        net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailOpened(serverPlayer, callManager);
+                    } else {
+                        // Snail was just closed - stop interception
+                        net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
+                    }
+                }
             }
         }
 
-        return new InteractionResultHolder<>(InteractionResult.CONSUME, newStack);
+        // Return the same stack
+        return new InteractionResultHolder<>(InteractionResult.CONSUME, stack);
     }
 
     @Override

@@ -71,6 +71,12 @@ public class ModConfig {
         public final ForgeConfigSpec.DoubleValue snailInteractionRange;
         public final ForgeConfigSpec.BooleanValue enablePhoneFilter;
 
+        // Black Transponder Snail interception ranges
+        public final ForgeConfigSpec.DoubleValue babyBlackSnailRange;
+        public final ForgeConfigSpec.DoubleValue adultBlackSnailDefaultRange;
+        public final ForgeConfigSpec.DoubleValue adultBlackSnailMinRange;
+        public final ForgeConfigSpec.DoubleValue adultBlackSnailMaxRange;
+
         // Spawn configuration
         public final SpawnConfig spawning;
 
@@ -124,6 +130,33 @@ public class ModConfig {
             enablePhoneFilter = builder
                     .comment("Enable phone-call sounding audio for all Transponder Snail calls")
                     .define("enable_phone_filter", true);
+
+            builder.pop();
+
+            // Black Transponder Snail Interception Settings
+            builder.comment("Black Transponder Snail Interception Settings")
+                    .comment("Configure interception ranges for different Black Transponder Snail variants")
+                    .push("interception");
+
+            babyBlackSnailRange = builder
+                    .comment("Interception range in blocks for Baby Black Transponder Snails (portable)")
+                    .comment("This applies to both the portable item and baby snail entities")
+                    .defineInRange("baby_black_snail_range", 50.0, 10.0, 200.0);
+
+            adultBlackSnailDefaultRange = builder
+                    .comment("Default interception range in blocks for Adult Black Transponder Snails")
+                    .comment("This is the base range when placed or held without lightning rod enhancement")
+                    .defineInRange("adult_black_snail_default_range", 75.0, 20.0, 300.0);
+
+            adultBlackSnailMinRange = builder
+                    .comment("Minimum enhanced range for Adult Black Transponder Snails with lightning rods")
+                    .comment("This is the starting range with at least one lightning rod connected")
+                    .defineInRange("adult_black_snail_min_enhanced_range", 100.0, 50.0, 500.0);
+
+            adultBlackSnailMaxRange = builder
+                    .comment("Maximum enhanced range for Adult Black Transponder Snails with lightning rods")
+                    .comment("This is the maximum range achievable with a full lightning rod array")
+                    .defineInRange("adult_black_snail_max_enhanced_range", 400.0, 100.0, 1000.0);
 
             builder.pop();
 
@@ -308,6 +341,12 @@ public class ModConfig {
     private static final double DEFAULT_INTERACTION_RANGE = 10.0;
     private static final boolean DEFAULT_ENABLE_PHONE_FILTER = true;
 
+    // Black Transponder Snail interception defaults
+    private static final double DEFAULT_BABY_BLACK_SNAIL_RANGE = 50.0;
+    private static final double DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE = 75.0;
+    private static final double DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE = 100.0;
+    private static final double DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE = 400.0;
+
     // Spawn defaults
     private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
     private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
@@ -323,6 +362,12 @@ public class ModConfig {
     private static long cachedRingTimeout = DEFAULT_RING_TIMEOUT;
     private static double cachedInteractionRange = DEFAULT_INTERACTION_RANGE;
     private static boolean cachedEnablePhoneFilter = DEFAULT_ENABLE_PHONE_FILTER;
+
+    // Cache for interception ranges
+    private static double cachedBabyBlackSnailRange = DEFAULT_BABY_BLACK_SNAIL_RANGE;
+    private static double cachedAdultBlackSnailDefaultRange = DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE;
+    private static double cachedAdultBlackSnailMinRange = DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE;
+    private static double cachedAdultBlackSnailMaxRange = DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
 
     // Cache for spawn values
     private static List<String> cachedAllowedDimensions = Arrays.asList("minecraft:overworld");
@@ -366,6 +411,12 @@ public class ModConfig {
             cachedInteractionRange = getValidatedValue(SERVER.snailInteractionRange.get(), DEFAULT_INTERACTION_RANGE, 1.0, 50.0);
             cachedEnablePhoneFilter = SERVER.enablePhoneFilter.get();
 
+            // Load interception ranges
+            cachedBabyBlackSnailRange = getValidatedValue(SERVER.babyBlackSnailRange.get(), DEFAULT_BABY_BLACK_SNAIL_RANGE, 10.0, 200.0);
+            cachedAdultBlackSnailDefaultRange = getValidatedValue(SERVER.adultBlackSnailDefaultRange.get(), DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE, 20.0, 300.0);
+            cachedAdultBlackSnailMinRange = getValidatedValue(SERVER.adultBlackSnailMinRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE, 50.0, 500.0);
+            cachedAdultBlackSnailMaxRange = getValidatedValue(SERVER.adultBlackSnailMaxRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE, 100.0, 1000.0);
+
             // Load spawn config
             cachedAllowedDimensions = SERVER.spawning.allowedDimensions.get().stream().map(Object::toString).toList();
             cachedSpawnBiomes = SERVER.spawning.spawnBiomes.get().stream().map(Object::toString).toList();
@@ -393,6 +444,11 @@ public class ModConfig {
             System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
             System.out.println("  Interaction Range: " + cachedInteractionRange);
             System.out.println("  Phone Filter Enabled: " + cachedEnablePhoneFilter);
+            System.out.println("  Interception Ranges:");
+            System.out.println("    Baby Black Snail: " + cachedBabyBlackSnailRange + " blocks");
+            System.out.println("    Adult Black Snail Default: " + cachedAdultBlackSnailDefaultRange + " blocks");
+            System.out.println("    Adult Black Snail Min Enhanced: " + cachedAdultBlackSnailMinRange + " blocks");
+            System.out.println("    Adult Black Snail Max Enhanced: " + cachedAdultBlackSnailMaxRange + " blocks");
             System.out.println("  Spawn Config:");
             System.out.println("    Allowed Dimensions: " + cachedAllowedDimensions);
             System.out.println("    Spawn Biomes: " + cachedSpawnBiomes);
@@ -537,5 +593,34 @@ public class ModConfig {
 
     public static int getWhiteDenDenMushiMaxGroup() {
         return cachedWhiteDenDenMushiMaxGroup;
+    }
+
+    // Black Transponder Snail interception range getters
+    public static double getBabyBlackSnailRange() {
+        if (cachedBabyBlackSnailRange <= 0 || Double.isNaN(cachedBabyBlackSnailRange)) {
+            return DEFAULT_BABY_BLACK_SNAIL_RANGE;
+        }
+        return cachedBabyBlackSnailRange;
+    }
+
+    public static double getAdultBlackSnailDefaultRange() {
+        if (cachedAdultBlackSnailDefaultRange <= 0 || Double.isNaN(cachedAdultBlackSnailDefaultRange)) {
+            return DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE;
+        }
+        return cachedAdultBlackSnailDefaultRange;
+    }
+
+    public static double getAdultBlackSnailMinRange() {
+        if (cachedAdultBlackSnailMinRange <= 0 || Double.isNaN(cachedAdultBlackSnailMinRange)) {
+            return DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE;
+        }
+        return cachedAdultBlackSnailMinRange;
+    }
+
+    public static double getAdultBlackSnailMaxRange() {
+        if (cachedAdultBlackSnailMaxRange <= 0 || Double.isNaN(cachedAdultBlackSnailMaxRange)) {
+            return DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
+        }
+        return cachedAdultBlackSnailMaxRange;
     }
 }

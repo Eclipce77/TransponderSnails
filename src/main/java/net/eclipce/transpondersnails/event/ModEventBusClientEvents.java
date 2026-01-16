@@ -5,11 +5,7 @@ import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
-import net.eclipce.transpondersnails.entity.client.BabyBlackTransponderSnailRenderer;
-import net.eclipce.transpondersnails.entity.client.BlackTransponderSnailRenderer;
-import net.eclipce.transpondersnails.entity.client.TransponderSnailItemProperties;
-import net.eclipce.transpondersnails.entity.client.DenDenMushiModel;
-import net.eclipce.transpondersnails.entity.client.ModModelLayers;
+import net.eclipce.transpondersnails.entity.client.*;
 import net.eclipce.transpondersnails.item.*;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
@@ -119,6 +115,8 @@ public class ModEventBusClientEvents {
             System.out.println("TransponderSnails: Registered item properties for dynamic models");
         });
 
+
+
         // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
 
         // Register shell color predicate for Baby Black Transponder Snail
@@ -150,34 +148,50 @@ public class ModEventBusClientEvents {
 
         System.out.println("TransponderSnails: Registered Black Transponder Snail item properties");
 
-        // =================== WHITE DEN DEN MUSHI PROPERTIES ===================
+        // ===================== PORTABLE BLACK TRANSPONDER SNAIL PROPERTIES =====================
 
-        // Register shell color predicate for White Den Den Mushi
-        // Uses same 0.1 increment pattern as regular Den Den Mushi
-        ItemProperties.register(ModItems.WHITE_DEN_DEN_MUSHI.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+        // 1. Open/Close state (0.0 = closed, 1.0 = open)
+        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "open"),
                 (stack, world, entity, seed) -> {
-                    int shellColor = WhiteDenDenMushiItem.getShellColor(stack);
-                    float predicateValue = shellColor * 0.1f;
-                    return predicateValue;
+                    return PortableBlackTransponderSnailItem.isOpen(stack) ? 1.0f : 0.0f;
                 });
 
-        System.out.println("TransponderSnails: Registered White Den Den Mushi item properties");
-
-        // =================== WHITE TRANSPONDER SNAIL BLOCK ITEM PROPERTIES ===================
-
-        // Register shell color predicate for White Transponder Snail block item
-        ItemProperties.register(ModBlocks.WHITE_TRANSPONDER_SNAIL.get().asItem(),
+        // 2. Shell color (0.0 to 15.0)
+        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
                 new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
                 (stack, world, entity, seed) -> {
-                    CompoundTag nbt = stack.getTag();
-                    if (nbt != null && nbt.contains("shell_color")) {
-                        return nbt.getInt("shell_color") * 0.1f;
+                    return (float) PortableBlackTransponderSnailItem.getShellColorId(stack);
+                });
+
+        // 3. Band color (0.0 to 15.0)
+        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "band_color"),
+                (stack, world, entity, seed) -> {
+                    return (float) PortableBlackTransponderSnailItem.getBandColorId(stack);
+                });
+
+        // ✨ 4. Call state (0.0 = idle, 0.25 = sound, 0.5 = call, 0.75 = active)
+        // THIS IS THE MISSING PREDICATE!
+        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                (stack, world, entity, seed) -> {
+                    float value = PortableBlackSnailItemProperties.calculateCallState(stack, world, entity, seed);
+
+                    // Debug logging to verify predicate is being called
+                    if (value > 0.0f) {
+                        System.out.println("[CALL-STATE-PREDICATE] Minecraft called predicate, returning: " + value);
                     }
-                    return 0.0f; // Default white
+
+                    return value;
                 });
 
-        System.out.println("TransponderSnails: Registered White Transponder Snail block item properties");
+        System.out.println("✅ Registered 4 predicates for Portable Black Transponder Snail:");
+        System.out.println("   - open (0.0 or 1.0)");
+        System.out.println("   - shell_color (0.0 to 15.0)");
+        System.out.println("   - band_color (0.0 to 15.0)");
+        System.out.println("   - call_state (0.0, 0.25, 0.5, 0.75)");
+        System.out.println("=============================================================");
     }
 
     @SubscribeEvent

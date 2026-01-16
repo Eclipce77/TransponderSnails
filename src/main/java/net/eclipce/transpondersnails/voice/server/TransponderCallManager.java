@@ -56,15 +56,29 @@ public class TransponderCallManager {
 
     private SnailAudioRelay audioRelay;
 
+    // ✨ INTERCEPTION: Interception manager
+    private CallInterceptionManager interceptionManager;
+
     public TransponderCallManager(VoicechatServerApi voiceChatApi) {
         this.voiceChatApi = voiceChatApi;
         this.soundManager = new CallSoundManager();
         this.scheduler = Executors.newScheduledThreadPool(2);
 
+        // ✨ INTERCEPTION: Initialize interception manager
+        this.interceptionManager = new CallInterceptionManager(voiceChatApi, this);
+
         scheduler.scheduleAtFixedRate(this::cleanupInactiveCalls, 30, 30, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(this::updateHandheldAudioPositions, 250, 250, TimeUnit.MILLISECONDS);
+        // ✨ INTERCEPTION: Validate interceptions every second
+        scheduler.scheduleAtFixedRate(this::validateAllInterceptions, 1, 1, TimeUnit.SECONDS);
+        // ✨ INTERCEPTION: Cleanup invalid interceptions every 5 seconds
+        scheduler.scheduleAtFixedRate(this::cleanupInterceptions, 5, 5, TimeUnit.SECONDS);
+        // ✨ INTERCEPTION: Process searching sessions every 250ms
+        scheduler.scheduleAtFixedRate(this::processSearchingSessions, 250, 250, TimeUnit.MILLISECONDS);
+        // ✨ CALL STATE: Update call states every 200ms (sync CALL state when no audio)
+        scheduler.scheduleAtFixedRate(this::updateCallStates, 200, 200, TimeUnit.MILLISECONDS);
 
-        System.out.println("TransponderCallManager: Initialized with handheld snail support");
+        System.out.println("TransponderCallManager: Initialized with handheld snail support + interception");
     }
 
     // =================== RINGING STATE QUERY METHODS ===================
@@ -940,6 +954,11 @@ public class TransponderCallManager {
             updateBlockEntitiesForCall(callSession);
             stopRingingForCall(callSession);
 
+            // ✨ INTERCEPTION: Stop all interceptions for this call
+            if (interceptionManager != null) {
+                interceptionManager.stopAllInterceptionsForCall(callId);
+            }
+
             if (audioRelay != null) {
                 audioRelay.onCallEnded(callId);
             }
@@ -1463,7 +1482,7 @@ public class TransponderCallManager {
     }
 
     @Nullable
-    private ServerPlayer getPlayerById(UUID playerId) {
+    public ServerPlayer getPlayerById(UUID playerId) {
         return ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayer(playerId);
     }
 
@@ -1498,6 +1517,50 @@ public class TransponderCallManager {
         for (UUID callId : toRemove) {
             endCall(callId);
         }
+
+        // Clean up stale player-to-call mappings
+        cleanupStalePlayerMappings();
+    }
+
+    /**
+     * Clean up stale player-to-call mappings where the call no longer exists
+     * or the player is not actually a participant
+     */
+    private void cleanupStalePlayerMappings() {
+        List<UUID> stalePlayerIds = new ArrayList<>();
+
+        for (Map.Entry<UUID, UUID> entry : playerToCallId.entrySet()) {
+            UUID playerId = entry.getKey();
+            UUID callId = entry.getValue();
+
+            // Check if the call still exists
+            CallSession session = activeCalls.get(callId);
+            if (session == null) {
+                // Call doesn't exist - stale mapping
+                stalePlayerIds.add(playerId);
+                System.out.println("TransponderCallManager: Found stale player mapping for " +
+                        playerId.toString().substring(0, 8) + " (call doesn't exist)");
+                continue;
+            }
+
+            // Check if player is actually a participant
+            if (!session.isParticipant(playerId)) {
+                // Player is mapped but not a participant - stale mapping
+                stalePlayerIds.add(playerId);
+                System.out.println("TransponderCallManager: Found stale player mapping for " +
+                        playerId.toString().substring(0, 8) + " (not a participant)");
+            }
+        }
+
+        // Remove stale mappings
+        for (UUID playerId : stalePlayerIds) {
+            playerToCallId.remove(playerId);
+            playersInCall.remove(playerId);
+        }
+
+        if (!stalePlayerIds.isEmpty()) {
+            System.out.println("TransponderCallManager: Cleaned up " + stalePlayerIds.size() + " stale player mappings");
+        }
     }
 
     public void onPlayerDisconnect(UUID playerId) {
@@ -1529,16 +1592,40 @@ public class TransponderCallManager {
         return new ArrayList<>(activeCalls.values());
     }
 
+    /**
+     * Get the scheduler for delayed tasks (used by InterceptionHelper)
+     */
+    public ScheduledExecutorService getScheduler() {
+        return scheduler;
+    }
+
+    /**
+     * Get a specific CallSession by its ID
+     */
+    @Nullable
+    public CallSession getCallSessionById(UUID callId) {
+        return activeCalls.get(callId);
+    }
+
     public CallSoundManager getSoundManager() {
         return soundManager;
     }
 
     public void setAudioRelay(SnailAudioRelay audioRelay) {
         this.audioRelay = audioRelay;
+        // ✨ INTERCEPTION: Link interception manager to audio relay
+        if (audioRelay != null && interceptionManager != null) {
+            audioRelay.setInterceptionManager(interceptionManager);
+        }
     }
 
     public SnailAudioRelay getAudioRelay() {
         return audioRelay;
+    }
+
+    // ✨ INTERCEPTION: Getter for interception manager
+    public CallInterceptionManager getInterceptionManager() {
+        return interceptionManager;
     }
 
     public Map<Integer, TransponderSnailBlockEntity> getRegisteredSnailBlocks() {
@@ -1579,7 +1666,118 @@ public class TransponderCallManager {
         System.out.println("====================================");
     }
 
+    // =================== ✨ INTERCEPTION MANAGEMENT ===================
+
+    /**
+     * Validate all active interceptions - called periodically by scheduler
+     */
+    private void validateAllInterceptions() {
+        if (interceptionManager == null) return;
+
+        try {
+            // Get all players with active interceptions
+            for (ServerPlayer player : ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers()) {
+                if (interceptionManager.isIntercepting(player.getUUID())) {
+                    interceptionManager.validateInterceptions(player);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error validating interceptions: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Clean up invalid interceptions - called periodically by scheduler
+     */
+    private void cleanupInterceptions() {
+        if (interceptionManager != null) {
+            try {
+                interceptionManager.cleanupInvalidInterceptions();
+            } catch (Exception e) {
+                System.err.println("Error cleaning up interceptions: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Process searching sessions - called periodically by scheduler
+     */
+    private void processSearchingSessions() {
+        if (interceptionManager != null) {
+            try {
+                interceptionManager.processSearchingSessions();
+            } catch (Exception e) {
+                System.err.println("Error processing searching sessions: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Update call states for all interceptors (sync CALL state when no audio)
+     * Called every 200ms by scheduler
+     */
+    private void updateCallStates() {
+        if (interceptionManager != null) {
+            try {
+                interceptionManager.updateCallStates();
+            } catch (Exception e) {
+                System.err.println("Error updating call states: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Start intercepting a call - called when player opens Black Transponder Snail
+     */
+    public boolean startInterception(ServerPlayer player, UUID targetCallId) {
+        if (interceptionManager == null) {
+            System.err.println("Cannot start interception: interception manager not initialized");
+            return false;
+        }
+        return interceptionManager.startInterception(player, targetCallId);
+    }
+
+    /**
+     * Stop intercepting - called when player closes Black Transponder Snail
+     */
+    public void stopInterception(UUID playerId) {
+        if (interceptionManager != null) {
+            interceptionManager.stopInterception(playerId);
+        }
+    }
+
+    /**
+     * Switch to next call - called when player crouches and right-clicks while intercepting
+     */
+    public boolean switchToNextCall(ServerPlayer player) {
+        if (interceptionManager == null) {
+            return false;
+        }
+        return interceptionManager.switchToNextCall(player);
+    }
+
+    /**
+     * Check if a player is currently intercepting
+     */
+    public boolean isPlayerIntercepting(UUID playerId) {
+        return interceptionManager != null && interceptionManager.isIntercepting(playerId);
+    }
+
+    /**
+     * Check if a call is being intercepted
+     */
+    public boolean isCallBeingIntercepted(UUID callId) {
+        return interceptionManager != null && interceptionManager.isCallBeingIntercepted(callId);
+    }
+
+    // =================== CLEANUP ===================
+
     public void cleanup() {
+        // ✨ INTERCEPTION: Cleanup interception manager
+        if (interceptionManager != null) {
+            interceptionManager.cleanup();
+        }
+
         for (UUID callId : new HashSet<>(activeCalls.keySet())) {
             try {
                 endCall(callId);

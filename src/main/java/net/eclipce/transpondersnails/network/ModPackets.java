@@ -77,6 +77,13 @@ public class ModPackets {
                 .consumerMainThread(CallResponsePacket::handle)
                 .add();
 
+        // 8) Server → Client: Black Snail call state sync
+        CHANNEL.messageBuilder(BlackSnailCallStateSyncPacket.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(BlackSnailCallStateSyncPacket::new)
+                .encoder(BlackSnailCallStateSyncPacket::encode)
+                .consumerMainThread(BlackSnailCallStateSyncPacket::handle)
+                .add();
+
         System.out.println("ModPackets: Registered " + nextId + " packet types");
     }
 

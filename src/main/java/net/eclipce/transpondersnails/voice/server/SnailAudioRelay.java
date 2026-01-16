@@ -11,6 +11,7 @@ import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
+import net.eclipce.transpondersnails.voice.server.BlackSnailStateSyncHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -39,6 +40,9 @@ public class SnailAudioRelay {
     private final OpusDecoder opusDecoder;
     private final OpusEncoder opusEncoder;
 
+    // ✨ INTERCEPTION: Interception manager reference
+    private CallInterceptionManager interceptionManager;
+
     // TIER 2: Simplified cache - only cache what we need
     private final Map<UUID, CallSessionCache> playerSessionCache = new ConcurrentHashMap<>();
     private static final long CACHE_TIMEOUT_MS = 2000; // Increased from 1000ms for better performance
@@ -66,6 +70,15 @@ public class SnailAudioRelay {
         if (ModConfig.isPhoneFilterEnabled()) {
             System.out.println("  " + phoneFilter.getDescription());
         }
+    }
+
+    /**
+     * ✨ INTERCEPTION: Set the interception manager
+     * Called by TransponderCallManager after both are initialized
+     */
+    public void setInterceptionManager(CallInterceptionManager interceptionManager) {
+        this.interceptionManager = interceptionManager;
+        System.out.println("SnailAudioRelay: Interception manager linked");
     }
 
     /**
@@ -132,6 +145,28 @@ public class SnailAudioRelay {
                 // Don't echo to self
                 if (!handheldPlayerId.equals(speaker.getUUID())) {
                     forwardOpusToHandheld(handheldPlayerId, opusData, callSession);
+                }
+            }
+
+            // =================== ✨ FORWARD TO INTERCEPTORS ===================
+            if (interceptionManager != null) {
+                Set<UUID> interceptors = interceptionManager.getInterceptorsForCall(callSession.getCallId());
+                List<AudioChannel> interceptorChannels = interceptionManager.getInterceptorChannelsForCall(callSession.getCallId());
+
+                // Forward audio to each interceptor
+                for (AudioChannel interceptorChannel : interceptorChannels) {
+                    forwardOpusToInterceptor(interceptorChannel, opusData);
+                }
+
+                // Mark audio activity AND sync ACTIVE state for visual feedback
+                for (UUID interceptorId : interceptors) {
+                    interceptionManager.markAudioActivity(interceptorId);
+
+                    // ✨ SYNC: Tell client we're in ACTIVE state (intercepting + audio)
+                    ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
+                    if (interceptorPlayer != null) {
+                        BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                    }
                 }
             }
 
@@ -220,6 +255,25 @@ public class SnailAudioRelay {
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to handheld " +
                     playerId.toString().substring(0, 8) + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✨ INTERCEPTION: Forward audio to an interceptor
+     * Phase 1: Basic forwarding with phone filter
+     * Future: Add quality degradation based on distance
+     */
+    private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData) {
+        try {
+            // Phase 1: Apply phone filter (same quality as normal calls)
+            byte[] processedAudio = processAudioWithFilter(opusData);
+
+            // Send to interceptor's audio channel
+            interceptorChannel.send(processedAudio);
+
+            // Future Phase 3: Add distance-based quality degradation here
+        } catch (Exception e) {
+            System.err.println("SnailAudioRelay: Failed to forward opus to interceptor: " + e.getMessage());
         }
     }
 
