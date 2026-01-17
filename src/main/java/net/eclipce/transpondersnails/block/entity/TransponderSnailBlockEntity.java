@@ -372,8 +372,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      */
     public InteractionResult onPlayerInteraction(ServerPlayer player, boolean isSneaking) {
         if (!isCallManagerAvailable()) {
-            player.sendSystemMessage(Component.literal("Voice chat system not available!")
-                    .withStyle(net.minecraft.ChatFormatting.RED));
+            player.displayClientMessage(
+                    Component.literal("Voice chat system not available!")
+                            .withStyle(net.minecraft.ChatFormatting.RED),
+                    true
+            );
             return InteractionResult.FAIL;
         }
 
@@ -391,12 +394,18 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 if (callManager.acceptCall(player, activeCallId)) {
                     setRinging(false);
                     setCallState(CallStateSyncPacket.CallState.CONNECTED);
-                    player.sendSystemMessage(Component.literal("Call answered!")
-                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+                    player.displayClientMessage(
+                            Component.literal("Call answered!")
+                                    .withStyle(net.minecraft.ChatFormatting.GREEN),
+                            true
+                    );
                     return InteractionResult.SUCCESS;
                 } else {
-                    player.sendSystemMessage(Component.literal("Failed to answer call!")
-                            .withStyle(net.minecraft.ChatFormatting.RED));
+                    player.displayClientMessage(
+                            Component.literal("Failed to answer call!")
+                                    .withStyle(net.minecraft.ChatFormatting.RED),
+                            true
+                    );
                     return InteractionResult.FAIL;
                 }
             }
@@ -410,13 +419,19 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 // Right Click in call: End Call (only if player is in the call)
                 if (callManager.isInCall(player.getUUID())) {
                     callManager.endCall(player);
-                    player.sendSystemMessage(Component.literal("Call ended!")
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    player.displayClientMessage(
+                            Component.literal("Call ended!")
+                                    .withStyle(net.minecraft.ChatFormatting.YELLOW),
+                            true
+                    );
                     return InteractionResult.SUCCESS;
                 } else {
                     // Player is not in the call - snail is busy
-                    player.sendSystemMessage(Component.literal("Transponder Snail is busy!")
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    player.displayClientMessage(
+                            Component.literal("Transponder Snail is busy!")
+                                    .withStyle(net.minecraft.ChatFormatting.YELLOW),
+                            true
+                    );
                     return InteractionResult.FAIL;
                 }
             }
@@ -433,8 +448,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 return InteractionResult.SUCCESS;
             } else {
                 // Right Click: Snail is busy
-                player.sendSystemMessage(Component.literal("Transponder Snail is busy!")
-                        .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                player.displayClientMessage(
+                        Component.literal("Transponder Snail is busy!")
+                                .withStyle(net.minecraft.ChatFormatting.YELLOW),
+                        true
+                );
                 return InteractionResult.FAIL;
             }
         }
@@ -472,8 +490,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         // Notify nearby players
         List<ServerPlayer> nearbyPlayers = getNearbyListeners();
         for (ServerPlayer player : nearbyPlayers) {
-            player.sendSystemMessage(Component.literal("Transponder Snail #" + assignedSnailNumber + " is ringing! (Call from #" + callerSnailNumber + ")")
-                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            player.displayClientMessage(Component.literal("Transponder Snail is ringing!")
+                    .withStyle(net.minecraft.ChatFormatting.YELLOW),true);
 
             // Start ringtone sound for nearby players
             TransponderCallManager callManager = getCallManager();
@@ -522,8 +540,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         // Notify nearby players
         for (ServerPlayer player : nearbyPlayers) {
-            player.sendSystemMessage(Component.literal("Call connected!")
-                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+            player.displayClientMessage(
+                    Component.literal("Call connected!")
+                            .withStyle(net.minecraft.ChatFormatting.GREEN),
+                    true
+            );
         }
 
         System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " call connected");
@@ -563,11 +584,17 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         // Notify nearby players
         for (ServerPlayer player : nearbyPlayers) {
             if (wasRinging) {
-                player.sendSystemMessage(Component.literal("Incoming call ended.")
-                        .withStyle(net.minecraft.ChatFormatting.GRAY));
+                player.displayClientMessage(
+                        Component.literal("Incoming call ended.")
+                                .withStyle(net.minecraft.ChatFormatting.GRAY),
+                        true
+                );
             } else {
-                player.sendSystemMessage(Component.literal("Call ended.")
-                        .withStyle(net.minecraft.ChatFormatting.GRAY));
+                player.displayClientMessage(
+                        Component.literal("Call ended.")
+                                .withStyle(net.minecraft.ChatFormatting.GRAY),
+                        true
+                );
             }
         }
 
@@ -584,8 +611,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         // Notify nearby players
         List<ServerPlayer> nearbyPlayers = getNearbyListeners();
         for (ServerPlayer player : nearbyPlayers) {
-            player.sendSystemMessage(Component.literal("Call failed: " + reason)
-                    .withStyle(net.minecraft.ChatFormatting.RED));
+            player.displayClientMessage(
+                    Component.literal("Call failed: " + reason)
+                            .withStyle(net.minecraft.ChatFormatting.RED),
+                    true
+            );
         }
 
         System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " call failed: " + reason);
@@ -602,8 +632,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         // Notify nearby players
         for (ServerPlayer player : nearbyPlayers) {
-            player.sendSystemMessage(Component.literal("Snail #" + targetNumber + " is busy!")
-                    .withStyle(net.minecraft.ChatFormatting.YELLOW));
+            player.displayClientMessage(
+                    Component.literal("Snail #" + targetNumber + " is busy!")
+                            .withStyle(net.minecraft.ChatFormatting.YELLOW),
+                    true
+            );
         }
 
         // Reset to idle after a short delay

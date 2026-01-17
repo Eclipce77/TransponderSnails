@@ -135,10 +135,6 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
 
         // SERVER SIDE: Messages and interception
         if (!level.isClientSide) {
-            player.displayClientMessage(
-                    Component.literal(currentState ? "Snail closed" : "Snail opened"),
-                    true
-            );
 
             if (player instanceof ServerPlayer serverPlayer) {
                 // Force inventory sync
@@ -198,7 +194,6 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
         if (isOpen(stack) && wasInHand(stack) && !inHand) {
             setOpen(stack, false);
             markInHand(stack, false);
-            player.displayClientMessage(Component.literal("Snail closed"), true);
         }
 
         if (inHand) {

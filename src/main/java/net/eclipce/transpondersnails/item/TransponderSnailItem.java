@@ -205,8 +205,11 @@ public class TransponderSnailItem extends BlockItem {
 
                     if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
                         callManager.transitionHandheldToBlock(snailNumber, placedPos, snailBE);
-                        serverPlayer.sendSystemMessage(Component.literal("Call seamlessly transferred to placed snail")
-                                .withStyle(ChatFormatting.GREEN));
+                        serverPlayer.displayClientMessage(
+                                Component.literal("Call seamlessly transferred to placed snail")
+                                        .withStyle(ChatFormatting.GREEN),
+                                true
+                        );
                     }
                 }
 
@@ -236,8 +239,11 @@ public class TransponderSnailItem extends BlockItem {
         TransponderCallManager callManager = TransponderSnails.getCallManager();
 
         if (callManager == null) {
-            serverPlayer.sendSystemMessage(Component.literal("Voice chat system not available!")
-                    .withStyle(ChatFormatting.RED));
+            serverPlayer.displayClientMessage(
+                    Component.literal("Voice chat system not available!")
+                            .withStyle(ChatFormatting.RED),
+                    true
+            );
             return InteractionResultHolder.fail(stack);
         }
 
@@ -248,8 +254,11 @@ public class TransponderSnailItem extends BlockItem {
             if (snailUUID != null) {
                 snailNumber = SnailNBTHandler.getSnailNumber(stack);
                 if (snailNumber != -1) {
-                    serverPlayer.sendSystemMessage(Component.literal("Your handheld snail has been assigned number #" + snailNumber)
-                            .withStyle(ChatFormatting.GREEN));
+                    serverPlayer.displayClientMessage(
+                            Component.literal("Your handheld snail has been assigned number #" + snailNumber)
+                                    .withStyle(ChatFormatting.GREEN),
+                            true
+                    );
                 }
             }
         }
@@ -287,13 +296,19 @@ public class TransponderSnailItem extends BlockItem {
                     nbt.putString(CALL_STATE_TAG, "connected");
                     nbt.putLong(CALL_START_TIME_TAG, System.currentTimeMillis());
 
-                    serverPlayer.sendSystemMessage(Component.literal("Call answered!")
-                            .withStyle(ChatFormatting.GREEN));
+                    serverPlayer.displayClientMessage(
+                            Component.literal("Call answered!")
+                                    .withStyle(ChatFormatting.GREEN),
+                            true
+                    );
                     System.out.println("DEBUG: Call answered successfully");
                 } else {
                     System.out.println("DEBUG: Failed to answer call");
-                    serverPlayer.sendSystemMessage(Component.literal("Failed to answer call!")
-                            .withStyle(ChatFormatting.RED));
+                    serverPlayer.displayClientMessage(
+                            Component.literal("Failed to answer call!")
+                                    .withStyle(ChatFormatting.RED),
+                            true
+                    );
                 }
                 return InteractionResultHolder.success(stack);
             }
@@ -313,8 +328,11 @@ public class TransponderSnailItem extends BlockItem {
                 System.out.println("DEBUG: Hanging up call");
                 callManager.endCall(serverPlayer);
                 clearCallState(stack.getOrCreateTag());
-                serverPlayer.sendSystemMessage(Component.literal("Call ended.")
-                        .withStyle(ChatFormatting.YELLOW));
+                serverPlayer.displayClientMessage(
+                        Component.literal("Call ended.")
+                                .withStyle(ChatFormatting.YELLOW),
+                        true
+                );
                 return InteractionResultHolder.success(stack);
             }
         }
@@ -409,8 +427,11 @@ public class TransponderSnailItem extends BlockItem {
                 callManager.unregisterHandheldSnail(snailNumber);
 
                 if (callManager.isSnailInCall(snailNumber)) {
-                    serverPlayer.sendSystemMessage(Component.literal("Dropped snail - call continues")
-                            .withStyle(ChatFormatting.YELLOW));
+                    serverPlayer.displayClientMessage(
+                            Component.literal("Dropped snail - call continues")
+                                    .withStyle(ChatFormatting.YELLOW),
+                            true
+                    );
                 }
             }
         }

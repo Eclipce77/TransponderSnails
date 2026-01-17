@@ -33,9 +33,10 @@ public class InterceptionHelper {
 
         // Check if player is already in a call
         if (isPlayerInActiveCall(player, callManager)) {
-            player.sendSystemMessage(
+            player.displayClientMessage(
                     Component.literal("Cannot intercept while in a call")
-                            .withStyle(ChatFormatting.RED)
+                            .withStyle(ChatFormatting.RED),
+                    true
             );
             return;
         }
@@ -51,9 +52,10 @@ public class InterceptionHelper {
         }
 
         // Show "Searching..." message immediately
-        player.sendSystemMessage(
+        player.displayClientMessage(
                 Component.literal("Searching for call...")
-                        .withStyle(ChatFormatting.YELLOW)
+                        .withStyle(ChatFormatting.YELLOW),
+                true
         );
 
         // Find nearby active call
@@ -63,9 +65,10 @@ public class InterceptionHelper {
             // No calls in range - schedule message after 1 second
             callManager.getScheduler().schedule(() -> {
                 if (hasOpenBlackSnail(player)) {
-                    player.sendSystemMessage(
+                    player.displayClientMessage(
                             Component.literal("No calls in range")
-                                    .withStyle(ChatFormatting.GRAY)
+                                    .withStyle(ChatFormatting.GRAY),
+                            true
                     );
                 }
             }, 1000, TimeUnit.MILLISECONDS);
@@ -75,9 +78,10 @@ public class InterceptionHelper {
         // Found a call - start searching (5-second delay)
         boolean started = interceptionManager.startSearching(player, nearbyCallId);
         if (!started) {
-            player.sendSystemMessage(
+            player.displayClientMessage(
                     Component.literal("Failed to start search")
-                            .withStyle(ChatFormatting.RED)
+                            .withStyle(ChatFormatting.RED),
+                    true
             );
         }
     }
@@ -99,9 +103,10 @@ public class InterceptionHelper {
         // Stop searching if in progress
         if (interceptionManager.isSearching(player.getUUID())) {
             interceptionManager.stopSearching(player.getUUID());
-            player.sendSystemMessage(
+            player.displayClientMessage(
                     Component.literal("Search cancelled")
-                            .withStyle(ChatFormatting.GRAY)
+                            .withStyle(ChatFormatting.GRAY),
+                    true
             );
         }
 

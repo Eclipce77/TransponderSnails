@@ -220,17 +220,26 @@ public class TransponderCallManager {
 
             // Validation checks
             if (callerSnailNumber == targetSnailNumber) {
-                caller.sendSystemMessage(Component.literal("Cannot call your own snail!"));
+                caller.displayClientMessage(
+                        Component.literal("Cannot call your own snail!"),
+                        true
+                );
                 return false;
             }
 
             if (isInCall(caller.getUUID())) {
-                caller.sendSystemMessage(Component.literal("You are already in a call!"));
+                caller.displayClientMessage(
+                        Component.literal("You are already in a call!"),
+                        true
+                );
                 return false;
             }
 
             if (!snailExists(targetSnailNumber)) {
-                caller.sendSystemMessage(Component.literal("Snail #" + targetSnailNumber + " does not exist!"));
+                caller.displayClientMessage(
+                        Component.literal("Snail #" + targetSnailNumber + " does not exist!"),
+                        true
+                );
                 return false;
             }
 
@@ -257,8 +266,11 @@ public class TransponderCallManager {
                 System.out.println("DEBUG initiateCall: Target participant type: " + targetParticipant.getType());
             } catch (IllegalStateException e) {
                 System.err.println("DEBUG initiateCall: Could not find target snail #" + targetSnailNumber);
-                caller.sendSystemMessage(Component.literal("Snail #" + targetSnailNumber + " is not available!")
-                        .withStyle(ChatFormatting.RED));
+                caller.displayClientMessage(
+                        Component.literal("Snail #" + targetSnailNumber + " is not available!")
+                                .withStyle(ChatFormatting.RED),
+                        true
+                );
                 return false;
             }
 
@@ -289,8 +301,11 @@ public class TransponderCallManager {
                 snailToCallId.remove(callerSnailNumber);
                 snailToCallId.remove(targetSnailNumber);
 
-                caller.sendSystemMessage(Component.literal("Could not reach snail #" + targetSnailNumber + "!")
-                        .withStyle(ChatFormatting.RED));
+                caller.displayClientMessage(
+                        Component.literal("Could not reach snail #" + targetSnailNumber + "!")
+                                .withStyle(ChatFormatting.RED),
+                        true
+                );
                 return false;
             }
 
@@ -300,7 +315,10 @@ public class TransponderCallManager {
         } catch (Exception e) {
             System.err.println("DEBUG initiateCall: ❌ Exception: " + e.getMessage());
             e.printStackTrace();
-            caller.sendSystemMessage(Component.literal("Failed to initiate call!"));
+            caller.displayClientMessage(
+                    Component.literal("Failed to initiate call!"),
+                    true
+            );
             return false;
         }
     }
@@ -355,8 +373,11 @@ public class TransponderCallManager {
 
                     updateAllSnailItemInstances(owner, targetSnailNumber, callSession.getCallId(), callerSnailNumber);
 
-                    owner.sendSystemMessage(Component.literal("Incoming call on snail #" + targetSnailNumber + " from #" + callerSnailNumber)
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                    owner.displayClientMessage(
+                            Component.literal("Incoming call on snail #" + targetSnailNumber + " from #" + callerSnailNumber)
+                                    .withStyle(net.minecraft.ChatFormatting.YELLOW),
+                            true
+                    );
 
                     soundManager.playRingToneForPlayer(owner);
 
@@ -673,8 +694,6 @@ public class TransponderCallManager {
                         " NBT to connected state");
             }
 
-            player.sendSystemMessage(Component.literal("Call connected!")
-                    .withStyle(ChatFormatting.GREEN));
             return true;
 
         } catch (Exception e) {
@@ -1007,8 +1026,11 @@ public class TransponderCallManager {
 
             if (callId == null) {
                 System.err.println("DEBUG endCall(player): ❌ Cannot find any call for this player");
-                player.sendSystemMessage(Component.literal("Error: You are not in a call")
-                        .withStyle(ChatFormatting.RED));
+                player.displayClientMessage(
+                        Component.literal("Error: You are not in a call")
+                                .withStyle(ChatFormatting.RED),
+                        true
+                );
                 return;
             }
         }
@@ -1380,28 +1402,20 @@ public class TransponderCallManager {
             }
         }
 
-        caller.sendSystemMessage(Component.literal("Snail #" + targetSnailNumber + " is busy!")
-                .withStyle(ChatFormatting.RED));
+        caller.displayClientMessage(
+                Component.literal("Snail #" + targetSnailNumber + " is busy!")
+                        .withStyle(ChatFormatting.RED),
+                true
+        );
     }
 
     private void handleCallTimeout(CallSession callSession) {
         stopRingingForCall(callSession);
-        for (UUID playerId : callSession.getActivePlayerParticipants()) {
-            ServerPlayer player = getPlayerById(playerId);
-            if (player != null) {
-                player.sendSystemMessage(Component.literal("Call timed out - no answer"));
-            }
-        }
         endCall(callSession.getCallId());
     }
 
     private void notifyCallRejected(CallSession callSession) {
-        for (UUID playerId : callSession.getActivePlayerParticipants()) {
-            ServerPlayer player = getPlayerById(playerId);
-            if (player != null) {
-                player.sendSystemMessage(Component.literal("Call was rejected"));
-            }
-        }
+        // Notification removed - handled by debug output and other systems
     }
 
     /**
@@ -1429,14 +1443,6 @@ public class TransponderCallManager {
                     System.out.println("DEBUG: Played disconnect sound for HANDHELD snail #" +
                             participant.getSnailNumber() + " (player " + player.getName().getString() + ")");
                 }
-            }
-        }
-
-        // Send message to all active participants
-        for (UUID playerId : callSession.getActivePlayerParticipants()) {
-            ServerPlayer player = getPlayerById(playerId);
-            if (player != null) {
-                player.sendSystemMessage(Component.literal("Call ended"));
             }
         }
 

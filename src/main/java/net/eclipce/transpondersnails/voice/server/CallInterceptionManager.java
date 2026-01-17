@@ -362,9 +362,10 @@ public class CallInterceptionManager {
         // Notify player
         ServerPlayer player = callManager.getPlayerById(interceptorId);
         if (player != null) {
-            player.sendSystemMessage(
+            player.displayClientMessage(
                     Component.literal("Disconnected from call")
-                            .withStyle(ChatFormatting.GRAY)
+                            .withStyle(ChatFormatting.GRAY),
+                    true
             );
 
             // ✨ SYNC: Tell client we're idle now
@@ -591,9 +592,10 @@ public class CallInterceptionManager {
             // Out of range
             if (session.isValid()) {
                 // First time going out of range - notify player
-                interceptor.sendSystemMessage(
+                interceptor.displayClientMessage(
                         Component.literal("Out of range...")
-                                .withStyle(ChatFormatting.YELLOW)
+                                .withStyle(ChatFormatting.YELLOW),
+                        true
                 );
             }
             session.markInvalid();
@@ -603,9 +605,10 @@ public class CallInterceptionManager {
             // In range
             if (!session.isValid()) {
                 // Coming back in range - notify player
-                interceptor.sendSystemMessage(
+                interceptor.displayClientMessage(
                         Component.literal("Back in range")
-                                .withStyle(ChatFormatting.GREEN)
+                                .withStyle(ChatFormatting.GREEN),
+                        true
                 );
             }
             session.markValid();
@@ -637,9 +640,10 @@ public class CallInterceptionManager {
             // Notify player before disconnecting
             ServerPlayer player = callManager.getPlayerById(interceptorId);
             if (player != null) {
-                player.sendSystemMessage(
+                player.displayClientMessage(
                         Component.literal("Connection lost - too far")
-                                .withStyle(ChatFormatting.RED)
+                                .withStyle(ChatFormatting.RED),
+                        true
                 );
             }
 

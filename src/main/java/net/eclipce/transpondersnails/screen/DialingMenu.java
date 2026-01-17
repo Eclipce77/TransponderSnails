@@ -429,8 +429,8 @@ public class DialingMenu extends AbstractContainerMenu {
             clearDialedNumber();
 
             // Call state will be updated by the call manager through callbacks
-            serverPlayer.sendSystemMessage(Component.literal("Calling snail #" + targetNumber + "...")
-                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+            serverPlayer.displayClientMessage(Component.literal("Calling snail #" + targetNumber + "...")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN),true);
         } else {
             // Reset to idle state if call failed
             updateCallStateAndSync(CallStateSyncPacket.CallState.IDLE, null, -1, "");

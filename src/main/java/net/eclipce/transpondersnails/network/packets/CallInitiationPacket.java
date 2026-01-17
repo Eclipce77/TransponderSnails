@@ -80,8 +80,8 @@ public class CallInitiationPacket {
                     }
                 }
 
-                player.sendSystemMessage(Component.literal("Calling snail #" + targetSnailNumber + "...")
-                        .withStyle(net.minecraft.ChatFormatting.GREEN));
+                player.displayClientMessage(Component.literal("Calling snail #" + targetSnailNumber + "...")
+                        .withStyle(net.minecraft.ChatFormatting.GREEN),true);
             }
             // Error messages are handled by the call manager
         });
