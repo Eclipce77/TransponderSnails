@@ -11,6 +11,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.ItemStack;
+import net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem;
+import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
 import net.eclipce.transpondersnails.item.PortableBlackTransponderSnailItem;
 
 import javax.annotation.Nullable;
@@ -99,6 +101,7 @@ public class CallInterceptionManager {
 
         public enum InterceptorType {
             PORTABLE_BABY,      // Portable Black Transponder Snail (Baby)
+            BABY_HANDHELD,      // Baby Black Transponder Snail (Handheld) - same range as PORTABLE_BABY
             ADULT_HANDHELD,     // Adult Black Transponder Snail (Handheld)
             ADULT_PLACED        // Adult Black Transponder Snail (Placed with lightning rods)
         }
@@ -132,6 +135,8 @@ public class CallInterceptionManager {
         public double getMaxRange() {
             switch (type) {
                 case PORTABLE_BABY:
+                    return net.eclipce.transpondersnails.config.ModConfig.getBabyBlackSnailRange();
+                case BABY_HANDHELD:
                     return net.eclipce.transpondersnails.config.ModConfig.getBabyBlackSnailRange();
                 case ADULT_HANDHELD:
                     return net.eclipce.transpondersnails.config.ModConfig.getAdultBlackSnailDefaultRange();
@@ -655,50 +660,104 @@ public class CallInterceptionManager {
 
     /**
      * Determine the type of Black Transponder Snail the player is using
+     *
+     * FIXED: Now recognizes all three black snail item types
      */
     @Nullable
     private InterceptionSession.InterceptorType determineInterceptorType(ServerPlayer player) {
-        // Check main hand
         ItemStack mainHand = player.getMainHandItem();
-        if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem) {
-            if (PortableBlackTransponderSnailItem.isOpen(mainHand)) {
-                return InterceptionSession.InterceptorType.PORTABLE_BABY;
-            }
+        ItemStack offHand = player.getOffhandItem();
+
+        // Check main hand first
+        InterceptionSession.InterceptorType mainHandType = getInterceptorTypeForItem(mainHand);
+        if (mainHandType != null) {
+            return mainHandType;
         }
 
         // Check off hand
-        ItemStack offHand = player.getOffhandItem();
-        if (offHand.getItem() instanceof PortableBlackTransponderSnailItem) {
-            if (PortableBlackTransponderSnailItem.isOpen(offHand)) {
+        InterceptionSession.InterceptorType offHandType = getInterceptorTypeForItem(offHand);
+        if (offHandType != null) {
+            return offHandType;
+        }
+
+        // TODO: Check Curios slots when integrated for Portable variant
+
+        return null;
+    }
+
+    /**
+     * Helper method to determine interceptor type from an ItemStack
+     */
+    @Nullable
+    private InterceptionSession.InterceptorType getInterceptorTypeForItem(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return null;
+        }
+
+        // Check for Portable Black Transponder Snail (Baby)
+        if (stack.getItem() instanceof PortableBlackTransponderSnailItem) {
+            if (PortableBlackTransponderSnailItem.isOpen(stack)) {
                 return InterceptionSession.InterceptorType.PORTABLE_BABY;
             }
         }
 
-        // TODO: Check Curios slots when integrated
-        // TODO: Add Adult Black Transponder Snail checks
+        // Check for Baby Black Transponder Snail
+        if (stack.getItem() instanceof BabyBlackTransponderSnailItem) {
+            if (BabyBlackTransponderSnailItem.isOpen(stack)) {
+                return InterceptionSession.InterceptorType.BABY_HANDHELD;
+            }
+        }
+
+        // Check for Adult Black Transponder Snail
+        if (stack.getItem() instanceof BlackTransponderSnailItem) {
+            if (BlackTransponderSnailItem.isOpen(stack)) {
+                return InterceptionSession.InterceptorType.ADULT_HANDHELD;
+            }
+        }
 
         return null;
     }
 
     /**
      * Check if player has an open Black Transponder Snail
+     *
+     * FIXED: Now checks all three black snail item types
      */
     private boolean hasOpenBlackSnail(ServerPlayer player) {
-        // Check main hand
         ItemStack mainHand = player.getMainHandItem();
+        ItemStack offHand = player.getOffhandItem();
+
+        // Check for Portable Black Transponder Snail
         if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem &&
                 PortableBlackTransponderSnailItem.isOpen(mainHand)) {
             return true;
         }
-
-        // Check off hand
-        ItemStack offHand = player.getOffhandItem();
         if (offHand.getItem() instanceof PortableBlackTransponderSnailItem &&
                 PortableBlackTransponderSnailItem.isOpen(offHand)) {
             return true;
         }
 
-        // TODO: Check Curios slots
+        // Check for Baby Black Transponder Snail
+        if (mainHand.getItem() instanceof BabyBlackTransponderSnailItem &&
+                BabyBlackTransponderSnailItem.isOpen(mainHand)) {
+            return true;
+        }
+        if (offHand.getItem() instanceof BabyBlackTransponderSnailItem &&
+                BabyBlackTransponderSnailItem.isOpen(offHand)) {
+            return true;
+        }
+
+        // Check for Adult Black Transponder Snail
+        if (mainHand.getItem() instanceof BlackTransponderSnailItem &&
+                BlackTransponderSnailItem.isOpen(mainHand)) {
+            return true;
+        }
+        if (offHand.getItem() instanceof BlackTransponderSnailItem &&
+                BlackTransponderSnailItem.isOpen(offHand)) {
+            return true;
+        }
+
+        // TODO: Check Curios slots for Portable variant
 
         return false;
     }

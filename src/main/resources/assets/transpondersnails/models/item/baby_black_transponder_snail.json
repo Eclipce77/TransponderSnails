@@ -1,101 +1,1029 @@
 {
-	"parent": "transpondersnails:item/baby_black_transponder_snail_base",
-	"overrides": [
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.0
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_white"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.01
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_orange"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.02
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_magenta"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.03
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_light_blue"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.04
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_yellow"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.05
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_lime"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.06
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_pink"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.07
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_gray"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.08
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_light_gray"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.09
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_cyan"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.1
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_purple"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.11
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_blue"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.12
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_brown"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.13
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_green"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.14
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_red"
-		},
-		{
-			"predicate": {
-				"transpondersnails:shell_color": 0.15
-			},
-			"model": "transpondersnails:item/baby_black_transponder_snail/baby_black_transponder_snail_black"
-		}
-	]
+  "parent": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_white",
+  "overrides": [
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/idle/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/sound/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/call/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 0.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/closed/active/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/idle/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.1
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/sound/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.2
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/call/baby_black_transponder_snail_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.0,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_white"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.01,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_orange"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.02,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_magenta"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.03,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_light_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.04,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_yellow"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.05,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_lime"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.06,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_pink"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.07,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.08,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_light_gray"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.09,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_cyan"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.1,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_purple"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.11,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_blue"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.12,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_brown"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.13,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_green"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.14,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_red"
+    },
+    {
+      "predicate": {
+        "transpondersnails:open": 1.0,
+        "transpondersnails:shell_color": 0.15,
+        "transpondersnails:call_state": 0.3
+      },
+      "model": "transpondersnails:item/baby_black_transponder_snail/open/active/baby_black_transponder_snail_black"
+    }
+  ]
 }

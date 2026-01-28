@@ -21,13 +21,17 @@ import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -117,6 +121,14 @@ public class TransponderSnails {
             LOGGER.info("ModPackets Initialized");
 
             // Any other setup that needs to happen after registration
+        });
+
+        event.enqueueWork(() -> {
+            System.out.println("=== ITEM CLASS CHECK ===");
+            System.out.println("BLACK SNAIL CLASS: " + ModItems.BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
+            System.out.println("BABY BLACK CLASS: " + ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
+            System.out.println("PORTABLE CLASS: " + ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
+            System.out.println("========================");
         });
     }
 
@@ -261,6 +273,19 @@ public class TransponderSnails {
                     LOGGER.warn("Could not get Minecraft username: " + e.getMessage());
                 }
             });
+        }
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onRightClickDebug(PlayerInteractEvent.RightClickItem event) {
+        ItemStack stack = event.getItemStack();
+        Item item = stack.getItem();
+
+        if (item == ModItems.BLACK_TRANSPONDER_SNAIL.get() ||
+                item == ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get()) {
+
+            System.out.println("RIGHT CLICK DETECTED: " + item.getClass().getSimpleName());
+            System.out.println("Event canceled: " + event.isCanceled());
         }
     }
 }

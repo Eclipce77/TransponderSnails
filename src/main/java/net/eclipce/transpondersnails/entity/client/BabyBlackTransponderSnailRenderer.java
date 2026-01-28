@@ -20,13 +20,16 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Renderer for the Baby Black Transponder Snail Entity
  * Uses the item model with shell color variants via shell_color item property
+ * 
+ * FIX APPLIED: Changed NBT tag from "ShellColor" to "shell_color" to match
+ * BabyBlackTransponderSnailItem.SHELL_COLOR_TAG constant
  */
 public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackTransponderSnailEntity> {
 
     private final ItemRenderer itemRenderer;
 
     // Debug flag - set to false once everything works
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
     private static int debugCounter = 0;
 
     public BabyBlackTransponderSnailRenderer(EntityRendererProvider.Context context) {
@@ -62,8 +65,9 @@ public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackT
         ItemStack itemStack = new ItemStack(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
         CompoundTag nbt = itemStack.getOrCreateTag();
 
-        // Store shell color - the item property function reads "ShellColor" tag
-        nbt.putInt("ShellColor", shellColor);
+        // FIX: Use "shell_color" to match BabyBlackTransponderSnailItem.SHELL_COLOR_TAG
+        // Previously used "ShellColor" which caused the item property predicate to fail
+        nbt.putInt("shell_color", shellColor);
 
         // Render the item model
         itemRenderer.renderStatic(

@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
@@ -27,6 +28,8 @@ import java.util.List;
 /**
  * Portable Black Transponder Snail - Dyeable Version with Curios Support
  * Right-click opens/closes the snail. Must manually place in Curios slot to equip.
+ *
+ * FIXED: Armor slot duplication bug caused by incorrect slot calculation
  */
 public class PortableBlackTransponderSnailItem extends Item implements ICurioItem {
 
@@ -100,10 +103,37 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
         return false; // Must manually place in Curios slot - right-click opens/closes
     }
 
+    /**
+     * Prevent Creative Mode from auto-equipping this item to armor slots
+     * Returns null to indicate this item has no equipment slot
+     */
+    @Override
+    @Nullable
+    public EquipmentSlot getEquipmentSlot(ItemStack stack) {
+        return null;
+    }
+
+    /**
+     * CRITICAL: Prevent vanilla from equipping this item to ANY armor slot
+     * This is an additional safeguard against the armor slot duplication bug
+     */
+    @Override
+    public boolean canEquip(ItemStack stack, EquipmentSlot armorType, Entity entity) {
+        // Explicitly prevent equipping to any armor slot
+        return false;
+    }
+
     // =================== Original Item Functionality ===================
 
     /**
-     * FIXED VERSION with forced client/server sync
+     * FIXED VERSION: Correct slot calculation for ClientboundContainerSetSlotPacket
+     *
+     * BUG FIX: The original code used `selected + 36` which sent the item to armor slots!
+     * Container ID -2 uses raw inventory indices:
+     *   0-8: Hotbar (selected is already 0-8, no offset needed!)
+     *   9-35: Main inventory
+     *   36-39: Armor (boots, legs, chest, head) - THIS WAS THE BUG!
+     *   40: Offhand
      */
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(@NotNull Level level, @NotNull Player player, @NotNull InteractionHand hand) {
@@ -111,64 +141,51 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
         boolean currentState = isOpen(stack);
         boolean newState = !currentState;
 
-        // ✅ DIAGNOSTIC LOGGING
-        System.out.println("====== USE() CALLED ======");
-        System.out.println("Side: " + (level.isClientSide ? "CLIENT" : "SERVER"));
-        System.out.println("Hand: " + hand);
-        System.out.println("Stack identity: " + System.identityHashCode(stack));
-        System.out.println("Stack.getTag() identity: " + (stack.getTag() != null ? System.identityHashCode(stack.getTag()) : "null"));
-        System.out.println("Before: isOpen=" + currentState);
-
         // Toggle state directly on the stack
         setOpen(stack, newState);
         markInHand(stack, true);
 
-        System.out.println("After: isOpen=" + isOpen(stack));
-        System.out.println("NBT: " + stack.getTag());
-        System.out.println("========================");
-
-        // CLIENT SIDE: Force refresh
+        // CLIENT SIDE: Just consume and return
         if (level.isClientSide) {
-            // Trigger model update on client
-            player.inventoryMenu.broadcastChanges();
+            // Return CONSUME to prevent vanilla from doing anything else with the item
+            return InteractionResultHolder.consume(stack);
         }
 
         // SERVER SIDE: Messages and interception
-        if (!level.isClientSide) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            // Force inventory sync
+            serverPlayer.inventoryMenu.broadcastChanges();
 
-            if (player instanceof ServerPlayer serverPlayer) {
-                // Force inventory sync
-                serverPlayer.inventoryMenu.broadcastChanges();
+            // ✅ FIX: Correct slot calculation for container ID -2 (raw player inventory)
+            // For MAIN_HAND: Use the selected slot directly (0-8) - NO +36 OFFSET!
+            // For OFFHAND: Use slot 40 (not 45!)
+            int slot = hand == InteractionHand.MAIN_HAND ?
+                    serverPlayer.getInventory().selected : 40;
 
-                // ✅ CRITICAL: Force this specific slot to sync to client
-                int slot = hand == InteractionHand.MAIN_HAND ?
-                        serverPlayer.getInventory().selected + 36 : 45;
+            serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(
+                    -2,    // Player inventory container (raw indices)
+                    0,     // State ID
+                    slot,  // Correct slot number!
+                    stack  // The updated stack
+            ));
 
-                serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(
-                        -2,    // Player inventory container
-                        0,     // State ID
-                        slot,  // Slot number
-                        stack  // The updated stack
-                ));
+            System.out.println("[PORTABLE-SNAIL] Sent slot update for slot " + slot + " (hand: " + hand + ")");
 
-                System.out.println("[SYNC] Sent slot update packet to client for slot " + slot);
-
-                // ✨ INTERCEPTION: Handle interception when snail state changes
-                var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
-                if (callManager != null) {
-                    if (newState) {
-                        // Snail was just opened - attempt to start interception
-                        net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailOpened(serverPlayer, callManager);
-                    } else {
-                        // Snail was just closed - stop interception
-                        net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
-                    }
+            // ✨ INTERCEPTION: Handle interception when snail state changes
+            var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
+            if (callManager != null) {
+                if (newState) {
+                    // Snail was just opened - attempt to start interception
+                    net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailOpened(serverPlayer, callManager);
+                } else {
+                    // Snail was just closed - stop interception
+                    net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
                 }
             }
         }
 
-        // Return the same stack
-        return new InteractionResultHolder<>(InteractionResult.CONSUME, stack);
+        // Return CONSUME (not SUCCESS) to prevent vanilla equipping behavior
+        return InteractionResultHolder.consume(stack);
     }
 
     @Override
@@ -358,4 +375,5 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
     public boolean canBeDepleted() {
         return false;
     }
+
 }

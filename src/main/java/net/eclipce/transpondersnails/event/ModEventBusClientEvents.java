@@ -10,6 +10,7 @@ import net.eclipce.transpondersnails.item.*;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -113,85 +114,113 @@ public class ModEventBusClientEvents {
                     TransponderSnailItemProperties::calculateCallState);
 
             System.out.println("TransponderSnails: Registered item properties for dynamic models");
+
+            // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
+
+            // 1. Open/Close state (0.0 = closed, 1.0 = open)
+            ItemProperties.register(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "open"),
+                    (stack, world, entity, seed) -> {
+                        return BabyBlackTransponderSnailItem.isOpen(stack) ? 1.0f : 0.0f;
+                    });
+
+            // 2. Shell color (0.00-0.15 in 0.01 increments for 16 colors)
+            ItemProperties.register(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        int colorId = BabyBlackTransponderSnailItem.getShellColorId(stack);
+                        return colorId * 0.01f; // 0.00, 0.01, 0.02, ... 0.15
+                    });
+
+            // 3. Call state (0.0 idle, 0.1 sound, 0.2 call, 0.3 active)
+            ItemProperties.register(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                    (stack, world, entity, seed) -> {
+                        if (entity instanceof Player player) {
+                            return net.eclipce.transpondersnails.voice.client.BabyBlackSnailCallStateManager.getInstance()
+                                    .getPredicateValue(player.getUUID());
+                        }
+                        return 0.0f; // Default to idle
+                    });
+
+            System.out.println("TransponderSnails: Registered 3 Baby Black Transponder Snail predicates (open + shell_color + call_state)");
+
+            // ===================== BLACK TRANSPONDER SNAIL PROPERTIES =====================
+
+            // 1. Open/Close state (0.0 = closed, 1.0 = open)
+            ItemProperties.register(ModItems.BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "open"),
+                    (stack, world, entity, seed) -> {
+                        return BlackTransponderSnailItem.isOpen(stack) ? 1.0f : 0.0f;
+                    });
+
+            // 2. Shell color (0.00-0.15 in 0.01 increments for 16 colors)
+            ItemProperties.register(ModItems.BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        int colorId = BlackTransponderSnailItem.getShellColorId(stack);
+                        return colorId * 0.01f; // 0.00, 0.01, 0.02, ... 0.15
+                    });
+
+            // 3. Call state (0.0 idle, 0.1 sound, 0.2 call, 0.3 active)
+            ItemProperties.register(ModItems.BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                    (stack, world, entity, seed) -> {
+                        if (entity instanceof Player player) {
+                            return net.eclipce.transpondersnails.voice.client.BlackSnailCallStateManager.getInstance()
+                                    .getPredicateValue(player.getUUID());
+                        }
+                        return 0.0f; // Default to idle
+                    });
+
+            System.out.println("TransponderSnails: Registered 3 Black Transponder Snail predicates (open + shell_color + call_state)");
+
+            // ===================== PORTABLE BLACK TRANSPONDER SNAIL PROPERTIES =====================
+
+            // 1. Open/Close state (0.0 = closed, 1.0 = open)
+            ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "open"),
+                    (stack, world, entity, seed) -> {
+                        return PortableBlackTransponderSnailItem.isOpen(stack) ? 1.0f : 0.0f;
+                    });
+
+            // 2. Shell color (0.0 to 15.0)
+            ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        return (float) PortableBlackTransponderSnailItem.getShellColorId(stack);
+                    });
+
+            // 3. Band color (0.0 to 15.0)
+            ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "band_color"),
+                    (stack, world, entity, seed) -> {
+                        return (float) PortableBlackTransponderSnailItem.getBandColorId(stack);
+                    });
+
+            // 4. Call state (0.0 = idle, 0.25 = sound, 0.5 = call, 0.75 = active)
+            ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
+                    (stack, world, entity, seed) -> {
+                        float value = PortableBlackSnailItemProperties.calculateCallState(stack, world, entity, seed);
+
+                        // Debug logging to verify predicate is being called
+                        if (value > 0.0f) {
+                            System.out.println("[CALL-STATE-PREDICATE] Minecraft called predicate, returning: " + value);
+                        }
+
+                        return value;
+                    });
+
+            System.out.println("✅ Registered 4 predicates for Portable Black Transponder Snail:");
+            System.out.println("   - open (0.0 or 1.0)");
+            System.out.println("   - shell_color (0.0 to 15.0)");
+            System.out.println("   - band_color (0.0 to 15.0)");
+            System.out.println("   - call_state (0.0, 0.25, 0.5, 0.75)");
+            System.out.println("=============================================================");
+
+            // ✅ CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
         });
-
-
-
-        // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
-
-        // Register shell color predicate for Baby Black Transponder Snail
-        // Uses same pattern as Den Den Mushi: color ID / 100.0f
-        // Color 0 (white) = 0.00, Color 1 (orange) = 0.01, ... Color 15 (black) = 0.15
-        ItemProperties.register(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
-                (stack, world, entity, seed) -> {
-                    int shellColor = BabyBlackTransponderSnailItem.getShellColor(stack);
-                    float predicateValue = shellColor / 100.0f;
-                    System.out.println("Baby Black Snail shell_color predicate: " + shellColor + " -> " + predicateValue);
-                    return predicateValue;
-                });
-
-        System.out.println("TransponderSnails: Registered Baby Black Transponder Snail item properties");
-
-        // ===================== BLACK TRANSPONDER SNAIL PROPERTIES =====================
-
-        // Black Transponder Snail shell_color property
-        ItemProperties.register(ModItems.BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
-                (stack, world, entity, seed) -> {
-                    int shellColor = BlackTransponderSnailItem.getShellColor(stack);
-                    float predicateValue = shellColor / 100.0f;
-                    // Debug output - remove once working
-                    // System.out.println("Black Transponder Snail shell_color predicate: " + shellColor + " -> " + predicateValue);
-                    return predicateValue;
-                });
-
-        System.out.println("TransponderSnails: Registered Black Transponder Snail item properties");
-
-        // ===================== PORTABLE BLACK TRANSPONDER SNAIL PROPERTIES =====================
-
-        // 1. Open/Close state (0.0 = closed, 1.0 = open)
-        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "open"),
-                (stack, world, entity, seed) -> {
-                    return PortableBlackTransponderSnailItem.isOpen(stack) ? 1.0f : 0.0f;
-                });
-
-        // 2. Shell color (0.0 to 15.0)
-        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
-                (stack, world, entity, seed) -> {
-                    return (float) PortableBlackTransponderSnailItem.getShellColorId(stack);
-                });
-
-        // 3. Band color (0.0 to 15.0)
-        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "band_color"),
-                (stack, world, entity, seed) -> {
-                    return (float) PortableBlackTransponderSnailItem.getBandColorId(stack);
-                });
-
-        // ✨ 4. Call state (0.0 = idle, 0.25 = sound, 0.5 = call, 0.75 = active)
-        // THIS IS THE MISSING PREDICATE!
-        ItemProperties.register(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get(),
-                new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
-                (stack, world, entity, seed) -> {
-                    float value = PortableBlackSnailItemProperties.calculateCallState(stack, world, entity, seed);
-
-                    // Debug logging to verify predicate is being called
-                    if (value > 0.0f) {
-                        System.out.println("[CALL-STATE-PREDICATE] Minecraft called predicate, returning: " + value);
-                    }
-
-                    return value;
-                });
-
-        System.out.println("✅ Registered 4 predicates for Portable Black Transponder Snail:");
-        System.out.println("   - open (0.0 or 1.0)");
-        System.out.println("   - shell_color (0.0 to 15.0)");
-        System.out.println("   - band_color (0.0 to 15.0)");
-        System.out.println("   - call_state (0.0, 0.25, 0.5, 0.75)");
-        System.out.println("=============================================================");
     }
 
     @SubscribeEvent

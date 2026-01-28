@@ -1,0 +1,8 @@
+{
+  "parent": "transpondersnails:item/baby_black_transponder_snail/base/open",
+  "textures": {
+    "snail": "transpondersnails:item/black_transponder_snail/portable/portable_black_transponder_snail_call",
+    "shell": "transpondersnails:item/black_transponder_snail/portable/dyed/portable_black_transponder_snail_purple",
+    "particle": "transpondersnails:item/black_transponder_snail/portable/dyed/portable_black_transponder_snail_purple"
+  }
+}

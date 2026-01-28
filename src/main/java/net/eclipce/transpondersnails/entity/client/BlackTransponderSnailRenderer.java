@@ -20,6 +20,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Renderer for the Black Transponder Snail Entity
  * Uses the item model with shell color variants and applies scale
+ * 
+ * FIX APPLIED: Changed NBT tag from "ShellColor" to "shell_color" to match
+ * BlackTransponderSnailItem.SHELL_COLOR_TAG constant
  */
 public class BlackTransponderSnailRenderer extends EntityRenderer<BlackTransponderSnailEntity> {
 
@@ -68,8 +71,9 @@ public class BlackTransponderSnailRenderer extends EntityRenderer<BlackTranspond
         ItemStack itemStack = new ItemStack(ModItems.BLACK_TRANSPONDER_SNAIL.get());
         CompoundTag nbt = itemStack.getOrCreateTag();
         
-        // Store shell color - the item property function reads "ShellColor" tag
-        nbt.putInt("ShellColor", shellColor);
+        // FIX: Use "shell_color" to match BlackTransponderSnailItem.SHELL_COLOR_TAG
+        // Previously used "ShellColor" which caused the item property predicate to fail
+        nbt.putInt("shell_color", shellColor);
 
         // Render the item model
         itemRenderer.renderStatic(
