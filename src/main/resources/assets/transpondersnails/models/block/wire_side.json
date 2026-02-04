@@ -1,0 +1,18 @@
+{
+  "parent": "block/block",
+  "textures": {
+    "wire": "transpondersnails:block/wire",
+    "particle": "transpondersnails:block/wire"
+  },
+  "elements": [
+    {
+      "comment": "Horizontal wire segment - 4px wide, extends north from center",
+      "from": [6, 0.25, 0],
+      "to": [10, 0.5, 6],
+      "faces": {
+        "up": { "texture": "#wire", "uv": [6, 0, 10, 6] },
+        "down": { "texture": "#wire", "uv": [6, 0, 10, 6] }
+      }
+    }
+  ]
+}

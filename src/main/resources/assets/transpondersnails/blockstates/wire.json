@@ -1,62 +1,48 @@
 {
-  "variants": {
-    "east=false,north=false,south=false,west=false": {
-      "model": "transpondersnails:block/wire_ns"
+  "multipart": [
+    {
+      "comment": "Center dot - always rendered",
+      "apply": { "model": "transpondersnails:block/wire_dot" }
     },
-    "east=false,north=false,south=false,west=true": {
-      "model": "transpondersnails:block/wire_n",
-      "y": 270
+    {
+      "comment": "North horizontal connection",
+      "when": { "north": true },
+      "apply": { "model": "transpondersnails:block/wire_side", "y": 0 }
     },
-    "east=false,north=false,south=true,west=false": {
-      "model": "transpondersnails:block/wire_n",
-      "y": 180
+    {
+      "comment": "South horizontal connection",
+      "when": { "south": true },
+      "apply": { "model": "transpondersnails:block/wire_side", "y": 180 }
     },
-    "east=false,north=false,south=true,west=true": {
-      "model": "transpondersnails:block/wire_ne",
-      "y": 180
+    {
+      "comment": "East horizontal connection",
+      "when": { "east": true },
+      "apply": { "model": "transpondersnails:block/wire_side", "y": 90 }
     },
-    "east=false,north=true,south=false,west=false": {
-      "model": "transpondersnails:block/wire_n"
+    {
+      "comment": "West horizontal connection",
+      "when": { "west": true },
+      "apply": { "model": "transpondersnails:block/wire_side", "y": 270 }
     },
-    "east=false,north=true,south=false,west=true": {
-      "model": "transpondersnails:block/wire_ne",
-      "y": 270
+    {
+      "comment": "North vertical up connection",
+      "when": { "up_north": true },
+      "apply": { "model": "transpondersnails:block/wire_side_up", "y": 0 }
     },
-    "east=false,north=true,south=true,west=false": {
-      "model": "transpondersnails:block/wire_ns"
+    {
+      "comment": "South vertical up connection",
+      "when": { "up_south": true },
+      "apply": { "model": "transpondersnails:block/wire_side_up", "y": 180 }
     },
-    "east=false,north=true,south=true,west=true": {
-      "model": "transpondersnails:block/wire_nse",
-      "y": 180
+    {
+      "comment": "East vertical up connection",
+      "when": { "up_east": true },
+      "apply": { "model": "transpondersnails:block/wire_side_up", "y": 90 }
     },
-    "east=true,north=false,south=false,west=false": {
-      "model": "transpondersnails:block/wire_n",
-      "y": 90
-    },
-    "east=true,north=false,south=false,west=true": {
-      "model": "transpondersnails:block/wire_ns",
-      "y": 90
-    },
-    "east=true,north=false,south=true,west=false": {
-      "model": "transpondersnails:block/wire_ne",
-      "y": 90
-    },
-    "east=true,north=false,south=true,west=true": {
-      "model": "transpondersnails:block/wire_nse",
-      "y": 90
-    },
-    "east=true,north=true,south=false,west=false": {
-      "model": "transpondersnails:block/wire_ne"
-    },
-    "east=true,north=true,south=false,west=true": {
-      "model": "transpondersnails:block/wire_nse",
-      "y": 270
-    },
-    "east=true,north=true,south=true,west=false": {
-      "model": "transpondersnails:block/wire_nse"
-    },
-    "east=true,north=true,south=true,west=true": {
-      "model": "transpondersnails:block/wire_nsew"
+    {
+      "comment": "West vertical up connection",
+      "when": { "up_west": true },
+      "apply": { "model": "transpondersnails:block/wire_side_up", "y": 270 }
     }
-  }
+  ]
 }

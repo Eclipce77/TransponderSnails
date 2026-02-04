@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "transpondersnails:item/black_transponder_snail/portable/portable_black_transponder_snail"
+  }
+}

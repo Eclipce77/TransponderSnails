@@ -2,20 +2,19 @@
   "type": "minecraft:block",
   "pools": [
     {
-      "bonus_rolls": 0,
+      "rolls": 1.0,
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "transpondersnails:wire"
+        }
+      ],
       "conditions": [
         {
           "condition": "minecraft:survives_explosion"
         }
-      ],
-      "entries": [
-        {
-          "type": "minecraft:item",
-          "name": "transpondersnails:item/wire"
-        }
-      ],
-      "rolls": 1
+      ]
     }
-  ],
-  "random_sequence": "transpondersnails:block/wire"
+  ]
 }

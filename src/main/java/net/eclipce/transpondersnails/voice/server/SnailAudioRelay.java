@@ -24,48 +24,49 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TIER 2 + HANDHELD SUPPORT: Complete audio relay system
+ * TIER 2 + HANDHELD + BLOCK INTERCEPTION SUPPORT: Complete audio relay system
  * - Direct Opus transmission (Tier 1)
  * - Smart caching and optimizations (Tier 2)
- * - Full handheld snail audio forwarding (NEW)
- * - Phone audio filtering for immersive call quality (NEW)
+ * - Full handheld snail audio forwarding
+ * - Phone audio filtering for immersive call quality
+ * - Block-based interceptor audio routing (NEW)
  */
 public class SnailAudioRelay {
 
     private final VoicechatServerApi voiceChatApi;
     private final TransponderCallManager callManager;
 
-    // ✨ NEW: Phone audio filter
+    // Phone audio filter
     private final PhoneAudioFilter phoneFilter;
     private final OpusDecoder opusDecoder;
     private final OpusEncoder opusEncoder;
 
-    // ✨ INTERCEPTION: Interception manager reference
+    // INTERCEPTION: Interception manager reference
     private CallInterceptionManager interceptionManager;
 
     // TIER 2: Simplified cache - only cache what we need
     private final Map<UUID, CallSessionCache> playerSessionCache = new ConcurrentHashMap<>();
-    private static final long CACHE_TIMEOUT_MS = 2000; // Increased from 1000ms for better performance
+    private static final long CACHE_TIMEOUT_MS = 2000;
 
     // TIER 2: Event-driven blockstate tracking with improved cleanup
     private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(
             r -> new Thread(r, "SnailAudioRelay-Cleanup"));
     private final Map<BlockPos, BlockstateActivity> blockstateActivity = new ConcurrentHashMap<>();
-    private static final long AUDIO_TIMEOUT_MS = 500; // Increased from 400ms - more forgiving
+    private static final long AUDIO_TIMEOUT_MS = 500;
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 
-        // ✨ NEW: Initialize phone filter and codecs
+        // Initialize phone filter and codecs
         this.phoneFilter = new PhoneAudioFilter();
         this.opusDecoder = voiceChatApi.createDecoder();
         this.opusEncoder = voiceChatApi.createEncoder();
 
-        // TIER 2: Less frequent cleanup for better performance
+        // Less frequent cleanup for better performance
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 200, 200, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld support + Phone Filter system");
+        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Block Interception support");
         System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED" : "DISABLED"));
         if (ModConfig.isPhoneFilterEnabled()) {
             System.out.println("  " + phoneFilter.getDescription());
@@ -73,7 +74,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * ✨ INTERCEPTION: Set the interception manager
+     * Set the interception manager
      * Called by TransponderCallManager after both are initialized
      */
     public void setInterceptionManager(CallInterceptionManager interceptionManager) {
@@ -82,7 +83,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2 + HANDHELD: Complete audio processing with forwarding to all participant types
+     * TIER 2 + HANDHELD + BLOCK INTERCEPTION: Complete audio processing
      */
     public void onMicrophonePacket(MicrophonePacketEvent event) {
         try {
@@ -94,7 +95,7 @@ public class SnailAudioRelay {
                     .getPlayerList().getPlayer(vcSpeaker.getUuid());
             if (speaker == null) return;
 
-            // TIER 2: Use cached call session instead of looking up every packet
+            // Use cached call session instead of looking up every packet
             CallSessionCache sessionCache = playerSessionCache.get(speaker.getUUID());
 
             // Validate cache
@@ -118,7 +119,7 @@ public class SnailAudioRelay {
                 playerSessionCache.put(speaker.getUUID(), sessionCache);
             }
 
-            // TIER 2: Get Opus data - trust Voice Chat's VAD completely
+            // Get Opus data - trust Voice Chat's VAD completely
             byte[] opusData = event.getPacket().getOpusEncodedData();
             if (opusData == null || opusData.length == 0) return;
 
@@ -148,24 +149,34 @@ public class SnailAudioRelay {
                 }
             }
 
-            // =================== ✨ FORWARD TO INTERCEPTORS ===================
+            // =================== FORWARD TO INTERCEPTORS (HANDHELD + BLOCK) ===================
             if (interceptionManager != null) {
                 Set<UUID> interceptors = interceptionManager.getInterceptorsForCall(callSession.getCallId());
                 List<AudioChannel> interceptorChannels = interceptionManager.getInterceptorChannelsForCall(callSession.getCallId());
 
-                // Forward audio to each interceptor
+                // Forward audio to each interceptor channel
                 for (AudioChannel interceptorChannel : interceptorChannels) {
                     forwardOpusToInterceptor(interceptorChannel, opusData);
                 }
 
-                // Mark audio activity AND sync ACTIVE state for visual feedback
+                // Mark audio activity for interceptors - different handling for block vs handheld
                 for (UUID interceptorId : interceptors) {
-                    interceptionManager.markAudioActivity(interceptorId);
+                    // Check if this is a block interceptor (synthetic block UUID)
+                    if (interceptionManager.isBlockInterceptorUUID(interceptorId)) {
+                        // Block interceptor - get block position and mark block activity
+                        BlockPos blockPos = interceptionManager.getBlockPosForUUID(interceptorId);
+                        if (blockPos != null) {
+                            interceptionManager.markBlockAudioActivity(blockPos);
+                        }
+                    } else {
+                        // Handheld interceptor - mark activity and sync to client
+                        interceptionManager.markAudioActivity(interceptorId);
 
-                    // ✨ SYNC: Tell client we're in ACTIVE state (intercepting + audio)
-                    ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
-                    if (interceptorPlayer != null) {
-                        BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                        // Tell client we're in ACTIVE state (intercepting + audio)
+                        ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
+                        if (interceptorPlayer != null) {
+                            BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                        }
                     }
                 }
             }
@@ -177,8 +188,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * ✨ NEW: Process audio through phone filter (if enabled)
-     * This method handles the decode -> filter -> re-encode pipeline
+     * Process audio through phone filter (if enabled)
      */
     private byte[] processAudioWithFilter(byte[] opusData) {
         // Check if phone filter is enabled in config
@@ -218,7 +228,7 @@ public class SnailAudioRelay {
 
     /**
      * Forward Opus bytes directly to block snail audio channel
-     * ✨ UPDATED: Now applies phone filter if enabled
+     * Applies phone filter if enabled
      */
     private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession) {
         try {
@@ -235,9 +245,8 @@ public class SnailAudioRelay {
     }
 
     /**
-     * ✨ NEW: Forward Opus bytes to handheld snail participant
-     * This enables handheld-to-handheld and block-to-handheld audio!
-     * ✨ UPDATED: Now applies phone filter if enabled
+     * Forward Opus bytes to handheld snail participant
+     * Applies phone filter if enabled
      */
     private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession) {
         try {
@@ -259,26 +268,23 @@ public class SnailAudioRelay {
     }
 
     /**
-     * ✨ INTERCEPTION: Forward audio to an interceptor
-     * Phase 1: Basic forwarding with phone filter
-     * Future: Add quality degradation based on distance
+     * Forward audio to an interceptor (handheld or block)
+     * Applies phone filter if enabled
      */
     private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData) {
         try {
-            // Phase 1: Apply phone filter (same quality as normal calls)
+            // Apply phone filter (same quality as normal calls)
             byte[] processedAudio = processAudioWithFilter(opusData);
 
             // Send to interceptor's audio channel
             interceptorChannel.send(processedAudio);
-
-            // Future Phase 3: Add distance-based quality degradation here
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to interceptor: " + e.getMessage());
         }
     }
 
     /**
-     * TIER 2 IMPROVED: Event-driven audio activity tracking with better data structure
+     * Event-driven audio activity tracking with better data structure
      */
     private void updateAudioActivity(BlockPos pos) {
         long now = System.currentTimeMillis();
@@ -315,7 +321,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2 OPTIMIZED: More efficient cleanup with batch processing
+     * More efficient cleanup with batch processing
      */
     private void cleanupExpiredActivity() {
         try {
@@ -343,7 +349,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2 + HANDHELD: Find nearest snail in call (handles both block and handheld)
+     * Find nearest snail in call (handles both block and handheld)
      */
     @Nullable
     private TransponderSnailBlockEntity findNearestSnailInCall(ServerPlayer player, CallSession callSession) {
@@ -368,7 +374,7 @@ public class SnailAudioRelay {
             }
         }
 
-        // ✨ NEW: If no block snail found, check if player has handheld snail
+        // If no block snail found, check if player has handheld snail
         if (closestSnail == null) {
             CallSession.CallParticipant participant = callSession.getParticipantByPlayer(player.getUUID());
             if (participant != null && participant.isHandheld()) {
@@ -382,7 +388,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2: Direct snail number lookup instead of iterating all snails
+     * Direct snail number lookup instead of iterating all snails
      */
     private int findSnailNumberAtPosition(BlockPos pos) {
         Map<Integer, TransponderSnailBlockEntity> snails = callManager.getRegisteredSnailBlocks();
@@ -406,7 +412,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2 IMPROVED: Clean up with proper cache invalidation
+     * Clean up with proper cache invalidation
      */
     public void onPlayerLeftCall(UUID playerId) {
         // Clear session cache
@@ -416,7 +422,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2 IMPROVED: Efficient call cleanup with batch blockstate reset
+     * Efficient call cleanup with batch blockstate reset
      */
     public void onCallEnded(UUID callId) {
         // Clear session caches for all participants
@@ -438,8 +444,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Shutdown cleanup
-     * ✨ UPDATED: Now includes codec cleanup
+     * Shutdown cleanup - includes codec cleanup
      */
     public void shutdown() {
         cleanupExecutor.shutdown();
@@ -470,11 +475,11 @@ public class SnailAudioRelay {
         System.out.println("SnailAudioRelay: Shutdown complete");
     }
 
-    // =================== TIER 2 + HANDHELD DATA STRUCTURES ===================
+    // =================== DATA STRUCTURES ===================
 
     /**
-     * TIER 2: Simplified cache that stores complete call context
-     * ✨ IMPROVED: transmittingSnail can be null for handheld snails
+     * Simplified cache that stores complete call context
+     * transmittingSnail can be null for handheld snails
      */
     private static class CallSessionCache {
         final CallSession callSession;
@@ -497,7 +502,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * TIER 2: Lightweight activity tracker for blockstate management
+     * Lightweight activity tracker for blockstate management
      */
     private static class BlockstateActivity {
         final BlockPos position;

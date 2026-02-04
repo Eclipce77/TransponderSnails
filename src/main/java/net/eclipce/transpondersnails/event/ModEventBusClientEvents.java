@@ -2,8 +2,10 @@ package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 
+import net.eclipce.transpondersnails.client.renderer.BlackTransponderSnailBlockEntityRenderer;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.*;
 import net.eclipce.transpondersnails.item.*;
@@ -38,6 +40,17 @@ public class ModEventBusClientEvents {
                 BlackTransponderSnailRenderer::new);
 
         System.out.println("Registered Baby Black Transponder Snail renderer!");
+    }
+
+    @SubscribeEvent
+    public static void registerBlockEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        // Register the Black Transponder Snail Block Entity Renderer
+        event.registerBlockEntityRenderer(
+                ModBlockEntities.BLACK_TRANSPONDER_SNAIL_BE.get(),
+                BlackTransponderSnailBlockEntityRenderer::new
+        );
+
+        System.out.println("TransponderSnails: Registered Black Transponder Snail Block Entity Renderer");
     }
 
     @SubscribeEvent
