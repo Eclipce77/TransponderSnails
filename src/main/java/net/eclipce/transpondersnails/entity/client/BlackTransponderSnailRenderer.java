@@ -3,7 +3,6 @@ package net.eclipce.transpondersnails.entity.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity;
-import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -19,16 +18,23 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Renderer for the Black Transponder Snail Entity
- * Uses the item model with shell color variants and applies scale
- * 
- * FIX APPLIED: Changed NBT tag from "ShellColor" to "shell_color" to match
- * BlackTransponderSnailItem.SHELL_COLOR_TAG constant
+ * Uses the item model with shell color variants
+ *
+ * FIXED: Uses ItemDisplayContext.NONE to bypass model display transforms
+ * and applies explicit positioning/rotation for consistent rendering
+ * with the block entity renderer.
  */
 public class BlackTransponderSnailRenderer extends EntityRenderer<BlackTransponderSnailEntity> {
 
     private final ItemRenderer itemRenderer;
-    
-    // Debug flag - set to false once everything works
+
+    // Base scale for the entity (entity.getScale() multiplies this)
+    private static final float BASE_SCALE = 3.0f;
+
+    // Y offset to lift model off ground - pushed up on Y axis (same as BER)
+    private static final double Y_OFFSET = 1.455D;
+
+    // Debug flag
     private static final boolean DEBUG = false;
     private static int debugCounter = 0;
 
@@ -43,42 +49,49 @@ public class BlackTransponderSnailRenderer extends EntityRenderer<BlackTranspond
         poseStack.pushPose();
 
         // Get the entity's scale factor
-        float scale = entity.getScale();
+        float entityScale = entity.getScale();
+        float totalScale = BASE_SCALE * entityScale;
 
-        // Position: Lift the model up so it's visible above ground
-        // Adjusted for scale - the model's display settings handle most of the positioning
-        poseStack.translate(0.0D, 0.85D * scale, 0.0D);
+        // Position: Lift the model up so it sits on the ground
+        poseStack.translate(0.0D, Y_OFFSET * entityScale, 0.0D);
 
         // Apply scale transformation
-        poseStack.scale(scale, scale, scale);
+        poseStack.scale(totalScale, totalScale, totalScale);
 
-        // Rotation: Face the correct direction
+        // Rotation: Face the correct direction (entity's yaw)
+        // Add 180 to face the direction the entity is looking
         poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - entityYaw));
 
-        // Get entity's shell color
+        // Get entity's shell color and active state
         int shellColor = entity.getShellColor();
-        
+        boolean isActive = entity.isActive();
+
         // Debug output (only every 100 frames to reduce spam)
         if (DEBUG && debugCounter++ % 100 == 0) {
-            System.out.println("=== BLACK SNAIL RENDERER DEBUG ===");
+            System.out.println("=== BLACK SNAIL ENTITY RENDERER DEBUG ===");
             System.out.println("Entity ID: " + entity.getId());
             System.out.println("Shell Color: " + shellColor + " (" + DyeColor.byId(shellColor).getName() + ")");
-            System.out.println("Scale: " + scale);
-            System.out.println("==================================");
+            System.out.println("Active: " + isActive);
+            System.out.println("Scale: " + totalScale);
+            System.out.println("=========================================");
         }
 
-        // Create ItemStack with shell color NBT
+        // Create ItemStack with shell color and open state NBT
         ItemStack itemStack = new ItemStack(ModItems.BLACK_TRANSPONDER_SNAIL.get());
         CompoundTag nbt = itemStack.getOrCreateTag();
-        
-        // FIX: Use "shell_color" to match BlackTransponderSnailItem.SHELL_COLOR_TAG
-        // Previously used "ShellColor" which caused the item property predicate to fail
+
+        // Set shell color (matches BlackTransponderSnailItem.SHELL_COLOR_TAG)
         nbt.putInt("shell_color", shellColor);
 
+        // Set open state based on entity's active state
+        // Entity "active" (intercepting) = item "open" (shell up)
+        nbt.putBoolean("is_open", isActive);
+
         // Render the item model
+        // Using NONE context - no display transforms applied, we handle positioning ourselves
         itemRenderer.renderStatic(
                 itemStack,
-                ItemDisplayContext.GROUND,
+                ItemDisplayContext.NONE,
                 packedLight,
                 OverlayTexture.NO_OVERLAY,
                 poseStack,

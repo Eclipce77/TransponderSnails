@@ -1,17 +1,18 @@
 package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WhiteTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WireBlock;
-import net.eclipce.transpondersnails.item.ModItems;
-import net.eclipce.transpondersnails.item.TransponderSnailItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.material.PushReaction;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -37,15 +38,21 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> WIRE = BLOCKS.register("wire",
             () -> new WireBlock(BlockBehaviour.Properties.of()
-                    .strength(0.0F) // Can be broken instantly
+                    .noCollission()
                     .sound(SoundType.COPPER)
-                    .noCollission() // No collision
-                    .noOcclusion() // Allows light through
-                    .isRedstoneConductor((state, level, pos) -> true) // Redstone conductor
-                    .isSuffocating((state, level, pos) -> false) // Doesn't suffocate
-                    .isViewBlocking((state, level, pos) -> false) // Can see through
-            )
-    );
+                    .pushReaction(PushReaction.DESTROY)
+            ));
+
+    public static final RegistryObject<Block> BLACK_TRANSPONDER_SNAIL_BLOCK = BLOCKS.register("black_transponder_snail_block",
+            () -> new BlackTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL)
+                    .mapColor(MapColor.COLOR_BLACK)
+                    .strength(0.5F)
+                    .sound(SoundType.CORAL_BLOCK)
+                    .noOcclusion()
+                    .lightLevel(state -> {
+                        int callState = state.getValue(BlackTransponderSnailBlock.CALL_STATE);
+                        return callState == 3 ? 7 : (callState > 0 ? 3 : 0);
+                    })));
 
     private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
