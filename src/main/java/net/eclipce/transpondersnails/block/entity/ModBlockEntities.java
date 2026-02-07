@@ -29,6 +29,11 @@ public class ModBlockEntities {
                             ModBlocks.BLACK_TRANSPONDER_SNAIL_BLOCK.get()
                     ).build(null));
 
+    public static final RegistryObject<BlockEntityType<WhiteTransponderSnailBlockEntity>> WHITE_TRANSPONDER_SNAIL =
+            BLOCK_ENTITIES.register("white_transponder_snail", () ->
+                    BlockEntityType.Builder.of(WhiteTransponderSnailBlockEntity::new,
+                            ModBlocks.WHITE_TRANSPONDER_SNAIL.get()).build(null));
+
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);
     }

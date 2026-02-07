@@ -70,7 +70,7 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
     public static final IntegerProperty CALL_STATE = IntegerProperty.create("call_state", 0, 3);
 
     // VoxelShape for the snail block (similar to transponder snail)
-    private static final VoxelShape SHAPE = Block.box(2.0D, 0.0D, 2.0D, 14.0D, 8.0D, 14.0D);
+    private static final VoxelShape SHAPE = Block.box(4.5D, 0.0D, 5.0D, 11.0D, 6.0D, 11.0D);
 
     // Range constants
     public static final int RANGE_PER_LIGHTNING_ROD = 5;

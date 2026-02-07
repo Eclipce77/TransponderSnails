@@ -71,7 +71,7 @@ public class BlackTransponderSnailBlockEntityRenderer implements BlockEntityRend
         poseStack.pushPose();
 
         // Center in block and lift off ground
-        poseStack.translate(0.5D, Y_OFFSET, 0.5D);
+        poseStack.translate(0.535D, Y_OFFSET, 0.5D);
 
         // Apply scale - same as entity renderer
         poseStack.scale(BLOCK_SCALE, BLOCK_SCALE, BLOCK_SCALE);

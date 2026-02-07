@@ -1,76 +1,367 @@
 package net.eclipce.transpondersnails.block.custom;
 
+import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
+import net.eclipce.transpondersnails.block.entity.WhiteTransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.voice.server.WhiteSnailProtectionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.DyeItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.block.state.properties.*;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
-import java.util.Collections;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * White Transponder Snail Block with rotation and shell color dyeing support.
- * Shell can be dyed any of the 16 Minecraft colors.
- * Uses blockstate properties instead of block entity for simplicity.
+ * White Transponder Snail Block - Provides call interception protection
+ *
+ * REWRITTEN STATE SYSTEM:
+ * - Shell color is stored in BlockEntity (not blockstate) to avoid variant explosion
+ * - Blockstate only contains: facing, snail_state, wire_left, wire_right
+ * - Total variants: 4 directions × 3 states × 4 wire combos = 48 (manageable!)
+ *
+ * Visual States (snail_state property):
+ * - IDLE (0): Default state, not protecting any call
+ * - CONNECTED (1): Currently protecting an active call
+ * - BLOCKING (2): Actively blocking an interception attempt
+ *
+ * Wire Connection States:
+ * - wire_left: True if connected to wire on left side (when viewing from front)
+ * - wire_right: True if connected to wire on right side (when viewing from front)
  */
-public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock {
+public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock implements EntityBlock {
 
-    // Shell color property (0-15 for DyeColor IDs)
-    public static final IntegerProperty SHELL_COLOR = IntegerProperty.create("shell_color", 0, 15);
+    // Blockstate properties (NO shell_color - that's in the BE now!)
+    public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+    public static final IntegerProperty SNAIL_STATE = IntegerProperty.create("snail_state", 0, 2);
+    public static final BooleanProperty WIRE_LEFT = BooleanProperty.create("wire_left");
+    public static final BooleanProperty WIRE_RIGHT = BooleanProperty.create("wire_right");
+
+    // Snail state constants for readability
+    public static final int STATE_IDLE = 0;
+    public static final int STATE_CONNECTED = 1;
+    public static final int STATE_BLOCKING = 2;
+
+    // Voxel shapes for the snail (same as regular transponder snail)
+    private static final VoxelShape SHAPE_NORTH = Block.box(3, 0, 2, 13, 12, 14);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(3, 0, 2, 13, 12, 14);
+    private static final VoxelShape SHAPE_EAST = Block.box(2, 0, 3, 14, 12, 13);
+    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 3, 14, 12, 13);
 
     public WhiteTransponderSnailBlock(Properties properties) {
         super(properties);
-        // Default to facing north with white shell
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
-                .setValue(SHELL_COLOR, 0)); // White
+                .setValue(SNAIL_STATE, STATE_IDLE)
+                .setValue(WIRE_LEFT, false)
+                .setValue(WIRE_RIGHT, false));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, SHELL_COLOR);
+        // Only these 4 properties - NO shell_color!
+        builder.add(FACING, SNAIL_STATE, WIRE_LEFT, WIRE_RIGHT);
     }
+
+    // =================== BLOCK ENTITY ===================
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new WhiteTransponderSnailBlockEntity(pos, state);
+    }
+
+    // =================== PLACEMENT & SHAPE ===================
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
-        // Get shell color from item NBT if available
-        ItemStack stack = context.getItemInHand();
-        int shellColor = 0; // Default white
+        Level level = context.getLevel();
+        BlockPos pos = context.getClickedPos();
+        Direction facing = context.getHorizontalDirection().getOpposite();
 
-        if (stack.hasTag()) {
-            CompoundTag nbt = stack.getTag();
-            if (nbt.contains("shell_color")) {
-                shellColor = nbt.getInt("shell_color");
+        // Check for wire connections on placement
+        boolean wireLeft = checkWireConnection(level, pos, facing, true);
+        boolean wireRight = checkWireConnection(level, pos, facing, false);
+
+        return this.defaultBlockState()
+                .setValue(FACING, facing)
+                .setValue(SNAIL_STATE, STATE_IDLE)
+                .setValue(WIRE_LEFT, wireLeft)
+                .setValue(WIRE_RIGHT, wireRight);
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        
+        // Copy shell color from item NBT to block entity
+        if (!level.isClientSide) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
+                CompoundTag tag = stack.getTag();
+                if (tag != null) {
+                    // Check for shell_color in item NBT
+                    if (tag.contains("shell_color")) {
+                        whiteBE.setShellColorId(tag.getInt("shell_color"));
+                    } else if (tag.contains("BlockEntityTag")) {
+                        // Also check BlockEntityTag (for items created from breaking)
+                        CompoundTag beTag = tag.getCompound("BlockEntityTag");
+                        if (beTag.contains("ShellColor")) {
+                            whiteBE.setShellColorId(beTag.getInt("ShellColor"));
+                        }
+                    }
+                }
             }
+            
+            // ✨ Notify protection manager of White Snail placement
+            WhiteSnailProtectionManager.getInstance().onWhiteSnailChanged(level, pos, true);
+        }
+    }
+
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        // ✨ Notify protection manager BEFORE removal (only if actually being removed, not replaced)
+        if (!level.isClientSide && !state.is(newState.getBlock())) {
+            WhiteSnailProtectionManager.getInstance().onWhiteSnailChanged(level, pos, false);
+        }
+        
+        super.onRemove(state, level, pos, newState, isMoving);
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return switch (state.getValue(FACING)) {
+            case SOUTH -> SHAPE_SOUTH;
+            case EAST -> SHAPE_EAST;
+            case WEST -> SHAPE_WEST;
+            default -> SHAPE_NORTH;
+        };
+    }
+
+    // =================== INTERACTIONS ===================
+
+    @Override
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
+                                 InteractionHand hand, BlockHitResult hit) {
+        ItemStack heldItem = player.getItemInHand(hand);
+
+        // Handle dyeing the shell
+        if (heldItem.getItem() instanceof DyeItem dyeItem) {
+            if (!level.isClientSide) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
+                    DyeColor color = dyeItem.getDyeColor();
+                    whiteBE.setShellColor(color);
+                    
+                    System.out.println("WhiteTransponderSnailBlock: Dyed shell to " + color.getName() + 
+                            " at " + pos);
+
+                    // Consume dye in survival mode
+                    if (!player.isCreative()) {
+                        heldItem.shrink(1);
+                    }
+                }
+            }
+            return InteractionResult.sidedSuccess(level.isClientSide);
         }
 
-        // Face the player when placed
-        return this.defaultBlockState()
-                .setValue(FACING, context.getHorizontalDirection().getOpposite())
-                .setValue(SHELL_COLOR, shellColor);
+        return InteractionResult.PASS;
+    }
+
+    // =================== WIRE CONNECTIONS ===================
+
+    @Override
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighborState,
+                                  LevelAccessor level, BlockPos pos, BlockPos neighborPos) {
+        // Only update wire connections on horizontal neighbor changes
+        if (direction.getAxis().isHorizontal() && level instanceof Level realLevel) {
+            Direction facing = state.getValue(FACING);
+            boolean wireLeft = checkWireConnection(realLevel, pos, facing, true);
+            boolean wireRight = checkWireConnection(realLevel, pos, facing, false);
+
+            if (wireLeft != state.getValue(WIRE_LEFT) || wireRight != state.getValue(WIRE_RIGHT)) {
+                return state.setValue(WIRE_LEFT, wireLeft).setValue(WIRE_RIGHT, wireRight);
+            }
+        }
+        return state;
+    }
+
+    /**
+     * Check if there's a wire connection on the specified side
+     * @param level The level
+     * @param pos The snail's position
+     * @param facing The direction the snail is facing
+     * @param checkLeft True to check left side, false to check right side
+     * @return True if a wire is connected on that side
+     */
+    private boolean checkWireConnection(Level level, BlockPos pos, Direction facing, boolean checkLeft) {
+        // Determine which direction is "left" or "right" based on facing
+        Direction checkDir;
+        if (checkLeft) {
+            checkDir = facing.getCounterClockWise();
+        } else {
+            checkDir = facing.getClockWise();
+        }
+
+        BlockPos neighborPos = pos.relative(checkDir);
+        BlockState neighborState = level.getBlockState(neighborPos);
+
+        // Check if neighbor is a wire block
+        return neighborState.getBlock() instanceof WireBlock;
+    }
+
+    /**
+     * Update wire connection states (call after wire network changes)
+     */
+    public static void updateWireConnections(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof WhiteTransponderSnailBlock block) {
+            Direction facing = state.getValue(FACING);
+            boolean wireLeft = block.checkWireConnection(level, pos, facing, true);
+            boolean wireRight = block.checkWireConnection(level, pos, facing, false);
+
+            if (wireLeft != state.getValue(WIRE_LEFT) || wireRight != state.getValue(WIRE_RIGHT)) {
+                level.setBlock(pos, state
+                        .setValue(WIRE_LEFT, wireLeft)
+                        .setValue(WIRE_RIGHT, wireRight), 3);
+                System.out.println("WhiteTransponderSnailBlock: Updated wire connections at " + pos +
+                        " (left=" + wireLeft + ", right=" + wireRight + ")");
+            }
+        }
+    }
+
+    // =================== SNAIL STATE MANAGEMENT ===================
+
+    /**
+     * Set the snail to CONNECTED state (protecting a call)
+     */
+    public static void setConnectedState(Level level, BlockPos pos) {
+        setSnailState(level, pos, STATE_CONNECTED);
+    }
+
+    /**
+     * Set the snail to BLOCKING state (actively blocking interception)
+     */
+    public static void setBlockingState(Level level, BlockPos pos) {
+        setSnailState(level, pos, STATE_BLOCKING);
+    }
+
+    /**
+     * Set the snail back to IDLE state
+     */
+    public static void setIdleState(Level level, BlockPos pos) {
+        setSnailState(level, pos, STATE_IDLE);
+    }
+
+    /**
+     * Set the snail state by integer value
+     * @param level The level
+     * @param pos The block position
+     * @param newState The new state (0=IDLE, 1=CONNECTED, 2=BLOCKING)
+     */
+    public static void setSnailState(Level level, BlockPos pos, int newState) {
+        if (newState < STATE_IDLE || newState > STATE_BLOCKING) {
+            System.err.println("WhiteTransponderSnailBlock: Invalid state " + newState);
+            return;
+        }
+
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof WhiteTransponderSnailBlock) {
+            int currentState = state.getValue(SNAIL_STATE);
+            if (currentState != newState) {
+                level.setBlock(pos, state.setValue(SNAIL_STATE, newState), 3);
+                System.out.println("WhiteTransponderSnailBlock: Set " + getStateName(newState) + " state at " + pos);
+            }
+        }
+    }
+
+    /**
+     * Get the current snail state
+     */
+    public static int getSnailState(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof WhiteTransponderSnailBlock) {
+            return state.getValue(SNAIL_STATE);
+        }
+        return STATE_IDLE;
+    }
+
+    /**
+     * Get a human-readable name for a snail state
+     */
+    public static String getStateName(int state) {
+        switch (state) {
+            case STATE_IDLE: return "IDLE";
+            case STATE_CONNECTED: return "CONNECTED";
+            case STATE_BLOCKING: return "BLOCKING";
+            default: return "UNKNOWN(" + state + ")";
+        }
+    }
+
+    // =================== DROPS ===================
+
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
+        List<ItemStack> drops = super.getDrops(state, builder);
+        
+        // Get the block entity to preserve shell color
+        BlockEntity be = builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+        if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
+            for (ItemStack stack : drops) {
+                if (stack.is(this.asItem())) {
+                    // Save shell color to item NBT
+                    CompoundTag tag = stack.getOrCreateTag();
+                    tag.putInt("shell_color", whiteBE.getShellColorId());
+                    
+                    // Also save in BlockEntityTag for consistency
+                    CompoundTag beTag = new CompoundTag();
+                    beTag.putInt("ShellColor", whiteBE.getShellColorId());
+                    tag.put("BlockEntityTag", beTag);
+                }
+            }
+        }
+        
+        return drops;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        ItemStack stack = super.getCloneItemStack(level, pos, state);
+        
+        // Copy shell color to picked item
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
+            CompoundTag tag = stack.getOrCreateTag();
+            tag.putInt("shell_color", whiteBE.getShellColorId());
+        }
+        
+        return stack;
+    }
+
+    // =================== RENDERING ===================
+
+    @Override
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
     }
 
     @Override
@@ -81,94 +372,5 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock {
     @Override
     public BlockState mirror(BlockState state, Mirror mirror) {
         return state.rotate(mirror.getRotation(state.getValue(FACING)));
-    }
-
-    @Override
-    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
-                                 InteractionHand hand, BlockHitResult hit) {
-        if (level.isClientSide) {
-            return InteractionResult.SUCCESS;
-        }
-
-        ItemStack itemInHand = player.getItemInHand(hand);
-        Item item = itemInHand.getItem();
-
-        // Check if player is holding a dye
-        if (item instanceof DyeItem dyeItem) {
-            DyeColor dyeColor = dyeItem.getDyeColor();
-            int newColorId = dyeColor.getId();
-            int currentColorId = state.getValue(SHELL_COLOR);
-
-            // Only update if color is different
-            if (newColorId != currentColorId) {
-                // Update block state with new shell color
-                level.setBlock(pos, state.setValue(SHELL_COLOR, newColorId), 3);
-
-                // Send message to player
-                if (player instanceof ServerPlayer serverPlayer) {
-                    String colorName = dyeColor.getName().replace("_", " ");
-                    String displayName = colorName.substring(0, 1).toUpperCase() + colorName.substring(1);
-                    serverPlayer.sendSystemMessage(
-                            Component.literal("White Transponder Snail shell dyed " + displayName + "!")
-                                    .withStyle(net.minecraft.ChatFormatting.GREEN)
-                    );
-                }
-
-                // Consume dye in survival mode
-                if (!player.isCreative()) {
-                    itemInHand.shrink(1);
-                }
-
-                return InteractionResult.CONSUME;
-            } else {
-                // Already this color
-                if (player instanceof ServerPlayer serverPlayer) {
-                    String colorName = dyeColor.getName().replace("_", " ");
-                    String displayName = colorName.substring(0, 1).toUpperCase() + colorName.substring(1);
-                    serverPlayer.sendSystemMessage(
-                            Component.literal("Shell is already " + displayName + "!")
-                                    .withStyle(net.minecraft.ChatFormatting.YELLOW)
-                    );
-                }
-                return InteractionResult.PASS;
-            }
-        }
-
-        return InteractionResult.PASS;
-    }
-
-    @Override
-    public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
-        // Create item with shell color preserved
-        ItemStack stack = new ItemStack(this);
-        CompoundTag nbt = stack.getOrCreateTag();
-        nbt.putInt("shell_color", state.getValue(SHELL_COLOR));
-
-        return Collections.singletonList(stack);
-    }
-
-    /**
-     * Get the shell color model variant name
-     */
-    public static String getShellVariantModel(int shellColor) {
-        DyeColor dyeColor = DyeColor.byId(shellColor);
-        return "white_transponder_snail_shell_" + dyeColor.getName();
-    }
-
-    /**
-     * Get shell color from block state
-     */
-    public static int getShellColor(BlockState state) {
-        return state.getValue(SHELL_COLOR);
-    }
-
-    /**
-     * Get shell color name for display
-     */
-    public static String getShellColorName(BlockState state) {
-        int colorId = state.getValue(SHELL_COLOR);
-        DyeColor color = DyeColor.byId(colorId);
-        String name = color.getName().replace("_", " ");
-        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 }

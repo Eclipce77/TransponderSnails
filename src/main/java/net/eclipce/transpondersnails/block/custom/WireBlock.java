@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.block.custom;
 
 import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.voice.server.WhiteSnailProtectionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -404,6 +405,9 @@ public class WireBlock extends Block {
     @Override
     public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
         if (!level.isClientSide && !state.is(oldState.getBlock())) {
+            // ✨ Notify White Snail protection manager of wire network change
+            WhiteSnailProtectionManager.getInstance().onWireNetworkChanged(level, pos);
+            
             // Notify horizontal neighbors
             for (Direction dir : Direction.Plane.HORIZONTAL) {
                 BlockPos neighborPos = pos.relative(dir);
@@ -436,6 +440,9 @@ public class WireBlock extends Block {
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!level.isClientSide && !state.is(newState.getBlock())) {
+            // ✨ Notify White Snail protection manager of wire network change
+            WhiteSnailProtectionManager.getInstance().onWireNetworkChanged(level, pos);
+            
             // Notify horizontal neighbors
             for (Direction dir : Direction.Plane.HORIZONTAL) {
                 BlockPos neighborPos = pos.relative(dir);

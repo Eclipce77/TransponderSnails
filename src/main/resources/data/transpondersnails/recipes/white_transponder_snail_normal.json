@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "   ",
+    "NWN",
+    "   "
+  ],
+  "key": {
+    "W": {
+      "item": "transpondersnails:white_den_den_mushi"
+    },
+    "N": {
+      "item": "transpondersnails:copper_nugget"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:white_transponder_snail"
+  }
+}

@@ -67,6 +67,9 @@ public class TransponderCallManager {
         // ✨ INTERCEPTION: Initialize interception manager
         this.interceptionManager = new CallInterceptionManager(voiceChatApi, this);
 
+        // ✨ NEW: Link protection manager to call manager
+        WhiteSnailProtectionManager.getInstance().setCallManager(this);
+
         scheduler.scheduleAtFixedRate(this::cleanupInactiveCalls, 30, 30, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(this::updateHandheldAudioPositions, 250, 250, TimeUnit.MILLISECONDS);
         // ✨ INTERCEPTION: Validate interceptions every second
@@ -773,6 +776,9 @@ public class TransponderCallManager {
         // Create audio channels for all participants
         createAudioChannels(callSession);
 
+        // WHITE SNAIL: Notify protecting White Snails
+        notifyWhiteSnailsOfCallStart(callSession);
+
         // Play connection sounds
         playConnectionSounds(callSession);
 
@@ -981,6 +987,9 @@ public class TransponderCallManager {
             if (audioRelay != null) {
                 audioRelay.onCallEnded(callId);
             }
+
+            // WHITE SNAIL: Notify protecting White Snails
+            notifyWhiteSnailsOfCallEnd(callSession);
 
             cleanupCall(callSession);
             notifyCallEnded(callSession);
@@ -1417,6 +1426,64 @@ public class TransponderCallManager {
     private void notifyCallRejected(CallSession callSession) {
         // Notification removed - handled by debug output and other systems
     }
+
+    private void notifyWhiteSnailsOfCallStart(CallSession callSession) {
+        try {
+            WhiteSnailProtectionManager protectionManager = WhiteSnailProtectionManager.getInstance();
+
+            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+                // Only block snails can be protected (not handheld)
+                if (participant.isBlock() && participant.getBlockPosition() != null) {
+                    TransponderSnailBlockEntity blockEntity =
+                            getRegisteredSnailBlock(participant.getSnailNumber());
+
+                    if (blockEntity != null && blockEntity.getLevel() instanceof ServerLevel serverLevel) {
+                        BlockPos snailPos = participant.getBlockPosition();
+
+                        // Check if this participant is protected by a White Snail
+                        if (protectionManager.isParticipantProtected(serverLevel, snailPos)) {
+                            // Notify the protection manager - this updates the White Snail's visual state
+                            protectionManager.onCallProtectionStarted(serverLevel, snailPos);
+
+                            System.out.println("TransponderCallManager: Notified White Snail protection for snail at " + snailPos);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Error notifying White Snails of call start: " + e.getMessage());
+        }
+    }
+
+    private void notifyWhiteSnailsOfCallEnd(CallSession callSession) {
+        try {
+            WhiteSnailProtectionManager protectionManager = WhiteSnailProtectionManager.getInstance();
+
+            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+                // Only block snails can be protected (not handheld)
+                if (participant.isBlock() && participant.getBlockPosition() != null) {
+                    TransponderSnailBlockEntity blockEntity =
+                            getRegisteredSnailBlock(participant.getSnailNumber());
+
+                    if (blockEntity != null && blockEntity.getLevel() instanceof ServerLevel serverLevel) {
+                        BlockPos snailPos = participant.getBlockPosition();
+
+                        // Check if this participant was protected by a White Snail
+                        if (protectionManager.isParticipantProtected(serverLevel, snailPos)) {
+                            // Notify the protection manager - this updates the White Snail's visual state
+                            protectionManager.onCallProtectionEnded(serverLevel, snailPos);
+
+                            System.out.println("TransponderCallManager: Notified White Snail protection ended for snail at " + snailPos);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Error notifying White Snails of call end: " + e.getMessage());
+        }
+    }
+
+    
 
     /**
      * FIX #2: Notify call ended for BOTH block and handheld participants

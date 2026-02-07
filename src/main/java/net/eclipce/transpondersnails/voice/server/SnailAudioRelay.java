@@ -11,8 +11,9 @@ import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
-import net.eclipce.transpondersnails.voice.server.BlackSnailStateSyncHelper;
+import net.eclipce.transpondersnails.voice.audio.StaticAudioGenerator;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
@@ -21,15 +22,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TIER 2 + HANDHELD + BLOCK INTERCEPTION SUPPORT: Complete audio relay system
+ * TIER 2 + HANDHELD SUPPORT + WHITE SNAIL PROTECTION: Complete audio relay system
  * - Direct Opus transmission (Tier 1)
  * - Smart caching and optimizations (Tier 2)
  * - Full handheld snail audio forwarding
  * - Phone audio filtering for immersive call quality
- * - Block-based interceptor audio routing (NEW)
+ * - ✨ NEW: White Transponder Snail protection with constant static
  */
 public class SnailAudioRelay {
 
@@ -41,18 +43,32 @@ public class SnailAudioRelay {
     private final OpusDecoder opusDecoder;
     private final OpusEncoder opusEncoder;
 
-    // INTERCEPTION: Interception manager reference
+    // ✨ WHITE SNAIL PROTECTION: Static generator for blocked interceptors
+    private final StaticAudioGenerator staticGenerator;
+
+    // Interception manager reference
     private CallInterceptionManager interceptionManager;
+
+    // ✨ WHITE SNAIL PROTECTION: Tracks which interceptors are receiving constant static
+    // Key: Interceptor UUID, Value: StaticPlaybackSession
+    private final Map<UUID, StaticPlaybackSession> activeStaticSessions = new ConcurrentHashMap<>();
 
     // TIER 2: Simplified cache - only cache what we need
     private final Map<UUID, CallSessionCache> playerSessionCache = new ConcurrentHashMap<>();
     private static final long CACHE_TIMEOUT_MS = 2000;
 
     // TIER 2: Event-driven blockstate tracking with improved cleanup
-    private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(
-            r -> new Thread(r, "SnailAudioRelay-Cleanup"));
+    private final ScheduledExecutorService cleanupExecutor = Executors.newScheduledThreadPool(2,
+            r -> {
+                Thread t = new Thread(r, "SnailAudioRelay-Worker");
+                t.setDaemon(true);
+                return t;
+            });
     private final Map<BlockPos, BlockstateActivity> blockstateActivity = new ConcurrentHashMap<>();
     private static final long AUDIO_TIMEOUT_MS = 500;
+
+    // ✨ WHITE SNAIL: Static playback interval (20ms = 50fps, matches voice chat frame rate)
+    private static final long STATIC_INTERVAL_MS = 20;
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
@@ -63,11 +79,18 @@ public class SnailAudioRelay {
         this.opusDecoder = voiceChatApi.createDecoder();
         this.opusEncoder = voiceChatApi.createEncoder();
 
-        // Less frequent cleanup for better performance
+        // ✨ WHITE SNAIL: Initialize static generator
+        this.staticGenerator = new StaticAudioGenerator(voiceChatApi);
+
+        // TIER 2: Less frequent cleanup for better performance
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 200, 200, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Block Interception support");
+        // ✨ WHITE SNAIL: Cleanup stale static sessions
+        cleanupExecutor.scheduleAtFixedRate(this::cleanupStaleStaticSessions, 1000, 1000, TimeUnit.MILLISECONDS);
+
+        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Phone Filter + White Snail Protection");
         System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED" : "DISABLED"));
+        System.out.println("  White Snail Protection: ENABLED (constant static at " + STATIC_INTERVAL_MS + "ms intervals)");
         if (ModConfig.isPhoneFilterEnabled()) {
             System.out.println("  " + phoneFilter.getDescription());
         }
@@ -82,8 +105,61 @@ public class SnailAudioRelay {
         System.out.println("SnailAudioRelay: Interception manager linked");
     }
 
+    // =================== STATIC PLAYBACK SESSION ===================
+
     /**
-     * TIER 2 + HANDHELD + BLOCK INTERCEPTION: Complete audio processing
+     * Represents an active static playback session for a blocked interceptor
+     */
+    private class StaticPlaybackSession {
+        final UUID interceptorId;
+        final UUID targetCallId;
+        final AudioChannel staticChannel;
+        final Set<BlockPos> protectingWhiteSnails;
+        final ScheduledFuture<?> playbackTask;
+        volatile boolean active = true;
+
+        StaticPlaybackSession(UUID interceptorId, UUID targetCallId, AudioChannel staticChannel,
+                              Set<BlockPos> protectingWhiteSnails) {
+            this.interceptorId = interceptorId;
+            this.targetCallId = targetCallId;
+            this.staticChannel = staticChannel;
+            this.protectingWhiteSnails = new HashSet<>(protectingWhiteSnails);
+
+            // Start constant static playback task
+            this.playbackTask = cleanupExecutor.scheduleAtFixedRate(
+                    this::sendStaticFrame,
+                    0, STATIC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
+            System.out.println("StaticPlaybackSession: Started for interceptor " +
+                    interceptorId.toString().substring(0, 8) +
+                    " with " + protectingWhiteSnails.size() + " protecting White Snails");
+        }
+
+        void sendStaticFrame() {
+            if (!active || staticChannel == null) return;
+
+            try {
+                byte[] staticFrame = staticGenerator.getStaticFrame();
+                staticChannel.send(staticFrame);
+            } catch (Exception e) {
+                System.err.println("StaticPlaybackSession: Error sending static: " + e.getMessage());
+            }
+        }
+
+        void stop() {
+            active = false;
+            if (playbackTask != null && !playbackTask.isDone()) {
+                playbackTask.cancel(false);
+            }
+            System.out.println("StaticPlaybackSession: Stopped for interceptor " +
+                    interceptorId.toString().substring(0, 8));
+        }
+    }
+
+    // =================== AUDIO PROCESSING ===================
+
+    /**
+     * TIER 2 + HANDHELD + WHITE SNAIL: Complete audio processing with protection
      */
     public void onMicrophonePacket(MicrophonePacketEvent event) {
         try {
@@ -95,7 +171,7 @@ public class SnailAudioRelay {
                     .getPlayerList().getPlayer(vcSpeaker.getUuid());
             if (speaker == null) return;
 
-            // Use cached call session instead of looking up every packet
+            // TIER 2: Use cached call session instead of looking up every packet
             CallSessionCache sessionCache = playerSessionCache.get(speaker.getUUID());
 
             // Validate cache
@@ -119,7 +195,7 @@ public class SnailAudioRelay {
                 playerSessionCache.put(speaker.getUUID(), sessionCache);
             }
 
-            // Get Opus data - trust Voice Chat's VAD completely
+            // TIER 2: Get Opus data - trust Voice Chat's VAD completely
             byte[] opusData = event.getPacket().getOpusEncodedData();
             if (opusData == null || opusData.length == 0) return;
 
@@ -149,33 +225,46 @@ public class SnailAudioRelay {
                 }
             }
 
-            // =================== FORWARD TO INTERCEPTORS (HANDHELD + BLOCK) ===================
+            // =================== ✨ FORWARD TO INTERCEPTORS (WITH WHITE SNAIL PROTECTION) ===================
             if (interceptionManager != null) {
                 Set<UUID> interceptors = interceptionManager.getInterceptorsForCall(callSession.getCallId());
-                List<AudioChannel> interceptorChannels = interceptionManager.getInterceptorChannelsForCall(callSession.getCallId());
 
-                // Forward audio to each interceptor channel
-                for (AudioChannel interceptorChannel : interceptorChannels) {
-                    forwardOpusToInterceptor(interceptorChannel, opusData);
-                }
+                if (!interceptors.isEmpty()) {
+                    // ✨ Check if the SPEAKER is protected by a White Snail
+                    boolean speakerIsProtected = isSpeakerProtected(speaker, callSession, sessionCache);
 
-                // Mark audio activity for interceptors - different handling for block vs handheld
-                for (UUID interceptorId : interceptors) {
-                    // Check if this is a block interceptor (synthetic block UUID)
-                    if (interceptionManager.isBlockInterceptorUUID(interceptorId)) {
-                        // Block interceptor - get block position and mark block activity
-                        BlockPos blockPos = interceptionManager.getBlockPosForUUID(interceptorId);
-                        if (blockPos != null) {
-                            interceptionManager.markBlockAudioActivity(blockPos);
-                        }
-                    } else {
-                        // Handheld interceptor - mark activity and sync to client
-                        interceptionManager.markAudioActivity(interceptorId);
+                    for (UUID interceptorId : interceptors) {
+                        // ✨ WHITE SNAIL: If speaker is protected, interceptors hear static
+                        // The static is played CONSTANTLY by StaticPlaybackSession, not per-packet
+                        if (speakerIsProtected) {
+                            // Ensure static session is running for this interceptor
+                            ensureStaticSessionActive(interceptorId, callSession, sessionCache);
 
-                        // Tell client we're in ACTIVE state (intercepting + audio)
-                        ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
-                        if (interceptorPlayer != null) {
-                            BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                            // Mark audio activity for visual feedback (shows ACTIVE state on black snail)
+                            interceptionManager.markAudioActivity(interceptorId);
+
+                            // Sync ACTIVE state to client for visual feedback
+                            ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
+                            if (interceptorPlayer != null) {
+                                BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                            }
+                        } else {
+                            // Speaker is NOT protected - forward actual audio
+                            // Stop any active static session for this interceptor
+                            stopStaticSession(interceptorId);
+
+                            AudioChannel interceptorChannel = interceptionManager.getInterceptorChannel(interceptorId);
+                            if (interceptorChannel != null) {
+                                forwardOpusToInterceptor(interceptorChannel, opusData);
+                            }
+
+                            // Mark audio activity AND sync ACTIVE state for visual feedback
+                            interceptionManager.markAudioActivity(interceptorId);
+
+                            ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
+                            if (interceptorPlayer != null) {
+                                BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                            }
                         }
                     }
                 }
@@ -187,40 +276,196 @@ public class SnailAudioRelay {
         }
     }
 
+    // =================== WHITE SNAIL PROTECTION METHODS ===================
+
+    /**
+     * ✨ Check if the speaking player is protected by a White Transponder Snail
+     */
+    private boolean isSpeakerProtected(ServerPlayer speaker, CallSession callSession, CallSessionCache sessionCache) {
+        // Get the participant info for the speaker
+        CallSession.CallParticipant speakerParticipant = callSession.getParticipantByPlayer(speaker.getUUID());
+
+        if (speakerParticipant == null) {
+            return false;
+        }
+
+        // Handheld snails cannot be protected
+        if (speakerParticipant.isHandheld()) {
+            return false;
+        }
+
+        // Check if the speaker's snail block is protected
+        if (speakerParticipant.isBlock() && sessionCache.transmittingSnail != null) {
+            return WhiteSnailProtectionManager.getInstance().isParticipantProtected(
+                    sessionCache.transmittingSnail.getLevel(),
+                    sessionCache.transmittingSnail.getBlockPos()
+            );
+        }
+
+        return false;
+    }
+
+    /**
+     * ✨ Get all White Snails protecting any participant in a call
+     */
+    private Set<BlockPos> getProtectingWhiteSnails(CallSession callSession) {
+        Set<BlockPos> whiteSnails = new HashSet<>();
+
+        for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
+            if (participant.isBlock() && participant.getBlockPosition() != null) {
+                TransponderSnailBlockEntity blockEntity =
+                        callManager.getRegisteredSnailBlock(participant.getSnailNumber());
+
+                if (blockEntity != null && blockEntity.getLevel() != null) {
+                    BlockPos whiteSnailPos = WhiteSnailProtectionManager.getInstance()
+                            .getProtectingWhiteSnail(blockEntity.getLevel(), participant.getBlockPosition());
+
+                    if (whiteSnailPos != null) {
+                        whiteSnails.add(whiteSnailPos);
+                    }
+                }
+            }
+        }
+
+        return whiteSnails;
+    }
+
+    /**
+     * ✨ Ensure a static playback session is active for an interceptor
+     */
+    private void ensureStaticSessionActive(UUID interceptorId, CallSession callSession, CallSessionCache sessionCache) {
+        // Check if session already exists
+        StaticPlaybackSession existingSession = activeStaticSessions.get(interceptorId);
+        if (existingSession != null && existingSession.active) {
+            return; // Session already running
+        }
+
+        // Get the interceptor's audio channel
+        AudioChannel staticChannel = interceptionManager.getInterceptorChannel(interceptorId);
+        if (staticChannel == null) {
+            return; // No channel available
+        }
+
+        // Find protecting White Snails
+        Set<BlockPos> protectingWhiteSnails = getProtectingWhiteSnails(callSession);
+
+        // Create and start new static session
+        StaticPlaybackSession newSession = new StaticPlaybackSession(
+                interceptorId,
+                callSession.getCallId(),
+                staticChannel,
+                protectingWhiteSnails
+        );
+
+        activeStaticSessions.put(interceptorId, newSession);
+
+        // ✨ Update White Snail visual state to BLOCKING
+        ServerPlayer interceptor = callManager.getPlayerById(interceptorId);
+        if (interceptor != null && sessionCache.transmittingSnail != null) {
+            ServerLevel level = (ServerLevel) sessionCache.transmittingSnail.getLevel();
+            for (BlockPos whiteSnailPos : protectingWhiteSnails) {
+                WhiteSnailProtectionManager.getInstance().onInterceptionBlocked(level, whiteSnailPos, interceptorId);
+            }
+        }
+
+        System.out.println("SnailAudioRelay: Started static session for interceptor " +
+                interceptorId.toString().substring(0, 8));
+    }
+
+    /**
+     * ✨ Stop a static playback session for an interceptor
+     */
+    private void stopStaticSession(UUID interceptorId) {
+        StaticPlaybackSession session = activeStaticSessions.remove(interceptorId);
+        if (session != null) {
+            session.stop();
+
+            // ✨ Update White Snail visual state back from BLOCKING
+            for (BlockPos whiteSnailPos : session.protectingWhiteSnails) {
+                ServerLevel level = WhiteSnailProtectionManager.getInstance().getWhiteSnailLevel(whiteSnailPos);
+                if (level != null) {
+                    WhiteSnailProtectionManager.getInstance().onInterceptionEnded(level, whiteSnailPos, interceptorId);
+                }
+            }
+        }
+    }
+
+    /**
+     * ✨ Stop all static sessions for a call (when call ends)
+     */
+    public void stopAllStaticSessionsForCall(UUID callId) {
+        List<UUID> toRemove = new ArrayList<>();
+
+        for (Map.Entry<UUID, StaticPlaybackSession> entry : activeStaticSessions.entrySet()) {
+            if (entry.getValue().targetCallId.equals(callId)) {
+                toRemove.add(entry.getKey());
+            }
+        }
+
+        for (UUID interceptorId : toRemove) {
+            stopStaticSession(interceptorId);
+        }
+
+        if (!toRemove.isEmpty()) {
+            System.out.println("SnailAudioRelay: Stopped " + toRemove.size() +
+                    " static sessions for ended call " + callId.toString().substring(0, 8));
+        }
+    }
+
+    /**
+     * ✨ Cleanup stale static sessions (interceptor disconnected, etc.)
+     */
+    private void cleanupStaleStaticSessions() {
+        List<UUID> toRemove = new ArrayList<>();
+
+        for (Map.Entry<UUID, StaticPlaybackSession> entry : activeStaticSessions.entrySet()) {
+            UUID interceptorId = entry.getKey();
+
+            // Check if interceptor is still intercepting
+            if (interceptionManager == null || !interceptionManager.isIntercepting(interceptorId)) {
+                toRemove.add(interceptorId);
+                continue;
+            }
+
+            // Check if the target call is still active
+            CallSession targetCall = getCallSessionById(entry.getValue().targetCallId);
+            if (targetCall == null || targetCall.getState() != CallSession.CallState.CONNECTED) {
+                toRemove.add(interceptorId);
+            }
+        }
+
+        for (UUID interceptorId : toRemove) {
+            stopStaticSession(interceptorId);
+        }
+    }
+
+    // =================== AUDIO PROCESSING METHODS ===================
+
     /**
      * Process audio through phone filter (if enabled)
      */
     private byte[] processAudioWithFilter(byte[] opusData) {
-        // Check if phone filter is enabled in config
         if (!ModConfig.isPhoneFilterEnabled()) {
-            // Filter disabled - pass through unchanged
             return opusData;
         }
 
         try {
-            // Decode Opus to PCM (16-bit samples at 48kHz)
             short[] pcmSamples = opusDecoder.decode(opusData);
 
             if (pcmSamples == null || pcmSamples.length == 0) {
-                // Decode failed - return original
                 return opusData;
             }
 
-            // Apply phone filter (bandpass 300Hz-3400Hz)
             short[] filteredSamples = phoneFilter.process(pcmSamples);
-
-            // Re-encode to Opus
             byte[] filteredOpus = opusEncoder.encode(filteredSamples);
 
             if (filteredOpus == null || filteredOpus.length == 0) {
-                // Encode failed - return original
                 return opusData;
             }
 
             return filteredOpus;
 
         } catch (Exception e) {
-            // Error in filtering - log and return original
             System.err.println("SnailAudioRelay: Error applying phone filter: " + e.getMessage());
             return opusData;
         }
@@ -228,11 +473,9 @@ public class SnailAudioRelay {
 
     /**
      * Forward Opus bytes directly to block snail audio channel
-     * Applies phone filter if enabled
      */
     private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession) {
         try {
-            // Process audio through filter (no-op if filter disabled)
             byte[] processedAudio = processAudioWithFilter(opusData);
 
             LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
@@ -246,18 +489,15 @@ public class SnailAudioRelay {
 
     /**
      * Forward Opus bytes to handheld snail participant
-     * Applies phone filter if enabled
      */
     private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession) {
         try {
-            // Process audio through filter (no-op if filter disabled)
             byte[] processedAudio = processAudioWithFilter(opusData);
 
             AudioChannel channel = callSession.getHandheldChannel(playerId);
             if (channel != null) {
                 channel.send(processedAudio);
             } else {
-                // Debug: Channel missing (this shouldn't happen if everything is set up correctly)
                 System.err.println("SnailAudioRelay: No handheld channel found for player " +
                         playerId.toString().substring(0, 8));
             }
@@ -268,38 +508,31 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Forward audio to an interceptor (handheld or block)
-     * Applies phone filter if enabled
+     * Forward audio to an interceptor (when NOT protected)
      */
     private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData) {
         try {
-            // Apply phone filter (same quality as normal calls)
             byte[] processedAudio = processAudioWithFilter(opusData);
-
-            // Send to interceptor's audio channel
             interceptorChannel.send(processedAudio);
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to interceptor: " + e.getMessage());
         }
     }
 
+    // =================== BLOCKSTATE TRACKING ===================
+
     /**
-     * Event-driven audio activity tracking with better data structure
+     * Event-driven audio activity tracking
      */
     private void updateAudioActivity(BlockPos pos) {
         long now = System.currentTimeMillis();
 
         BlockstateActivity activity = blockstateActivity.get(pos);
         if (activity == null) {
-            // First audio packet - create new activity tracker
             activity = new BlockstateActivity(pos);
             blockstateActivity.put(pos, activity);
-
-            // Update blockstate to active
             updateSnailBlockstate(pos, true);
-
         } else {
-            // Update existing activity timestamp
             activity.lastActivityTime = now;
         }
     }
@@ -321,21 +554,19 @@ public class SnailAudioRelay {
     }
 
     /**
-     * More efficient cleanup with batch processing
+     * Cleanup expired activity
      */
     private void cleanupExpiredActivity() {
         try {
             long now = System.currentTimeMillis();
             List<BlockPos> toRemove = new ArrayList<>();
 
-            // Collect expired positions
             for (BlockstateActivity activity : blockstateActivity.values()) {
                 if (now - activity.lastActivityTime > AUDIO_TIMEOUT_MS) {
                     toRemove.add(activity.position);
                 }
             }
 
-            // Batch update - more efficient than one-by-one
             if (!toRemove.isEmpty()) {
                 for (BlockPos pos : toRemove) {
                     blockstateActivity.remove(pos);
@@ -348,8 +579,10 @@ public class SnailAudioRelay {
         }
     }
 
+    // =================== UTILITY METHODS ===================
+
     /**
-     * Find nearest snail in call (handles both block and handheld)
+     * Find nearest snail in call
      */
     @Nullable
     private TransponderSnailBlockEntity findNearestSnailInCall(ServerPlayer player, CallSession callSession) {
@@ -358,10 +591,9 @@ public class SnailAudioRelay {
         double maxRangeSq = VoiceChatConstants.getSnailInteractionRange() *
                 VoiceChatConstants.getSnailInteractionRange();
 
-        // Look for nearby BLOCK snails
         for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
             TransponderSnailBlockEntity snail = callManager.getRegisteredSnailBlock(snailNumber);
-            if (snail == null) continue; // Skip handheld snails in this loop
+            if (snail == null) continue;
 
             double distance = player.distanceToSqr(
                     snail.getBlockPos().getX() + 0.5,
@@ -374,21 +606,19 @@ public class SnailAudioRelay {
             }
         }
 
-        // If no block snail found, check if player has handheld snail
         if (closestSnail == null) {
             CallSession.CallParticipant participant = callSession.getParticipantByPlayer(player.getUUID());
             if (participant != null && participant.isHandheld()) {
-                // Player is using handheld snail - return null (transmittingSnail can be null)
                 System.out.println("SnailAudioRelay: Player " + player.getName().getString() +
                         " is using handheld snail #" + participant.getSnailNumber());
             }
         }
 
-        return closestSnail; // Can be null for handheld transmitters
+        return closestSnail;
     }
 
     /**
-     * Direct snail number lookup instead of iterating all snails
+     * Find snail number at position
      */
     private int findSnailNumberAtPosition(BlockPos pos) {
         Map<Integer, TransponderSnailBlockEntity> snails = callManager.getRegisteredSnailBlocks();
@@ -401,7 +631,7 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Get call session by ID (optimized with early returns)
+     * Get call session by ID
      */
     @Nullable
     private CallSession getCallSessionById(UUID callId) {
@@ -411,28 +641,30 @@ public class SnailAudioRelay {
                 .orElse(null);
     }
 
+    // =================== LIFECYCLE METHODS ===================
+
     /**
-     * Clean up with proper cache invalidation
+     * Called when a player leaves a call
      */
     public void onPlayerLeftCall(UUID playerId) {
-        // Clear session cache
         playerSessionCache.remove(playerId);
+
+        // Stop any static session for this player (if they were intercepting)
+        stopStaticSession(playerId);
 
         System.out.println("SnailAudioRelay: Cleaned up player " + playerId.toString().substring(0, 8));
     }
 
     /**
-     * Efficient call cleanup with batch blockstate reset
+     * Called when a call ends
      */
     public void onCallEnded(UUID callId) {
-        // Clear session caches for all participants
         CallSession callSession = getCallSessionById(callId);
         if (callSession != null) {
             for (UUID playerId : callSession.getActivePlayerParticipants()) {
                 playerSessionCache.remove(playerId);
             }
 
-            // Batch reset blockstates
             Set<BlockPos> involvedPositions = callSession.getInvolvedBlockPositions();
             for (BlockPos pos : involvedPositions) {
                 blockstateActivity.remove(pos);
@@ -440,13 +672,22 @@ public class SnailAudioRelay {
             }
         }
 
+        // ✨ Stop all static sessions for this call
+        stopAllStaticSessionsForCall(callId);
+
         System.out.println("SnailAudioRelay: Cleaned up call " + callId.toString().substring(0, 8));
     }
 
     /**
-     * Shutdown cleanup - includes codec cleanup
+     * Shutdown cleanup
      */
     public void shutdown() {
+        // Stop all static sessions
+        for (UUID interceptorId : new ArrayList<>(activeStaticSessions.keySet())) {
+            stopStaticSession(interceptorId);
+        }
+        activeStaticSessions.clear();
+
         cleanupExecutor.shutdown();
         try {
             if (!cleanupExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
@@ -457,7 +698,6 @@ public class SnailAudioRelay {
             Thread.currentThread().interrupt();
         }
 
-        // Close codecs
         try {
             if (opusDecoder != null) {
                 opusDecoder.close();
@@ -478,12 +718,11 @@ public class SnailAudioRelay {
     // =================== DATA STRUCTURES ===================
 
     /**
-     * Simplified cache that stores complete call context
-     * transmittingSnail can be null for handheld snails
+     * Cache for call session data
      */
     private static class CallSessionCache {
         final CallSession callSession;
-        final TransponderSnailBlockEntity transmittingSnail; // Can be null for handheld
+        final TransponderSnailBlockEntity transmittingSnail;
         final long timestamp;
 
         CallSessionCache(CallSession callSession, @Nullable TransponderSnailBlockEntity transmittingSnail) {
@@ -493,16 +732,13 @@ public class SnailAudioRelay {
         }
 
         boolean isValid() {
-            // Cache is valid if:
-            // 1. Not expired
-            // 2. Call session is still connected
             return (System.currentTimeMillis() - timestamp) < CACHE_TIMEOUT_MS &&
                     callSession.getState() == CallSession.CallState.CONNECTED;
         }
     }
 
     /**
-     * Lightweight activity tracker for blockstate management
+     * Blockstate activity tracker
      */
     private static class BlockstateActivity {
         final BlockPos position;
