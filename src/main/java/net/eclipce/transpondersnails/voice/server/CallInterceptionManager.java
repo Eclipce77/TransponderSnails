@@ -497,6 +497,9 @@ public class CallInterceptionManager {
 
         playConnectionSound(interceptor);
 
+        // ✨ NEW: Start playing looping static for this interceptor
+        callManager.getSoundManager().startLoopingStaticForPlayer(interceptor);
+
         interceptor.displayClientMessage(
                 Component.literal("Connected to call").withStyle(ChatFormatting.GREEN),
                 true
@@ -545,6 +548,9 @@ public class CallInterceptionManager {
         }
 
         playConnectionSound(interceptor);
+
+        // ✨ NEW: Start playing looping static for this interceptor
+        callManager.getSoundManager().startLoopingStaticForPlayer(interceptor);
 
         interceptor.displayClientMessage(
                 Component.literal("Connected to call - Range: " + range + " blocks").withStyle(ChatFormatting.GREEN),
@@ -653,8 +659,13 @@ public class CallInterceptionManager {
             System.out.println("Removed interceptor audio channel for " + interceptorId.toString().substring(0, 8));
         }
 
-        // Notify player
+        // ✨ NEW: Stop looping static for this interceptor
         ServerPlayer player = callManager.getPlayerById(interceptorId);
+        if (player != null) {
+            callManager.getSoundManager().stopLoopingStaticForPlayer(player);
+        }
+
+        // Notify player
         if (player != null) {
             player.displayClientMessage(
                     Component.literal("Disconnected from call").withStyle(ChatFormatting.GRAY),

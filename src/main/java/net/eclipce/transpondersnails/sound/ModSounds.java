@@ -25,6 +25,9 @@ public class ModSounds {
     public static final RegistryObject<SoundEvent> DIAL_BUTTON = registerSoundEvents("dial_button");
     public static final RegistryObject<SoundEvent> CLEAR_BUTTON = registerSoundEvents("clear_button");
 
+    // Static Sounds
+    public static final RegistryObject<SoundEvent> LOOPING_STATIC = registerSoundEvents("looping_static");
+
     private static RegistryObject<SoundEvent> registerSoundEvents(String name) {
         return SOUND_EVENTS.register(name, () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(TransponderSnails.MOD_ID, name)));
     }

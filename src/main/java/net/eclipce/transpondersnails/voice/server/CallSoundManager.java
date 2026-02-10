@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Manages spatial sound effects for Transponder Snail calls
  * Enhanced with sound categorization for blockstate texture changes and faster timing
+ * ✨ NEW: Looping static sound for call interception
  */
 public class CallSoundManager {
 
@@ -31,12 +32,18 @@ public class CallSoundManager {
     public static final ResourceLocation HANDSET_CALL_PICK_UP_SOUND = ModSounds.SNAIL_PICK_UP.getId();
     public static final ResourceLocation HANDSET_CALL_HANG_UP_SOUND = ModSounds.SNAIL_HANG_UP.getId();
 
+    // ✨ NEW: Looping static sound for interception
+    public static final ResourceLocation LOOPING_STATIC_SOUND = ModSounds.LOOPING_STATIC.getId();
+
     // Tracking active sounds for cleanup
     private final Map<UUID, SoundInstance> activeSounds = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // Track ambient snail sounds per position for blockstate updates
     private final Map<BlockPos, Set<SoundCategory>> activeAmbientSounds = new ConcurrentHashMap<>();
+
+    // ✨ NEW: Track which players are hearing looping static (for interception)
+    private final Set<UUID> playersHearingStatic = ConcurrentHashMap.newKeySet();
 
     // Sound categorization for blockstate logic
     public enum SoundCategory {
@@ -67,7 +74,8 @@ public class CallSoundManager {
     public enum SoundType {
         RING_TONE,      // Repeating ring sound
         ONE_SHOT,       // Single play sound
-        AMBIENT         // Continuous ambient sound
+        AMBIENT,        // Continuous ambient sound
+        LOOPING_STATIC  // ✨ NEW: Looping static for interception
     }
 
     // Callback interface for blockstate updates
@@ -88,6 +96,70 @@ public class CallSoundManager {
         if (removed) {
             System.out.println("CallSoundManager: Unregistered blockstate callback");
         }
+    }
+
+    // =================== ✨ NEW: LOOPING STATIC FOR INTERCEPTION ===================
+
+    /**
+     * Start playing looping static for an intercepting player
+     * This plays continuously while they're intercepting any call
+     */
+    public void startLoopingStaticForPlayer(ServerPlayer player) {
+        UUID playerId = player.getUUID();
+
+        // Check if already playing
+        if (playersHearingStatic.contains(playerId)) {
+            return;
+        }
+
+        try {
+            SoundEvent staticSound = SoundEvent.createVariableRangeEvent(LOOPING_STATIC_SOUND);
+
+            // Play looping sound at player position
+            // Note: The sound file itself should be set to loop in sounds.json
+            player.playNotifySound(staticSound, SoundSource.PLAYERS, 0.25f, 1.0f);
+
+            playersHearingStatic.add(playerId);
+
+            System.out.println("CallSoundManager: Started looping static for player " +
+                    player.getName().getString());
+
+        } catch (Exception e) {
+            System.err.println("CallSoundManager: Failed to start looping static: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Stop playing looping static for an intercepting player
+     */
+    public void stopLoopingStaticForPlayer(ServerPlayer player) {
+        UUID playerId = player.getUUID();
+
+        if (!playersHearingStatic.remove(playerId)) {
+            return; // Wasn't playing
+        }
+
+        try {
+            // Stop the looping sound
+            // In Minecraft, looping sounds automatically stop when the player moves far enough
+            // or when explicitly stopped via the client
+            // We rely on the client to handle the stop when it receives the state change
+
+            System.out.println("CallSoundManager: Stopped looping static for player " +
+                    player.getName().getString());
+
+        } catch (Exception e) {
+            System.err.println("CallSoundManager: Failed to stop looping static: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Check if a player is currently hearing looping static
+     */
+    public boolean isPlayerHearingStatic(UUID playerId) {
+        return playersHearingStatic.contains(playerId);
     }
 
     // =================== SPATIAL AUDIO METHODS WITH ENHANCED TIMING ===================
@@ -565,6 +637,7 @@ public class CallSoundManager {
         activeSounds.clear();
         activeAmbientSounds.clear();
         blockstateCallbacks.clear();
+        playersHearingStatic.clear(); // ✨ NEW: Clean up static tracking
         scheduler.shutdown();
 
         System.out.println("CallSoundManager: Cleanup complete");

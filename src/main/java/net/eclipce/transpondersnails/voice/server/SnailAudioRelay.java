@@ -11,7 +11,6 @@ import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
-import net.eclipce.transpondersnails.voice.audio.StaticAudioGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * - Smart caching and optimizations (Tier 2)
  * - Full handheld snail audio forwarding
  * - Phone audio filtering for immersive call quality
- * - ✨ NEW: White Transponder Snail protection with constant static
+ * - ✨ REFACTORED: White Transponder Snail protection - looping static via CallSoundManager
  */
 public class SnailAudioRelay {
 
@@ -43,15 +42,8 @@ public class SnailAudioRelay {
     private final OpusDecoder opusDecoder;
     private final OpusEncoder opusEncoder;
 
-    // ✨ WHITE SNAIL PROTECTION: Static generator for blocked interceptors
-    private final StaticAudioGenerator staticGenerator;
-
     // Interception manager reference
     private CallInterceptionManager interceptionManager;
-
-    // ✨ WHITE SNAIL PROTECTION: Tracks which interceptors are receiving constant static
-    // Key: Interceptor UUID, Value: StaticPlaybackSession
-    private final Map<UUID, StaticPlaybackSession> activeStaticSessions = new ConcurrentHashMap<>();
 
     // TIER 2: Simplified cache - only cache what we need
     private final Map<UUID, CallSessionCache> playerSessionCache = new ConcurrentHashMap<>();
@@ -67,9 +59,6 @@ public class SnailAudioRelay {
     private final Map<BlockPos, BlockstateActivity> blockstateActivity = new ConcurrentHashMap<>();
     private static final long AUDIO_TIMEOUT_MS = 500;
 
-    // ✨ WHITE SNAIL: Static playback interval (20ms = 50fps, matches voice chat frame rate)
-    private static final long STATIC_INTERVAL_MS = 20;
-
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
@@ -79,18 +68,12 @@ public class SnailAudioRelay {
         this.opusDecoder = voiceChatApi.createDecoder();
         this.opusEncoder = voiceChatApi.createEncoder();
 
-        // ✨ WHITE SNAIL: Initialize static generator
-        this.staticGenerator = new StaticAudioGenerator(voiceChatApi);
-
         // TIER 2: Less frequent cleanup for better performance
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 200, 200, TimeUnit.MILLISECONDS);
 
-        // ✨ WHITE SNAIL: Cleanup stale static sessions
-        cleanupExecutor.scheduleAtFixedRate(this::cleanupStaleStaticSessions, 1000, 1000, TimeUnit.MILLISECONDS);
-
         System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Phone Filter + White Snail Protection");
         System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED" : "DISABLED"));
-        System.out.println("  White Snail Protection: ENABLED (constant static at " + STATIC_INTERVAL_MS + "ms intervals)");
+        System.out.println("  White Snail Protection: Looping static via CallSoundManager");
         if (ModConfig.isPhoneFilterEnabled()) {
             System.out.println("  " + phoneFilter.getDescription());
         }
@@ -105,61 +88,11 @@ public class SnailAudioRelay {
         System.out.println("SnailAudioRelay: Interception manager linked");
     }
 
-    // =================== STATIC PLAYBACK SESSION ===================
-
-    /**
-     * Represents an active static playback session for a blocked interceptor
-     */
-    private class StaticPlaybackSession {
-        final UUID interceptorId;
-        final UUID targetCallId;
-        final AudioChannel staticChannel;
-        final Set<BlockPos> protectingWhiteSnails;
-        final ScheduledFuture<?> playbackTask;
-        volatile boolean active = true;
-
-        StaticPlaybackSession(UUID interceptorId, UUID targetCallId, AudioChannel staticChannel,
-                              Set<BlockPos> protectingWhiteSnails) {
-            this.interceptorId = interceptorId;
-            this.targetCallId = targetCallId;
-            this.staticChannel = staticChannel;
-            this.protectingWhiteSnails = new HashSet<>(protectingWhiteSnails);
-
-            // Start constant static playback task
-            this.playbackTask = cleanupExecutor.scheduleAtFixedRate(
-                    this::sendStaticFrame,
-                    0, STATIC_INTERVAL_MS, TimeUnit.MILLISECONDS);
-
-            System.out.println("StaticPlaybackSession: Started for interceptor " +
-                    interceptorId.toString().substring(0, 8) +
-                    " with " + protectingWhiteSnails.size() + " protecting White Snails");
-        }
-
-        void sendStaticFrame() {
-            if (!active || staticChannel == null) return;
-
-            try {
-                byte[] staticFrame = staticGenerator.getStaticFrame();
-                staticChannel.send(staticFrame);
-            } catch (Exception e) {
-                System.err.println("StaticPlaybackSession: Error sending static: " + e.getMessage());
-            }
-        }
-
-        void stop() {
-            active = false;
-            if (playbackTask != null && !playbackTask.isDone()) {
-                playbackTask.cancel(false);
-            }
-            System.out.println("StaticPlaybackSession: Stopped for interceptor " +
-                    interceptorId.toString().substring(0, 8));
-        }
-    }
-
     // =================== AUDIO PROCESSING ===================
 
     /**
      * TIER 2 + HANDHELD + WHITE SNAIL: Complete audio processing with protection
+     * ✨ REFACTORED: Static is now handled by looping sound via CallSoundManager
      */
     public void onMicrophonePacket(MicrophonePacketEvent event) {
         try {
@@ -234,25 +167,16 @@ public class SnailAudioRelay {
                     boolean speakerIsProtected = isSpeakerProtected(speaker, callSession, sessionCache);
 
                     for (UUID interceptorId : interceptors) {
-                        // ✨ WHITE SNAIL: If speaker is protected, interceptors hear static
-                        // The static is played CONSTANTLY by StaticPlaybackSession, not per-packet
                         if (speakerIsProtected) {
-                            // Ensure static session is running for this interceptor
-                            ensureStaticSessionActive(interceptorId, callSession, sessionCache);
+                            // ✨ WHITE SNAIL PROTECTION: Speaker is protected
+                            // Static is already playing via CallSoundManager
+                            // DON'T forward audio, DON'T mark activity
+                            // Let updateCallStates() keep Black Snail in CALL state (intercepting but no audio)
 
-                            // Mark audio activity for visual feedback (shows ACTIVE state on black snail)
-                            interceptionManager.markAudioActivity(interceptorId);
-
-                            // Sync ACTIVE state to client for visual feedback
-                            ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
-                            if (interceptorPlayer != null) {
-                                BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
-                            }
+                            // Do nothing - interceptor only hears static, no visual feedback for blocked audio
                         } else {
-                            // Speaker is NOT protected - forward actual audio
-                            // Stop any active static session for this interceptor
-                            stopStaticSession(interceptorId);
-
+                            // ✨ Speaker is NOT protected - forward actual audio
+                            // Static continues playing in background via CallSoundManager
                             AudioChannel interceptorChannel = interceptionManager.getInterceptorChannel(interceptorId);
                             if (interceptorChannel != null) {
                                 forwardOpusToInterceptor(interceptorChannel, opusData);
@@ -328,115 +252,6 @@ public class SnailAudioRelay {
         }
 
         return whiteSnails;
-    }
-
-    /**
-     * ✨ Ensure a static playback session is active for an interceptor
-     */
-    private void ensureStaticSessionActive(UUID interceptorId, CallSession callSession, CallSessionCache sessionCache) {
-        // Check if session already exists
-        StaticPlaybackSession existingSession = activeStaticSessions.get(interceptorId);
-        if (existingSession != null && existingSession.active) {
-            return; // Session already running
-        }
-
-        // Get the interceptor's audio channel
-        AudioChannel staticChannel = interceptionManager.getInterceptorChannel(interceptorId);
-        if (staticChannel == null) {
-            return; // No channel available
-        }
-
-        // Find protecting White Snails
-        Set<BlockPos> protectingWhiteSnails = getProtectingWhiteSnails(callSession);
-
-        // Create and start new static session
-        StaticPlaybackSession newSession = new StaticPlaybackSession(
-                interceptorId,
-                callSession.getCallId(),
-                staticChannel,
-                protectingWhiteSnails
-        );
-
-        activeStaticSessions.put(interceptorId, newSession);
-
-        // ✨ Update White Snail visual state to BLOCKING
-        ServerPlayer interceptor = callManager.getPlayerById(interceptorId);
-        if (interceptor != null && sessionCache.transmittingSnail != null) {
-            ServerLevel level = (ServerLevel) sessionCache.transmittingSnail.getLevel();
-            for (BlockPos whiteSnailPos : protectingWhiteSnails) {
-                WhiteSnailProtectionManager.getInstance().onInterceptionBlocked(level, whiteSnailPos, interceptorId);
-            }
-        }
-
-        System.out.println("SnailAudioRelay: Started static session for interceptor " +
-                interceptorId.toString().substring(0, 8));
-    }
-
-    /**
-     * ✨ Stop a static playback session for an interceptor
-     */
-    private void stopStaticSession(UUID interceptorId) {
-        StaticPlaybackSession session = activeStaticSessions.remove(interceptorId);
-        if (session != null) {
-            session.stop();
-
-            // ✨ Update White Snail visual state back from BLOCKING
-            for (BlockPos whiteSnailPos : session.protectingWhiteSnails) {
-                ServerLevel level = WhiteSnailProtectionManager.getInstance().getWhiteSnailLevel(whiteSnailPos);
-                if (level != null) {
-                    WhiteSnailProtectionManager.getInstance().onInterceptionEnded(level, whiteSnailPos, interceptorId);
-                }
-            }
-        }
-    }
-
-    /**
-     * ✨ Stop all static sessions for a call (when call ends)
-     */
-    public void stopAllStaticSessionsForCall(UUID callId) {
-        List<UUID> toRemove = new ArrayList<>();
-
-        for (Map.Entry<UUID, StaticPlaybackSession> entry : activeStaticSessions.entrySet()) {
-            if (entry.getValue().targetCallId.equals(callId)) {
-                toRemove.add(entry.getKey());
-            }
-        }
-
-        for (UUID interceptorId : toRemove) {
-            stopStaticSession(interceptorId);
-        }
-
-        if (!toRemove.isEmpty()) {
-            System.out.println("SnailAudioRelay: Stopped " + toRemove.size() +
-                    " static sessions for ended call " + callId.toString().substring(0, 8));
-        }
-    }
-
-    /**
-     * ✨ Cleanup stale static sessions (interceptor disconnected, etc.)
-     */
-    private void cleanupStaleStaticSessions() {
-        List<UUID> toRemove = new ArrayList<>();
-
-        for (Map.Entry<UUID, StaticPlaybackSession> entry : activeStaticSessions.entrySet()) {
-            UUID interceptorId = entry.getKey();
-
-            // Check if interceptor is still intercepting
-            if (interceptionManager == null || !interceptionManager.isIntercepting(interceptorId)) {
-                toRemove.add(interceptorId);
-                continue;
-            }
-
-            // Check if the target call is still active
-            CallSession targetCall = getCallSessionById(entry.getValue().targetCallId);
-            if (targetCall == null || targetCall.getState() != CallSession.CallState.CONNECTED) {
-                toRemove.add(interceptorId);
-            }
-        }
-
-        for (UUID interceptorId : toRemove) {
-            stopStaticSession(interceptorId);
-        }
     }
 
     // =================== AUDIO PROCESSING METHODS ===================
@@ -649,9 +464,6 @@ public class SnailAudioRelay {
     public void onPlayerLeftCall(UUID playerId) {
         playerSessionCache.remove(playerId);
 
-        // Stop any static session for this player (if they were intercepting)
-        stopStaticSession(playerId);
-
         System.out.println("SnailAudioRelay: Cleaned up player " + playerId.toString().substring(0, 8));
     }
 
@@ -672,9 +484,6 @@ public class SnailAudioRelay {
             }
         }
 
-        // ✨ Stop all static sessions for this call
-        stopAllStaticSessionsForCall(callId);
-
         System.out.println("SnailAudioRelay: Cleaned up call " + callId.toString().substring(0, 8));
     }
 
@@ -682,12 +491,6 @@ public class SnailAudioRelay {
      * Shutdown cleanup
      */
     public void shutdown() {
-        // Stop all static sessions
-        for (UUID interceptorId : new ArrayList<>(activeStaticSessions.keySet())) {
-            stopStaticSession(interceptorId);
-        }
-        activeStaticSessions.clear();
-
         cleanupExecutor.shutdown();
         try {
             if (!cleanupExecutor.awaitTermination(1, TimeUnit.SECONDS)) {

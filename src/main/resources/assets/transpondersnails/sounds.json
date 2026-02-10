@@ -66,5 +66,13 @@
         "stream": false
       }
     ]
+  },
+  "looping_static": {
+    "sounds": [
+      {
+        "name": "transpondersnails:looping_static",
+        "stream": false
+      }
+    ]
   }
 }
