@@ -37,10 +37,17 @@ public class SnailAudioRelay {
     private final VoicechatServerApi voiceChatApi;
     private final TransponderCallManager callManager;
 
-    // Phone audio filter
-    private final PhoneAudioFilter phoneFilter;
-    private final OpusDecoder opusDecoder;
-    private final OpusEncoder opusEncoder;
+    // Phone audio filter - PER-SPEAKER to avoid cross-contamination
+    private final Map<UUID, PhoneAudioFilter> speakerFilters = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastFilterActivity = new ConcurrentHashMap<>();
+    private static final long FILTER_CLEANUP_TIMEOUT_MS = 10000; // 10 seconds
+
+    // ✅ CRITICAL FIX: PER-SPEAKER CODECS to prevent simultaneous audio corruption
+    // Opus codecs are NOT thread-safe. When multiple people talk at once,
+    // they MUST have separate encoder/decoder instances to prevent state corruption
+    private final Map<UUID, OpusDecoder> speakerDecoders = new ConcurrentHashMap<>();
+    private final Map<UUID, OpusEncoder> speakerEncoders = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastCodecActivity = new ConcurrentHashMap<>();
 
     // Interception manager reference
     private CallInterceptionManager interceptionManager;
@@ -63,20 +70,21 @@ public class SnailAudioRelay {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 
-        // Initialize phone filter and codecs
-        this.phoneFilter = new PhoneAudioFilter();
-        this.opusDecoder = voiceChatApi.createDecoder();
-        this.opusEncoder = voiceChatApi.createEncoder();
+        // Codecs and filters are created per-speaker on demand (not shared!)
 
         // TIER 2: Less frequent cleanup for better performance
         cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredActivity, 200, 200, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Phone Filter + White Snail Protection");
-        System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED" : "DISABLED"));
+        // Cleanup old speaker filters every 5 seconds
+        cleanupExecutor.scheduleAtFixedRate(this::cleanupOldFilters, 5000, 5000, TimeUnit.MILLISECONDS);
+
+        // ✅ Cleanup old speaker codecs every 5 seconds
+        cleanupExecutor.scheduleAtFixedRate(this::cleanupOldCodecs, 5000, 5000, TimeUnit.MILLISECONDS);
+
+        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Per-Speaker Filters/Codecs + White Snail Protection");
+        System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED (per-speaker)" : "DISABLED"));
+        System.out.println("  Opus Codecs: PER-SPEAKER (prevents simultaneous audio corruption)");
         System.out.println("  White Snail Protection: Looping static via CallSoundManager");
-        if (ModConfig.isPhoneFilterEnabled()) {
-            System.out.println("  " + phoneFilter.getDescription());
-        }
     }
 
     /**
@@ -144,7 +152,7 @@ public class SnailAudioRelay {
             for (BlockPos targetPos : targetPositions) {
                 // Skip if this is the transmitting block snail
                 if (transmittingPos == null || !targetPos.equals(transmittingPos)) {
-                    forwardOpusToSnail(targetPos, opusData, callSession);
+                    forwardOpusToSnail(targetPos, opusData, callSession, speaker.getUUID());
                     updateAudioActivity(targetPos);
                 }
             }
@@ -154,7 +162,7 @@ public class SnailAudioRelay {
             for (UUID handheldPlayerId : handheldParticipants) {
                 // Don't echo to self
                 if (!handheldPlayerId.equals(speaker.getUUID())) {
-                    forwardOpusToHandheld(handheldPlayerId, opusData, callSession);
+                    forwardOpusToHandheld(handheldPlayerId, opusData, callSession, speaker.getUUID());
                 }
             }
 
@@ -179,7 +187,7 @@ public class SnailAudioRelay {
                             // Static continues playing in background via CallSoundManager
                             AudioChannel interceptorChannel = interceptionManager.getInterceptorChannel(interceptorId);
                             if (interceptorChannel != null) {
-                                forwardOpusToInterceptor(interceptorChannel, opusData);
+                                forwardOpusToInterceptor(interceptorChannel, opusData, speaker.getUUID());
                             }
 
                             // Mark audio activity AND sync ACTIVE state for visual feedback
@@ -258,21 +266,64 @@ public class SnailAudioRelay {
 
     /**
      * Process audio through phone filter (if enabled)
+     * Uses per-speaker filters AND codecs to avoid cross-contamination artifacts
+     *
+     * ✅ CRITICAL: Each speaker gets their own Opus decoder/encoder to prevent
+     * state corruption when multiple people talk simultaneously
+     *
+     * @param opusData The Opus-encoded audio data
+     * @param speakerId The UUID of the player speaking
+     * @return Filtered Opus audio data
      */
-    private byte[] processAudioWithFilter(byte[] opusData) {
+    private byte[] processAudioWithFilter(byte[] opusData, UUID speakerId) {
         if (!ModConfig.isPhoneFilterEnabled()) {
             return opusData;
         }
 
         try {
-            short[] pcmSamples = opusDecoder.decode(opusData);
+            // ✅ Get or create decoder for THIS speaker (prevents state corruption)
+            OpusDecoder decoder = speakerDecoders.computeIfAbsent(speakerId,
+                    id -> {
+                        OpusDecoder newDecoder = voiceChatApi.createDecoder();
+                        System.out.println("SnailAudioRelay: Created dedicated Opus decoder for speaker " +
+                                id.toString().substring(0, 8));
+                        return newDecoder;
+                    });
+
+            // ✅ Get or create encoder for THIS speaker (prevents state corruption)
+            OpusEncoder encoder = speakerEncoders.computeIfAbsent(speakerId,
+                    id -> {
+                        OpusEncoder newEncoder = voiceChatApi.createEncoder();
+                        System.out.println("SnailAudioRelay: Created dedicated Opus encoder for speaker " +
+                                id.toString().substring(0, 8));
+                        return newEncoder;
+                    });
+
+            // Decode using speaker's dedicated decoder
+            short[] pcmSamples = decoder.decode(opusData);
 
             if (pcmSamples == null || pcmSamples.length == 0) {
                 return opusData;
             }
 
-            short[] filteredSamples = phoneFilter.process(pcmSamples);
-            byte[] filteredOpus = opusEncoder.encode(filteredSamples);
+            // Get or create filter for this speaker
+            PhoneAudioFilter filter = speakerFilters.computeIfAbsent(speakerId,
+                    id -> {
+                        PhoneAudioFilter newFilter = new PhoneAudioFilter();
+                        System.out.println("SnailAudioRelay: Created phone filter for speaker " +
+                                id.toString().substring(0, 8));
+                        return newFilter;
+                    });
+
+            // Track activity for cleanup
+            lastFilterActivity.put(speakerId, System.currentTimeMillis());
+            lastCodecActivity.put(speakerId, System.currentTimeMillis());
+
+            // Process through speaker's dedicated filter
+            short[] filteredSamples = filter.process(pcmSamples);
+
+            // Encode using speaker's dedicated encoder
+            byte[] filteredOpus = encoder.encode(filteredSamples);
 
             if (filteredOpus == null || filteredOpus.length == 0) {
                 return opusData;
@@ -281,17 +332,24 @@ public class SnailAudioRelay {
             return filteredOpus;
 
         } catch (Exception e) {
-            System.err.println("SnailAudioRelay: Error applying phone filter: " + e.getMessage());
+            System.err.println("SnailAudioRelay: Error applying phone filter for speaker " +
+                    speakerId.toString().substring(0, 8) + ": " + e.getMessage());
+            e.printStackTrace();
             return opusData;
         }
     }
 
     /**
      * Forward Opus bytes directly to block snail audio channel
+     *
+     * @param targetPos Position of the target snail
+     * @param opusData Original Opus audio data
+     * @param callSession The call session
+     * @param speakerId UUID of the player speaking
      */
-    private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession) {
+    private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession, UUID speakerId) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData);
+            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
 
             LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
             if (channel != null) {
@@ -304,10 +362,15 @@ public class SnailAudioRelay {
 
     /**
      * Forward Opus bytes to handheld snail participant
+     *
+     * @param playerId UUID of the receiving player
+     * @param opusData Original Opus audio data
+     * @param callSession The call session
+     * @param speakerId UUID of the player speaking
      */
-    private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession) {
+    private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession, UUID speakerId) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData);
+            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
 
             AudioChannel channel = callSession.getHandheldChannel(playerId);
             if (channel != null) {
@@ -325,9 +388,16 @@ public class SnailAudioRelay {
     /**
      * Forward audio to an interceptor (when NOT protected)
      */
-    private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData) {
+    /**
+     * Forward Opus bytes to interceptor channel
+     *
+     * @param interceptorChannel The interceptor's audio channel
+     * @param opusData Original Opus audio data
+     * @param speakerId UUID of the player speaking
+     */
+    private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData, UUID speakerId) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData);
+            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
             interceptorChannel.send(processedAudio);
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to interceptor: " + e.getMessage());
@@ -488,6 +558,76 @@ public class SnailAudioRelay {
     }
 
     /**
+     * Cleanup old speaker filters that haven't been used recently
+     * Prevents memory leaks from players who disconnect or stop talking
+     */
+    private void cleanupOldFilters() {
+        long now = System.currentTimeMillis();
+        List<UUID> toRemove = new ArrayList<>();
+
+        for (Map.Entry<UUID, Long> entry : lastFilterActivity.entrySet()) {
+            if (now - entry.getValue() > FILTER_CLEANUP_TIMEOUT_MS) {
+                toRemove.add(entry.getKey());
+            }
+        }
+
+        if (!toRemove.isEmpty()) {
+            for (UUID speakerId : toRemove) {
+                PhoneAudioFilter filter = speakerFilters.remove(speakerId);
+                if (filter != null) {
+                    filter.reset(); // Clean up filter state
+                }
+                lastFilterActivity.remove(speakerId);
+            }
+            System.out.println("SnailAudioRelay: Cleaned up " + toRemove.size() + " inactive speaker filters");
+        }
+    }
+
+    /**
+     * Cleanup old speaker codecs that haven't been used recently
+     * ✅ CRITICAL: Properly close Opus codecs to prevent resource leaks
+     */
+    private void cleanupOldCodecs() {
+        long now = System.currentTimeMillis();
+        List<UUID> toRemove = new ArrayList<>();
+
+        for (Map.Entry<UUID, Long> entry : lastCodecActivity.entrySet()) {
+            if (now - entry.getValue() > FILTER_CLEANUP_TIMEOUT_MS) {
+                toRemove.add(entry.getKey());
+            }
+        }
+
+        if (!toRemove.isEmpty()) {
+            for (UUID speakerId : toRemove) {
+                // Close decoder
+                OpusDecoder decoder = speakerDecoders.remove(speakerId);
+                if (decoder != null) {
+                    try {
+                        decoder.close();
+                    } catch (Exception e) {
+                        System.err.println("Error closing decoder for speaker " +
+                                speakerId.toString().substring(0, 8) + ": " + e.getMessage());
+                    }
+                }
+
+                // Close encoder
+                OpusEncoder encoder = speakerEncoders.remove(speakerId);
+                if (encoder != null) {
+                    try {
+                        encoder.close();
+                    } catch (Exception e) {
+                        System.err.println("Error closing encoder for speaker " +
+                                speakerId.toString().substring(0, 8) + ": " + e.getMessage());
+                    }
+                }
+
+                lastCodecActivity.remove(speakerId);
+            }
+            System.out.println("SnailAudioRelay: Cleaned up " + toRemove.size() + " inactive speaker codecs");
+        }
+    }
+
+    /**
      * Shutdown cleanup
      */
     public void shutdown() {
@@ -501,19 +641,34 @@ public class SnailAudioRelay {
             Thread.currentThread().interrupt();
         }
 
-        try {
-            if (opusDecoder != null) {
-                opusDecoder.close();
+        // ✅ Close all per-speaker codecs
+        System.out.println("SnailAudioRelay: Closing " + speakerDecoders.size() + " speaker decoders...");
+        for (OpusDecoder decoder : speakerDecoders.values()) {
+            try {
+                decoder.close();
+            } catch (Exception e) {
+                System.err.println("SnailAudioRelay: Error closing decoder: " + e.getMessage());
             }
-            if (opusEncoder != null) {
-                opusEncoder.close();
+        }
+
+        System.out.println("SnailAudioRelay: Closing " + speakerEncoders.size() + " speaker encoders...");
+        for (OpusEncoder encoder : speakerEncoders.values()) {
+            try {
+                encoder.close();
+            } catch (Exception e) {
+                System.err.println("SnailAudioRelay: Error closing encoder: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.err.println("SnailAudioRelay: Error closing codecs: " + e.getMessage());
         }
 
         playerSessionCache.clear();
         blockstateActivity.clear();
+
+        // Clean up speaker filters and codecs
+        speakerFilters.clear();
+        lastFilterActivity.clear();
+        speakerDecoders.clear();
+        speakerEncoders.clear();
+        lastCodecActivity.clear();
 
         System.out.println("SnailAudioRelay: Shutdown complete");
     }

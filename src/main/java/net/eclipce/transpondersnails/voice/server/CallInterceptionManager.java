@@ -3,6 +3,8 @@ package net.eclipce.transpondersnails.voice.server;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
+import de.maxhenkel.voicechat.api.audiochannel.StaticAudioChannel;
+import de.maxhenkel.voicechat.api.VoicechatConnection;
 import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.BlackTransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.sound.ModSounds;
@@ -916,11 +918,12 @@ public class CallInterceptionManager {
         InterceptionSession session = activeInterceptions.get(interceptor.getUUID());
         if (session == null) return;
 
-        // MOVEMENT DETECTION: Check if player moved (only for handheld types)
-        if (session.getType() != InterceptionSession.InterceptorType.ADULT_PLACED) {
+        // MOVEMENT DETECTION: Check if player moved (ONLY for ADULT_HANDHELD)
+        // PORTABLE_BABY and BABY variants can move freely during interception
+        if (session.getType() == InterceptionSession.InterceptorType.ADULT_HANDHELD) {
             if (hasPlayerMoved(interceptor)) {
                 System.out.println("[MOVEMENT-DISCONNECT] Player " + interceptor.getName().getString() +
-                        " moved while intercepting - disconnecting");
+                        " moved with Adult Black Snail (handheld) - disconnecting");
 
                 interceptor.displayClientMessage(
                         Component.literal("Movement detected - Connection lost")
@@ -1166,27 +1169,64 @@ public class CallInterceptionManager {
 
     private boolean createInterceptorAudioChannel(ServerPlayer interceptor, InterceptionSession session) {
         try {
-            LocationalAudioChannel channel = voiceChatApi.createLocationalAudioChannel(
-                    UUID.randomUUID(),
-                    voiceChatApi.fromServerLevel(interceptor.serverLevel()),
-                    voiceChatApi.createPosition(
-                            interceptor.getX(),
-                            interceptor.getY() + 1.5,
-                            interceptor.getZ()
-                    )
-            );
+            AudioChannel channel;
 
-            if (channel != null) {
-                channel.setCategory(VoiceChatConstants.SNAIL_VOLUME_CATEGORY);
-                channel.setDistance((float) session.getMaxRange());
+            // Check interceptor type to determine channel type
+            if (session.getType() == InterceptionSession.InterceptorType.PORTABLE_BABY ||
+                    session.getType() == InterceptionSession.InterceptorType.ADULT_HANDHELD) {
 
-                interceptorChannels.put(interceptor.getUUID(), channel);
+                // ✅ HANDHELD: Use StaticAudioChannel (only interceptor hears it)
+                VoicechatConnection connection = voiceChatApi.getConnectionOf(interceptor.getUUID());
 
-                System.out.println("Created interceptor audio channel for " +
-                        interceptor.getName().getString() +
-                        " (range: " + session.getMaxRange() + " blocks)");
-                return true;
+                if (connection == null) {
+                    System.err.println("Failed to get voice chat connection for " +
+                            interceptor.getName().getString());
+                    return false;
+                }
+
+                StaticAudioChannel staticChannel = voiceChatApi.createStaticAudioChannel(
+                        UUID.randomUUID(),
+                        voiceChatApi.fromServerLevel(interceptor.serverLevel()),
+                        connection
+                );
+
+                if (staticChannel == null) {
+                    return false;
+                }
+
+                staticChannel.setCategory(VoiceChatConstants.SNAIL_VOLUME_CATEGORY);
+                channel = staticChannel;
+
+                System.out.println("Created STATIC (player-only) interceptor audio channel for " +
+                        interceptor.getName().getString() + " (type: " + session.getType() + ")");
+
+            } else {
+                // 🏠 PLACED: Use LocationalAudioChannel (players nearby can hear)
+                LocationalAudioChannel locationalChannel = voiceChatApi.createLocationalAudioChannel(
+                        UUID.randomUUID(),
+                        voiceChatApi.fromServerLevel(interceptor.serverLevel()),
+                        voiceChatApi.createPosition(
+                                interceptor.getX(),
+                                interceptor.getY() + 1.5,
+                                interceptor.getZ()
+                        )
+                );
+
+                if (locationalChannel == null) {
+                    return false;
+                }
+
+                locationalChannel.setCategory(VoiceChatConstants.SNAIL_VOLUME_CATEGORY);
+                locationalChannel.setDistance((float) session.getMaxRange());
+                channel = locationalChannel;
+
+                System.out.println("Created LOCATIONAL (spatial) interceptor audio channel for " +
+                        interceptor.getName().getString() + " (range: " + session.getMaxRange() + " blocks)");
             }
+
+            interceptorChannels.put(interceptor.getUUID(), channel);
+            return true;
+
         } catch (Exception e) {
             System.err.println("Failed to create interceptor audio channel: " + e.getMessage());
             e.printStackTrace();
