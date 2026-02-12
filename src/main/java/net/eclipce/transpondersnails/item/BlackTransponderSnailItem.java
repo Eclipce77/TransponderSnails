@@ -1,21 +1,27 @@
 package net.eclipce.transpondersnails.item;
 
+import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.DyeColor;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import top.theillusivec4.curios.api.SlotContext;
@@ -24,10 +30,17 @@ import top.theillusivec4.curios.api.type.capability.ICurioItem;
 import java.util.List;
 
 /**
- * Adult Black Transponder Snail - Dyeable handheld snail with call interception
- * Right-click opens/closes the snail to start/stop intercepting calls
+ * UNIFIED Black Transponder Snail - Both handheld and placeable
+ *
+ * Features:
+ * - Handheld mode: Right-click while CROUCHING to open/close for interception
+ * - Block mode: Right-click (not crouching) to place as a block
+ * - Dyeable shell (16 colors) in both modes
+ * - Drops itself when broken (preserving color)
+ * - Curios compatible
+ * - Lightning rod range extension (when placed)
  */
-public class BlackTransponderSnailItem extends Item implements ICurioItem {
+public class BlackTransponderSnailItem extends BlockItem implements ICurioItem {
 
     private static final String OPEN_STATE_TAG = "is_open";
     private static final String WAS_IN_HAND_TAG = "was_in_hand";
@@ -37,8 +50,8 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
     public static final DyeColor DEFAULT_CRAFTED_SHELL_COLOR = DyeColor.WHITE;
     public static final DyeColor DEFAULT_CREATIVE_SHELL_COLOR = DyeColor.YELLOW;
 
-    public BlackTransponderSnailItem(Properties properties) {
-        super(properties);
+    public BlackTransponderSnailItem(Block block, Properties properties) {
+        super(block, properties);
     }
 
     // =================== ICurioItem Implementation ===================
@@ -49,12 +62,11 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
      */
     @Override
     public boolean canEquipFromUse(SlotContext slotContext, ItemStack stack) {
-        return false; // Must manually place in Curios slot - right-click opens/closes
+        return false; // Must manually place in Curios slot
     }
 
     /**
      * Prevent Creative Mode from auto-equipping this item to armor slots
-     * Returns null to indicate this item has no equipment slot
      */
     @Override
     @Nullable
@@ -64,23 +76,51 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
 
     /**
      * CRITICAL: Prevent vanilla from equipping this item to ANY armor slot
-     * This is an additional safeguard against the armor slot duplication bug
      */
     @Override
     public boolean canEquip(ItemStack stack, EquipmentSlot armorType, Entity entity) {
-        // Explicitly prevent equipping to any armor slot
         return false;
     }
 
-    // =================== Item Functionality ===================
+    // =================== Unified Use Logic ===================
 
     /**
-     * Right-click to open/close the snail
-     * FIXED: Correct slot calculation for ClientboundContainerSetSlotPacket
+     * UNIFIED USE METHOD:
+     * - If targeting block and not crouching: useOn() handles placement
+     * - If targeting block and crouching: This method handles open/close
+     * - If clicking in air: This method handles open/close
+     */
+    @Override
+    public @NotNull InteractionResult useOn(@NotNull UseOnContext context) {
+        Player player = context.getPlayer();
+
+        if (player != null && player.isCrouching()) {
+            // Crouching - don't place block, handle as handheld instead
+            return InteractionResult.PASS; // Pass to use() method
+        }
+
+        // Not crouching - try to place block
+        InteractionResult result = super.useOn(context);
+
+        // If placement succeeded, don't open/close
+        if (result.consumesAction()) {
+            return result;
+        }
+
+        // Placement failed (e.g., can't place here) - pass to use() for open/close
+        return InteractionResult.PASS;
+    }
+
+    /**
+     * Right-click in air OR when block placement fails:
+     * Open/close the snail for handheld interception
+     *
+     * NO CROUCH REQUIRED - works whenever useOn doesn't consume the action
      */
     @Override
     public @NotNull InteractionResultHolder<ItemStack> use(@NotNull Level level, @NotNull Player player, @NotNull InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
+
         boolean currentState = isOpen(stack);
         boolean newState = !currentState;
 
@@ -98,32 +138,22 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
             // Force inventory sync
             serverPlayer.inventoryMenu.broadcastChanges();
 
-            // ✅ FIX: Correct slot calculation for container ID -2 (raw player inventory)
-            // Container -2 uses raw inventory indices:
-            //   0-8: Hotbar
-            //   9-35: Main inventory
-            //   36-39: Armor (boots, legs, chest, head)
-            //   40: Offhand
-            // For MAIN_HAND: Use the selected slot directly (0-8)
-            // For OFFHAND: Use slot 40
+            // Correct slot calculation for container ID -2 (raw player inventory)
             int slot = hand == InteractionHand.MAIN_HAND ?
                     serverPlayer.getInventory().selected : 40;
 
             serverPlayer.connection.send(new ClientboundContainerSetSlotPacket(
-                    -2,    // Player inventory container (raw indices)
-                    0,     // State ID
-                    slot,  // Correct slot number!
-                    stack  // The updated stack
+                    -2, 0, slot, stack
             ));
 
-            System.out.println("[BLACK-SNAIL] Sent slot update for slot " + slot + " (hand: " + hand + ")");
-
-            // Handle call interception
+            // Handle call interception with InterceptionHelper messages
             var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
             if (callManager != null) {
                 if (newState) {
+                    // Opening - InterceptionHelper handles all messages
                     net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailOpened(serverPlayer, callManager);
                 } else {
+                    // Closing - InterceptionHelper handles all messages
                     net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
                 }
             }
@@ -131,6 +161,34 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
 
         return InteractionResultHolder.consume(stack);
     }
+
+    // =================== Block Placement Override ===================
+
+    /**
+     * Override place to transfer NBT from item to block
+     */
+    @Override
+    protected boolean placeBlock(@NotNull BlockPlaceContext context, @NotNull net.minecraft.world.level.block.state.BlockState state) {
+        // First, place the block normally
+        boolean placed = super.placeBlock(context, state);
+
+        if (placed && !context.getLevel().isClientSide()) {
+            BlockPos pos = context.getClickedPos();
+            Level level = context.getLevel();
+            ItemStack stack = context.getItemInHand();
+
+            // Update block state with shell color from item
+            int shellColor = getShellColorId(stack);
+            level.setBlock(pos, state.setValue(BlackTransponderSnailBlock.SHELL_COLOR, shellColor), 3);
+
+            System.out.println("BlackTransponderSnailItem: Placed with shell color " +
+                    DyeColor.byId(shellColor).getName());
+        }
+
+        return placed;
+    }
+
+    // =================== Inventory Tick ===================
 
     @Override
     public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
@@ -151,9 +209,18 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
         boolean inOffHand = player.getOffhandItem() == stack;
         boolean inHand = inMainHand || inOffHand;
 
+        // Auto-close when removed from hand
         if (isOpen(stack) && wasInHand(stack) && !inHand) {
             setOpen(stack, false);
             markInHand(stack, false);
+
+            // Stop interception when removed from hand
+            if (player instanceof ServerPlayer serverPlayer) {
+                var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
+                if (callManager != null) {
+                    net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
+                }
+            }
         }
 
         if (inHand) {
@@ -162,6 +229,8 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
             markInHand(stack, false);
         }
     }
+
+    // =================== Creative Tab ===================
 
     public void fillItemCategory(@NotNull CreativeModeTab.Output output) {
         ItemStack stack = new ItemStack(this);
@@ -230,26 +299,36 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
         }
     }
 
+    // =================== Tooltip ===================
+
     @Override
     public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
 
         if (isOpen(stack)) {
-            tooltip.add(Component.literal("Status: Open - Intercepting Calls").withStyle(net.minecraft.ChatFormatting.GREEN));
+            tooltip.add(Component.literal("Status: Open - Intercepting")
+                    .withStyle(ChatFormatting.GREEN));
         } else {
-            tooltip.add(Component.literal("Status: Closed").withStyle(net.minecraft.ChatFormatting.GRAY));
+            tooltip.add(Component.literal("Status: Closed")
+                    .withStyle(ChatFormatting.GRAY));
         }
 
         DyeColor shellColor = getShellColor(stack);
         tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
-                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+                .withStyle(ChatFormatting.DARK_GRAY));
 
         double range = net.eclipce.transpondersnails.config.ModConfig.getAdultBlackSnailDefaultRange();
-        tooltip.add(Component.literal("Interception Range: " + (int)range + " blocks")
-                .withStyle(net.minecraft.ChatFormatting.BLUE));
+        tooltip.add(Component.literal("Handheld Range: " + (int)range + " blocks")
+                .withStyle(ChatFormatting.BLUE));
 
-        tooltip.add(Component.literal("Right-Click to Open/Close")
-                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));
+        tooltip.add(Component.literal("Placed Range: Base + Lightning Rods")
+                .withStyle(ChatFormatting.BLUE));
+
+        tooltip.add(Component.literal("Crouch + Right-Click: Open/Close")
+                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+
+        tooltip.add(Component.literal("Right-Click: Place as Block")
+                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
     }
 
     private String capitalize(String str) {
@@ -261,6 +340,8 @@ public class BlackTransponderSnailItem extends Item implements ICurioItem {
     public boolean canBeDepleted() {
         return false;
     }
+
+    // =================== Entity Creation Helper ===================
 
     public static ItemStack createFromEntity(net.eclipce.transpondersnails.entity.custom.BlackTransponderSnailEntity entity) {
         ItemStack stack = new ItemStack(net.eclipce.transpondersnails.item.ModItems.BLACK_TRANSPONDER_SNAIL.get());

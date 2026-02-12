@@ -1,8 +1,6 @@
 package net.eclipce.transpondersnails.voice.server;
 
 import net.eclipce.transpondersnails.config.ModConfig;
-import net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem;
-import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
 import net.eclipce.transpondersnails.item.PortableBlackTransponderSnailItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -15,19 +13,36 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Helper class for handling Black Transponder Snail interception events
- *
- * FIXED: Now recognizes all three Black Transponder Snail types:
- * - PortableBlackTransponderSnailItem (Curios-compatible portable baby)
- * - BlackTransponderSnailItem (Adult, non-Curios)
- * - BabyBlackTransponderSnailItem (Baby, non-Curios)
  */
 public class InterceptionHelper {
 
     /**
-     * Called when a player opens a Black Transponder Snail
+     * Called when a player opens a Black Transponder Snail (items)
      * Starts the interception process
      */
     public static void onSnailOpened(ServerPlayer player, TransponderCallManager callManager) {
+        onSnailOpenedInternal(player, callManager, -1, null);
+    }
+
+    /**
+     * Called when a player opens a Black Transponder Snail Block
+     * Starts the interception process with range indicator
+     *
+     * @param player The player opening the snail
+     * @param callManager The call manager
+     * @param lightningRodCount Number of lightning rods connected (-1 for none)
+     * @param blockPos Position of the block (for validation)
+     */
+    public static void onSnailBlockOpened(ServerPlayer player, TransponderCallManager callManager,
+                                          int lightningRodCount, net.minecraft.core.BlockPos blockPos) {
+        onSnailOpenedInternal(player, callManager, lightningRodCount, blockPos);
+    }
+
+    /**
+     * Internal method that handles both item and block opening
+     */
+    private static void onSnailOpenedInternal(ServerPlayer player, TransponderCallManager callManager,
+                                              int lightningRodCount, net.minecraft.core.BlockPos blockPos) {
         if (player == null || callManager == null) {
             return;
         }
@@ -41,7 +56,7 @@ public class InterceptionHelper {
         // Check if player is already in a call
         if (isPlayerInActiveCall(player, callManager)) {
             player.displayClientMessage(
-                    Component.literal("Cannot intercept while in a call")
+                    Component.literal("✗ Cannot intercept while in a call")
                             .withStyle(ChatFormatting.RED),
                     true
             );
@@ -58,38 +73,30 @@ public class InterceptionHelper {
             return;
         }
 
-        // Show "Searching..." message immediately
+        // Show "Searching..." message immediately with indicator (action bar - will be refreshed)
+        String rangeIndicator = getRangeIndicator(lightningRodCount);
+        String searchMessage = rangeIndicator.isEmpty()
+                ? "⟳ Searching for call..."
+                : "⟳ Searching for call... [" + rangeIndicator + "]";
+
         player.displayClientMessage(
-                Component.literal("Searching for call...")
+                Component.literal(searchMessage)
                         .withStyle(ChatFormatting.YELLOW),
                 true
         );
 
         // Find nearby active call
-        UUID nearbyCallId = findNearbyActiveCall(player, callManager);
+        double searchRange = getSearchRange(lightningRodCount);
+        UUID nearbyCallId = findNearbyActiveCall(player, callManager, searchRange);
 
-        if (nearbyCallId == null) {
-            // No calls in range - schedule message after 1 second
-            callManager.getScheduler().schedule(() -> {
-                if (hasOpenBlackSnail(player)) {
-                    player.displayClientMessage(
-                            Component.literal("No calls in range")
-                                    .withStyle(ChatFormatting.GRAY),
-                            true
-                    );
-                }
-            }, 1000, TimeUnit.MILLISECONDS);
-            return;
-        }
-
-        // Found a call - start searching (5-second delay)
-        boolean started = interceptionManager.startSearching(player, nearbyCallId);
-        if (!started) {
-            player.displayClientMessage(
-                    Component.literal("Failed to start search")
-                            .withStyle(ChatFormatting.RED),
-                    true
-            );
+        // ✅ Call correct overload based on block vs item
+        boolean started;
+        if (blockPos != null) {
+            // BLOCK variant - pass lightning rod count and position
+            started = interceptionManager.startSearching(player, nearbyCallId, lightningRodCount, blockPos);
+        } else {
+            // ITEM variant - use simple 2-parameter method
+            started = interceptionManager.startSearching(player, nearbyCallId);
         }
     }
 
@@ -111,7 +118,7 @@ public class InterceptionHelper {
         if (interceptionManager.isSearching(player.getUUID())) {
             interceptionManager.stopSearching(player.getUUID());
             player.displayClientMessage(
-                    Component.literal("Search cancelled")
+                    Component.literal("○ Search cancelled")
                             .withStyle(ChatFormatting.GRAY),
                     true
             );
@@ -122,42 +129,6 @@ public class InterceptionHelper {
             interceptionManager.stopInterception(player.getUUID());
             // Message sent by stopInterception
         }
-    }
-
-    /**
-     * Find a nearby active call within interception range
-     */
-    @Nullable
-    private static UUID findNearbyActiveCall(ServerPlayer player, TransponderCallManager callManager) {
-        double interceptionRange = getInterceptionRange(player);
-        UUID nearestCallId = null;
-        double nearestDistance = Double.MAX_VALUE;
-
-        // Check all active calls via the activeCalls map
-        for (CallSession call : callManager.getActiveCalls()) {
-            if (call.getState() != CallSession.CallState.CONNECTED) {
-                continue;
-            }
-
-            // Skip if player is a participant
-            if (call.isParticipant(player.getUUID())) {
-                continue;
-            }
-
-            // Find distance to nearest participant
-            double distance = getDistanceToNearestParticipant(player, call, callManager);
-            if (distance < interceptionRange && distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestCallId = call.getCallId();
-            }
-        }
-
-        if (nearestCallId != null) {
-            System.out.println("Found nearby call: " + nearestCallId.toString().substring(0, 8) +
-                    " at distance " + nearestDistance + " blocks");
-        }
-
-        return nearestCallId;
     }
 
     /**
@@ -185,41 +156,164 @@ public class InterceptionHelper {
     }
 
     /**
-     * Get interception range based on the type of Black Snail
-     *
-     * FIXED: Now checks all three black snail types with appropriate ranges:
-     * - BlackTransponderSnailItem (adult) → getAdultBlackSnailDefaultRange()
-     * - PortableBlackTransponderSnailItem (baby Curios) → getBabyBlackSnailRange()
-     * - BabyBlackTransponderSnailItem (baby non-Curios) → getBabyBlackSnailRange()
+     * Check if player has an open Black Transponder Snail (any variant) or is near an open block
      */
-    private static double getInterceptionRange(ServerPlayer player) {
+    private static boolean hasOpenBlackSnail(ServerPlayer player, net.minecraft.core.BlockPos blockPos) {
+        // Check if it's a block entity (blockPos provided)
+        if (blockPos != null) {
+            net.minecraft.world.level.block.entity.BlockEntity be = player.level().getBlockEntity(blockPos);
+            if (be instanceof net.eclipce.transpondersnails.block.entity.BlackTransponderSnailBlockEntity blackSnailBE) {
+                return blackSnailBE.isOpen();
+            }
+        }
+
+        // Otherwise check handheld
+        // Check main hand
         ItemStack mainHand = player.getMainHandItem();
+        if (isOpenBlackSnail(mainHand)) {
+            return true;
+        }
+
+        // Check off hand
         ItemStack offHand = player.getOffhandItem();
-
-        // Check for Adult Black Transponder Snail (larger range)
-        if (mainHand.getItem() instanceof BlackTransponderSnailItem ||
-                offHand.getItem() instanceof BlackTransponderSnailItem) {
-            System.out.println("[InterceptionHelper] Using ADULT range: " + ModConfig.getAdultBlackSnailDefaultRange());
-            return ModConfig.getAdultBlackSnailDefaultRange();
+        if (isOpenBlackSnail(offHand)) {
+            return true;
         }
 
-        // Check for Portable Black Transponder Snail (baby, Curios)
-        if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem ||
-                offHand.getItem() instanceof PortableBlackTransponderSnailItem) {
-            System.out.println("[InterceptionHelper] Using PORTABLE BABY range: " + ModConfig.getBabyBlackSnailRange());
+        // TODO: Check Curios slots when integrated
+
+        return false;
+    }
+
+    /**
+     * Check if an ItemStack is an open Black Transponder Snail (any variant)
+     */
+    private static boolean isOpenBlackSnail(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        // Check Portable Black Transponder Snail (Baby)
+        if (stack.getItem() instanceof PortableBlackTransponderSnailItem) {
+            return PortableBlackTransponderSnailItem.isOpen(stack);
+        }
+
+        // Check Baby Black Transponder Snail
+        if (stack.getItem() instanceof net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem) {
+            return net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem.isOpen(stack);
+        }
+
+        // Check Adult Black Transponder Snail (unified item)
+        if (stack.getItem() instanceof net.eclipce.transpondersnails.item.BlackTransponderSnailItem) {
+            return net.eclipce.transpondersnails.item.BlackTransponderSnailItem.isOpen(stack);
+        }
+
+        return false;
+    }
+
+    /**
+     * Get range indicator text based on lightning rod count
+     * Returns: "Normal", "Longer", "Far", "Extended", "Max", or "" (for items)
+     */
+    private static String getRangeIndicator(int lightningRodCount) {
+        if (lightningRodCount < 0) {
+            // Not a block (item snail) - no indicator
+            return "";
+        }
+
+        if (lightningRodCount == 0) {
+            // Block with no lightning rods - show default range
+            return "Default";
+        }
+
+        // Calculate range and determine indicator
+        double minRange = ModConfig.getAdultBlackSnailMinRange();
+        double maxRange = ModConfig.getAdultBlackSnailMaxRange();
+        double currentRange = calculateBlockRange(lightningRodCount);
+
+        // Calculate thresholds (equidistant between min and max)
+        double rangeSpan = maxRange - minRange;
+        double threshold1 = minRange + (rangeSpan * 0.25); // Longer
+        double threshold2 = minRange + (rangeSpan * 0.50); // Far
+        double threshold3 = minRange + (rangeSpan * 0.75); // Extended
+
+        if (currentRange >= maxRange) {
+            return "Max";
+        } else if (currentRange >= threshold3) {
+            return "Extended";
+        } else if (currentRange >= threshold2) {
+            return "Far";
+        } else if (currentRange >= threshold1) {
+            return "Longer";
+        } else {
+            return "Normal";
+        }
+    }
+
+    /**
+     * Get search range based on lightning rod count
+     */
+    private static double getSearchRange(int lightningRodCount) {
+        if (lightningRodCount < 0) {
+            // Item snail - use baby black snail range
             return ModConfig.getBabyBlackSnailRange();
         }
 
-        // Check for Baby Black Transponder Snail (non-Curios)
-        if (mainHand.getItem() instanceof BabyBlackTransponderSnailItem ||
-                offHand.getItem() instanceof BabyBlackTransponderSnailItem) {
-            System.out.println("[InterceptionHelper] Using BABY range: " + ModConfig.getBabyBlackSnailRange());
-            return ModConfig.getBabyBlackSnailRange();
+        return calculateBlockRange(lightningRodCount);
+    }
+
+    /**
+     * Calculate block interception range based on lightning rod count
+     */
+    private static double calculateBlockRange(int lightningRodCount) {
+        double baseRange = ModConfig.getAdultBlackSnailDefaultRange();
+        double minRange = ModConfig.getAdultBlackSnailMinRange();
+        double maxRange = ModConfig.getAdultBlackSnailMaxRange();
+
+        if (lightningRodCount == 0) {
+            // No lightning rods - use default range
+            return baseRange;
         }
 
-        // Default fallback (shouldn't reach here if called correctly)
-        System.out.println("[InterceptionHelper] WARNING: No black snail found, using default baby range");
-        return ModConfig.getBabyBlackSnailRange();
+        // Each lightning rod adds 5 blocks, starting from minRange
+        double extraRange = lightningRodCount * 5.0;
+        return Math.min(minRange + extraRange, maxRange);
+    }
+
+    /**
+     * Find nearby active call within custom range
+     */
+    @Nullable
+    private static UUID findNearbyActiveCall(ServerPlayer player, TransponderCallManager callManager,
+                                             double searchRange) {
+        UUID nearestCallId = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        // Check all active calls via the activeCalls map
+        for (CallSession call : callManager.getActiveCalls()) {
+            if (call.getState() != CallSession.CallState.CONNECTED) {
+                continue;
+            }
+
+            // Skip if player is a participant
+            if (call.isParticipant(player.getUUID())) {
+                continue;
+            }
+
+            // Find distance to nearest participant
+            double distance = getDistanceToNearestParticipant(player, call, callManager);
+            if (distance < searchRange && distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestCallId = call.getCallId();
+            }
+        }
+
+        if (nearestCallId != null) {
+            System.out.println("Found nearby call: " + nearestCallId.toString().substring(0, 8) +
+                    " at distance " + nearestDistance + " blocks (search range: " + searchRange + ")");
+        }
+
+        return nearestCallId;
     }
 
     /**
@@ -233,7 +327,7 @@ public class InterceptionHelper {
             double distance;
 
             if (participant.isHandheld() && participant.hasActivePlayer()) {
-                // Distance to handheld participant
+                // Distance to handheld participant player
                 ServerPlayer participantPlayer = callManager.getPlayerById(participant.getPlayerId());
                 if (participantPlayer != null) {
                     distance = player.position().distanceTo(participantPlayer.position());
@@ -241,58 +335,11 @@ public class InterceptionHelper {
                 }
             } else if (participant.isBlock() && participant.getBlockPosition() != null) {
                 // Distance to block participant
-                distance = player.position().distanceTo(
-                        participant.getBlockPosition().getCenter()
-                );
+                distance = player.position().distanceTo(participant.getBlockPosition().getCenter());
                 minDistance = Math.min(minDistance, distance);
             }
         }
 
         return minDistance;
-    }
-
-    /**
-     * Check if player has an open Black Transponder Snail
-     *
-     * FIXED: Now checks all three black snail types:
-     * - PortableBlackTransponderSnailItem
-     * - BlackTransponderSnailItem
-     * - BabyBlackTransponderSnailItem
-     */
-    private static boolean hasOpenBlackSnail(ServerPlayer player) {
-        ItemStack mainHand = player.getMainHandItem();
-        ItemStack offHand = player.getOffhandItem();
-
-        // Check Portable Black Transponder Snail (Curios baby)
-        if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem &&
-                PortableBlackTransponderSnailItem.isOpen(mainHand)) {
-            return true;
-        }
-        if (offHand.getItem() instanceof PortableBlackTransponderSnailItem &&
-                PortableBlackTransponderSnailItem.isOpen(offHand)) {
-            return true;
-        }
-
-        // Check Black Transponder Snail (Adult)
-        if (mainHand.getItem() instanceof BlackTransponderSnailItem &&
-                BlackTransponderSnailItem.isOpen(mainHand)) {
-            return true;
-        }
-        if (offHand.getItem() instanceof BlackTransponderSnailItem &&
-                BlackTransponderSnailItem.isOpen(offHand)) {
-            return true;
-        }
-
-        // Check Baby Black Transponder Snail (non-Curios)
-        if (mainHand.getItem() instanceof BabyBlackTransponderSnailItem &&
-                BabyBlackTransponderSnailItem.isOpen(mainHand)) {
-            return true;
-        }
-        if (offHand.getItem() instanceof BabyBlackTransponderSnailItem &&
-                BabyBlackTransponderSnailItem.isOpen(offHand)) {
-            return true;
-        }
-
-        return false;
     }
 }

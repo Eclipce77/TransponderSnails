@@ -172,26 +172,6 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
             // Mark dirty and sync to client IMMEDIATELY
             setChanged();
             syncToClient();
-
-            // Notify player if open and interacting
-            if (isOpen && lastInteractorId != null && level instanceof ServerLevel serverLevel) {
-                ServerPlayer player = serverLevel.getServer().getPlayerList().getPlayer(lastInteractorId);
-                if (player != null) {
-                    if (antennaValid) {
-                        player.displayClientMessage(
-                                Component.literal("Antenna connected: +" + lightningRodCount + " rods, Range: " + calculatedRange + " blocks")
-                                        .withStyle(ChatFormatting.GREEN),
-                                true
-                        );
-                    } else if (oldRodPos != null) {
-                        player.displayClientMessage(
-                                Component.literal("Antenna disconnected!")
-                                        .withStyle(ChatFormatting.RED),
-                                true
-                        );
-                    }
-                }
-            }
         }
     }
 
@@ -240,6 +220,10 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
     /**
      * Start interception when a player opens the snail block
      */
+    /**
+     * Start interception - STATE MANAGEMENT ONLY
+     * Messages are handled by InterceptionHelper
+     */
     public void startInterception(ServerPlayer player) {
         if (level == null || level.isClientSide) return;
 
@@ -250,58 +234,21 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
 
         TransponderCallManager callManager = TransponderSnails.getCallManager();
         if (callManager == null) {
-            player.displayClientMessage(
-                    Component.literal("Voice chat not available").withStyle(ChatFormatting.RED),
-                    true
-            );
             return;
         }
 
         // Check if already intercepting
         if (interceptingCallId != null) {
-            player.displayClientMessage(
-                    Component.literal("Already intercepting a call").withStyle(ChatFormatting.YELLOW),
-                    true
-            );
             return;
         }
 
-        // Find nearby call within range
-        UUID nearbyCallId = findNearbyCall(player, calculatedRange, callManager);
-
-        if (nearbyCallId == null) {
-            player.displayClientMessage(
-                    Component.literal("Searching... (Range: " + calculatedRange + " blocks)")
-                            .withStyle(ChatFormatting.GRAY),
-                    true
-            );
-            return;
-        }
-
-        // Start interception via CallInterceptionManager
-        CallInterceptionManager interceptionManager = callManager.getInterceptionManager();
-        if (interceptionManager != null) {
-            boolean success = interceptionManager.startInterception(player, nearbyCallId);
-            if (success) {
-                interceptingCallId = nearbyCallId;
-                setChanged();
-                syncToClient();
-
-                player.displayClientMessage(
-                        Component.literal("Intercepting call...").withStyle(ChatFormatting.GREEN),
-                        true
-                );
-            } else {
-                player.displayClientMessage(
-                        Component.literal("Failed to intercept call").withStyle(ChatFormatting.RED),
-                        true
-                );
-            }
-        }
+        // NOTE: InterceptionHelper handles all messaging and call finding
+        // This method only tracks state once interception begins
     }
 
     /**
      * Stop interception when a player closes the snail block
+     * STATE MANAGEMENT ONLY - Messages handled by InterceptionHelper
      */
     public void stopInterception(ServerPlayer player) {
         if (level == null || level.isClientSide) return;
@@ -322,11 +269,6 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
         lastInteractorId = null;
         setChanged();
         syncToClient();
-
-        player.displayClientMessage(
-                Component.literal("Stopped intercepting").withStyle(ChatFormatting.GRAY),
-                true
-        );
     }
 
     /**

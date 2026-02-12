@@ -56,7 +56,7 @@ public class TransponderCallManager {
 
     private SnailAudioRelay audioRelay;
 
-    // ✨ INTERCEPTION: Interception manager
+    // âœ¨ INTERCEPTION: Interception manager
     private CallInterceptionManager interceptionManager;
 
     public TransponderCallManager(VoicechatServerApi voiceChatApi) {
@@ -64,22 +64,25 @@ public class TransponderCallManager {
         this.soundManager = new CallSoundManager();
         this.scheduler = Executors.newScheduledThreadPool(2);
 
-        // ✨ INTERCEPTION: Initialize interception manager
+        // âœ¨ INTERCEPTION: Initialize interception manager
         this.interceptionManager = new CallInterceptionManager(voiceChatApi, this);
-
-        // ✨ NEW: Link protection manager to call manager
-        WhiteSnailProtectionManager.getInstance().setCallManager(this);
 
         scheduler.scheduleAtFixedRate(this::cleanupInactiveCalls, 30, 30, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(this::updateHandheldAudioPositions, 250, 250, TimeUnit.MILLISECONDS);
-        // ✨ INTERCEPTION: Validate interceptions every second
+        // âœ¨ INTERCEPTION: Validate interceptions every second
         scheduler.scheduleAtFixedRate(this::validateAllInterceptions, 1, 1, TimeUnit.SECONDS);
-        // ✨ INTERCEPTION: Cleanup invalid interceptions every 5 seconds
+        // âœ¨ INTERCEPTION: Cleanup invalid interceptions every 5 seconds
         scheduler.scheduleAtFixedRate(this::cleanupInterceptions, 5, 5, TimeUnit.SECONDS);
-        // ✨ INTERCEPTION: Process searching sessions every 250ms
+        // âœ¨ INTERCEPTION: Process searching sessions every 250ms
         scheduler.scheduleAtFixedRate(this::processSearchingSessions, 250, 250, TimeUnit.MILLISECONDS);
-        // ✨ CALL STATE: Update call states every 200ms (sync CALL state when no audio)
+        // âœ¨ CALL STATE: Update call states every 200ms (sync CALL state when no audio)
         scheduler.scheduleAtFixedRate(this::updateCallStates, 200, 200, TimeUnit.MILLISECONDS);
+        // âœ¨ MESSAGE REFRESH: Keep status messages visible by refreshing every 2 seconds
+        scheduler.scheduleAtFixedRate(() -> {
+            if (interceptionManager != null) {
+                interceptionManager.refreshStatusMessages();
+            }
+        }, 2, 2, TimeUnit.SECONDS);
 
         System.out.println("TransponderCallManager: Initialized with handheld snail support + interception");
     }
@@ -141,7 +144,7 @@ public class TransponderCallManager {
     }
 
     /**
-     * ✨ IMPROVED: Better handheld registration with debug logging
+     * âœ¨ IMPROVED: Better handheld registration with debug logging
      */
     public void registerHandheldSnail(int snailNumber, UUID playerId) {
         UUID previousOwner = handheldSnailOwners.get(snailNumber);
@@ -219,7 +222,7 @@ public class TransponderCallManager {
      */
     public boolean initiateCallBySnailNumber(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber) {
         try {
-            System.out.println("DEBUG initiateCall: Caller=#" + callerSnailNumber + " → Target=#" + targetSnailNumber);
+            System.out.println("DEBUG initiateCall: Caller=#" + callerSnailNumber + " â†’ Target=#" + targetSnailNumber);
 
             // Validation checks
             if (callerSnailNumber == targetSnailNumber) {
@@ -284,7 +287,7 @@ public class TransponderCallManager {
 
             // FIX: Add caller to playerToCallId IMMEDIATELY
             playerToCallId.put(caller.getUUID(), callId);
-            System.out.println("DEBUG initiateCall: ✅ Added caller to playerToCallId");
+            System.out.println("DEBUG initiateCall: âœ… Added caller to playerToCallId");
 
             snailToCallId.put(callerSnailNumber, callId);
             snailToCallId.put(targetSnailNumber, callId);
@@ -312,11 +315,11 @@ public class TransponderCallManager {
                 return false;
             }
 
-            System.out.println("DEBUG initiateCall: ✅ Call initiated successfully");
+            System.out.println("DEBUG initiateCall: âœ… Call initiated successfully");
             return true;
 
         } catch (Exception e) {
-            System.err.println("DEBUG initiateCall: ❌ Exception: " + e.getMessage());
+            System.err.println("DEBUG initiateCall: âŒ Exception: " + e.getMessage());
             e.printStackTrace();
             caller.displayClientMessage(
                     Component.literal("Failed to initiate call!"),
@@ -411,15 +414,15 @@ public class TransponderCallManager {
      * IMPROVED: Now accepts callId and callerSnailNumber for different states
      */
     private void updateAllSnailItemInstances(ServerPlayer player, int snailNumber, UUID callId, int callerSnailNumber) {
-        System.out.println("╔═══════════════════════════════════════════════════════════");
-        System.out.println("║ DEBUG updateAllSnailItemInstances");
-        System.out.println("╠═══════════════════════════════════════════════════════════");
-        System.out.println("║ Player: " + player.getName().getString());
-        System.out.println("║ Target Snail: #" + snailNumber);
-        System.out.println("║ CallID: " + (callId != null ? callId.toString().substring(0, 8) : "null"));
-        System.out.println("║ Caller Snail: #" + callerSnailNumber);
-        System.out.println("║ Is Ringing: " + (callerSnailNumber != -1));
-        System.out.println("╚═══════════════════════════════════════════════════════════");
+        System.out.println("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+        System.out.println("â•‘ DEBUG updateAllSnailItemInstances");
+        System.out.println("â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+        System.out.println("â•‘ Player: " + player.getName().getString());
+        System.out.println("â•‘ Target Snail: #" + snailNumber);
+        System.out.println("â•‘ CallID: " + (callId != null ? callId.toString().substring(0, 8) : "null"));
+        System.out.println("â•‘ Caller Snail: #" + callerSnailNumber);
+        System.out.println("â•‘ Is Ringing: " + (callerSnailNumber != -1));
+        System.out.println("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
         int updatedCount = 0;
         int checkedCount = 0;
@@ -434,19 +437,19 @@ public class TransponderCallManager {
                     System.out.println("  Slot " + i + ": Snail #" + stackSnailNum);
 
                     if (stackSnailNum == snailNumber) {
-                        System.out.println("    ✓✓✓ MATCH FOUND! Updating...");
+                        System.out.println("    âœ“âœ“âœ“ MATCH FOUND! Updating...");
 
                         if (callerSnailNumber != -1) {
-                            System.out.println("    → Setting RINGING state");
+                            System.out.println("    â†’ Setting RINGING state");
                             updateSnailItemRingingState(stack, callId, callerSnailNumber);
 
                             // Verify it was set
                             CompoundTag verify = stack.getTag();
                             if (verify != null) {
-                                System.out.println("    → Verified: call_state = '" + verify.getString("call_state") + "'");
+                                System.out.println("    â†’ Verified: call_state = '" + verify.getString("call_state") + "'");
                             }
                         } else {
-                            System.out.println("    → Setting CONNECTED state");
+                            System.out.println("    â†’ Setting CONNECTED state");
                             updateSnailItemConnectedState(stack, callId);
                         }
                         updatedCount++;
@@ -464,19 +467,19 @@ public class TransponderCallManager {
                 System.out.println("  MainHand: Snail #" + mainHandSnailNum);
 
                 if (mainHandSnailNum == snailNumber) {
-                    System.out.println("    ✓✓✓ MATCH FOUND! Updating...");
+                    System.out.println("    âœ“âœ“âœ“ MATCH FOUND! Updating...");
 
                     if (callerSnailNumber != -1) {
-                        System.out.println("    → Setting RINGING state");
+                        System.out.println("    â†’ Setting RINGING state");
                         updateSnailItemRingingState(mainHand, callId, callerSnailNumber);
 
                         // Verify it was set
                         CompoundTag verify = mainHand.getTag();
                         if (verify != null) {
-                            System.out.println("    → Verified: call_state = '" + verify.getString("call_state") + "'");
+                            System.out.println("    â†’ Verified: call_state = '" + verify.getString("call_state") + "'");
                         }
                     } else {
-                        System.out.println("    → Setting CONNECTED state");
+                        System.out.println("    â†’ Setting CONNECTED state");
                         updateSnailItemConnectedState(mainHand, callId);
                     }
                     updatedCount++;
@@ -493,19 +496,19 @@ public class TransponderCallManager {
                 System.out.println("  OffHand: Snail #" + offHandSnailNum);
 
                 if (offHandSnailNum == snailNumber) {
-                    System.out.println("    ✓✓✓ MATCH FOUND! Updating...");
+                    System.out.println("    âœ“âœ“âœ“ MATCH FOUND! Updating...");
 
                     if (callerSnailNumber != -1) {
-                        System.out.println("    → Setting RINGING state");
+                        System.out.println("    â†’ Setting RINGING state");
                         updateSnailItemRingingState(offHand, callId, callerSnailNumber);
 
                         // Verify it was set
                         CompoundTag verify = offHand.getTag();
                         if (verify != null) {
-                            System.out.println("    → Verified: call_state = '" + verify.getString("call_state") + "'");
+                            System.out.println("    â†’ Verified: call_state = '" + verify.getString("call_state") + "'");
                         }
                     } else {
-                        System.out.println("    → Setting CONNECTED state");
+                        System.out.println("    â†’ Setting CONNECTED state");
                         updateSnailItemConnectedState(offHand, callId);
                     }
                     updatedCount++;
@@ -513,9 +516,9 @@ public class TransponderCallManager {
             }
         }
 
-        System.out.println("╔═══════════════════════════════════════════════════════════");
-        System.out.println("║ RESULT: Checked " + checkedCount + " snails, Updated " + updatedCount + " items");
-        System.out.println("╚═══════════════════════════════════════════════════════════");
+        System.out.println("â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+        System.out.println("â•‘ RESULT: Checked " + checkedCount + " snails, Updated " + updatedCount + " items");
+        System.out.println("â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
     }
 
     private void updateSnailItemRingingState(ItemStack stack, UUID callId, int callerSnailNumber) {
@@ -644,7 +647,7 @@ public class TransponderCallManager {
                     if (owner != null && owner.equals(player.getUUID())) {
                         answeringSnailNumber = snailNumber;
                         answeringParticipant = participant;
-                        System.out.println("DEBUG acceptCall: ✅ Found answering HANDHELD snail #" + snailNumber);
+                        System.out.println("DEBUG acceptCall: âœ… Found answering HANDHELD snail #" + snailNumber);
                         break;
                     }
                 }
@@ -658,7 +661,7 @@ public class TransponderCallManager {
                         if (nearbyPlayer == player) {
                             answeringSnailNumber = snailNumber;
                             answeringParticipant = participant;
-                            System.out.println("DEBUG acceptCall: ✅ Found answering BLOCK snail #" + snailNumber);
+                            System.out.println("DEBUG acceptCall: âœ… Found answering BLOCK snail #" + snailNumber);
                             break;
                         }
                     }
@@ -666,7 +669,7 @@ public class TransponderCallManager {
             }
 
             if (answeringSnailNumber == -1) {
-                System.err.println("DEBUG acceptCall: ❌ Could not find answering snail for player " +
+                System.err.println("DEBUG acceptCall: âŒ Could not find answering snail for player " +
                         player.getName().getString());
             }
 
@@ -674,13 +677,13 @@ public class TransponderCallManager {
             if (answeringSnailNumber != -1) {
                 if (isHandheldSnail(answeringSnailNumber)) {
                     soundManager.playPickUpSoundForPlayer(player);
-                    System.out.println("DEBUG acceptCall: ✅ Played HANDHELD pick up sound for snail #" +
+                    System.out.println("DEBUG acceptCall: âœ… Played HANDHELD pick up sound for snail #" +
                             answeringSnailNumber);
                 } else {
                     TransponderSnailBlockEntity block = getRegisteredSnailBlock(answeringSnailNumber);
                     if (block != null) {
                         soundManager.playPickUpSoundAtSnail(player, block.getBlockPos());
-                        System.out.println("DEBUG acceptCall: ✅ Played BLOCK pick up sound for snail #" +
+                        System.out.println("DEBUG acceptCall: âœ… Played BLOCK pick up sound for snail #" +
                                 answeringSnailNumber);
                     }
                 }
@@ -747,12 +750,12 @@ public class TransponderCallManager {
                         // Keep it as handheld
                         updatedParticipant = CallSession.CallParticipant.handheld(
                                 acceptingPlayer.getUUID(), participant.getSnailNumber());
-                        System.out.println("DEBUG connectCall: ✅ Updated as HANDHELD participant");
+                        System.out.println("DEBUG connectCall: âœ… Updated as HANDHELD participant");
                     } else {
                         // Keep it as block
                         updatedParticipant = CallSession.CallParticipant.blockWithPlayer(
                                 acceptingPlayer.getUUID(), participant.getSnailNumber(), participant.getBlockPosition());
-                        System.out.println("DEBUG connectCall: ✅ Updated as BLOCK participant");
+                        System.out.println("DEBUG connectCall: âœ… Updated as BLOCK participant");
                     }
 
                     callSession.removeParticipant(participant.getSnailNumber());
@@ -768,16 +771,13 @@ public class TransponderCallManager {
         // This is critical for endCall(ServerPlayer) to work!
         if (!playerToCallId.containsKey(acceptingPlayer.getUUID())) {
             playerToCallId.put(acceptingPlayer.getUUID(), callSession.getCallId());
-            System.out.println("DEBUG connectCall: ✅ Added player to playerToCallId");
+            System.out.println("DEBUG connectCall: âœ… Added player to playerToCallId");
         } else {
             System.out.println("DEBUG connectCall: Player already in playerToCallId");
         }
 
         // Create audio channels for all participants
         createAudioChannels(callSession);
-
-        // WHITE SNAIL: Notify protecting White Snails
-        notifyWhiteSnailsOfCallStart(callSession);
 
         // Play connection sounds
         playConnectionSounds(callSession);
@@ -790,7 +790,7 @@ public class TransponderCallManager {
             }
         }
 
-        System.out.println("DEBUG connectCall: ✅ Call connected - Participants: " +
+        System.out.println("DEBUG connectCall: âœ… Call connected - Participants: " +
                 callSession.getParticipantCount() + ", PlayerToCallId entries: " + playerToCallId.size());
 
         // Debug: Print all participants
@@ -891,15 +891,15 @@ public class TransponderCallManager {
                 // FIX #1: CRITICAL - Store in CallSession for audio forwarding!
                 session.addHandheldChannel(playerId, channel);
 
-                System.out.println("DEBUG createHandheldAudioChannel: ✅ Created and stored handheld channel for player " +
+                System.out.println("DEBUG createHandheldAudioChannel: âœ… Created and stored handheld channel for player " +
                         player.getName().getString() + " (snail #" + snailNumber + ")");
                 System.out.println("DEBUG createHandheldAudioChannel: Session now has " +
                         session.getHandheldChannels().size() + " handheld channels");
             } else {
-                System.err.println("DEBUG createHandheldAudioChannel: ❌ Failed to create channel (API returned null)");
+                System.err.println("DEBUG createHandheldAudioChannel: âŒ Failed to create channel (API returned null)");
             }
         } catch (Exception e) {
-            System.err.println("DEBUG createHandheldAudioChannel: ❌ Exception: " + e.getMessage());
+            System.err.println("DEBUG createHandheldAudioChannel: âŒ Exception: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -979,7 +979,7 @@ public class TransponderCallManager {
             updateBlockEntitiesForCall(callSession);
             stopRingingForCall(callSession);
 
-            // ✨ INTERCEPTION: Stop all interceptions for this call
+            // âœ¨ INTERCEPTION: Stop all interceptions for this call
             if (interceptionManager != null) {
                 interceptionManager.stopAllInterceptionsForCall(callId);
             }
@@ -987,9 +987,6 @@ public class TransponderCallManager {
             if (audioRelay != null) {
                 audioRelay.onCallEnded(callId);
             }
-
-            // WHITE SNAIL: Notify protecting White Snails
-            notifyWhiteSnailsOfCallEnd(callSession);
 
             cleanupCall(callSession);
             notifyCallEnded(callSession);
@@ -1019,13 +1016,13 @@ public class TransponderCallManager {
         UUID callId = playerToCallId.get(player.getUUID());
 
         if (callId == null) {
-            System.err.println("DEBUG endCall(player): ❌ Player not found in playerToCallId map!");
+            System.err.println("DEBUG endCall(player): âŒ Player not found in playerToCallId map!");
             System.err.println("DEBUG endCall(player): Current playerToCallId size: " + playerToCallId.size());
 
             // Debug: Try to find the call by checking all active calls
             for (CallSession session : activeCalls.values()) {
                 if (session.isParticipant(player.getUUID())) {
-                    System.err.println("DEBUG endCall(player): ⚠️ Found player in call session " +
+                    System.err.println("DEBUG endCall(player): âš ï¸ Found player in call session " +
                             session.getCallId().toString().substring(0, 8) +
                             " but not in playerToCallId - attempting recovery");
                     callId = session.getCallId();
@@ -1034,7 +1031,7 @@ public class TransponderCallManager {
             }
 
             if (callId == null) {
-                System.err.println("DEBUG endCall(player): ❌ Cannot find any call for this player");
+                System.err.println("DEBUG endCall(player): âŒ Cannot find any call for this player");
                 player.displayClientMessage(
                         Component.literal("Error: You are not in a call")
                                 .withStyle(ChatFormatting.RED),
@@ -1074,9 +1071,9 @@ public class TransponderCallManager {
                 endCall(finalCallId);
             }, 800, TimeUnit.MILLISECONDS);
 
-            System.out.println("DEBUG endCall(player): ✅ Scheduled call termination");
+            System.out.println("DEBUG endCall(player): âœ… Scheduled call termination");
         } else {
-            System.err.println("DEBUG endCall(player): ⚠️ CallSession not found, calling endCall(callId) directly");
+            System.err.println("DEBUG endCall(player): âš ï¸ CallSession not found, calling endCall(callId) directly");
             endCall(callId);
         }
     }
@@ -1089,7 +1086,7 @@ public class TransponderCallManager {
     }
 
     /**
-     * ✨ IMPROVED: Cleanup includes handheld channels
+     * âœ¨ IMPROVED: Cleanup includes handheld channels
      */
     private void cleanupCall(CallSession callSession) {
         // Remove player mappings
@@ -1262,7 +1259,7 @@ public class TransponderCallManager {
     }
 
     /**
-     * ✨ IMPROVED: Recreate channels for transitions with CallSession integration
+     * âœ¨ IMPROVED: Recreate channels for transitions with CallSession integration
      */
     private void recreateAudioChannelsForTransition(CallSession session, int snailNumber, UUID playerId, boolean toHandheld) {
         if (toHandheld) {
@@ -1290,7 +1287,7 @@ public class TransponderCallManager {
     // =================== UTILITIES ===================
 
     /**
-     * ✨ IMPROVED: Position updates now use CallSession channels
+     * âœ¨ IMPROVED: Position updates now use CallSession channels
      */
     private void updateHandheldAudioPositions() {
         try {
@@ -1355,10 +1352,10 @@ public class TransponderCallManager {
     }
 
     /**
-     * ✨ FIXED: Hang up sound now works for handheld snails!
+     * âœ¨ FIXED: Hang up sound now works for handheld snails!
      */
     private void playHangUpSoundForPlayer(ServerPlayer player, CallSession callSession) {
-        // ✨ FIX: Check if player has handheld snail FIRST
+        // âœ¨ FIX: Check if player has handheld snail FIRST
         Integer handheldSnailNumber = playerHandheldSnails.get(player.getUUID());
         if (handheldSnailNumber != null) {
             // Player has handheld snail - play sound at player position
@@ -1426,64 +1423,6 @@ public class TransponderCallManager {
     private void notifyCallRejected(CallSession callSession) {
         // Notification removed - handled by debug output and other systems
     }
-
-    private void notifyWhiteSnailsOfCallStart(CallSession callSession) {
-        try {
-            WhiteSnailProtectionManager protectionManager = WhiteSnailProtectionManager.getInstance();
-
-            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
-                // Only block snails can be protected (not handheld)
-                if (participant.isBlock() && participant.getBlockPosition() != null) {
-                    TransponderSnailBlockEntity blockEntity =
-                            getRegisteredSnailBlock(participant.getSnailNumber());
-
-                    if (blockEntity != null && blockEntity.getLevel() instanceof ServerLevel serverLevel) {
-                        BlockPos snailPos = participant.getBlockPosition();
-
-                        // Check if this participant is protected by a White Snail
-                        if (protectionManager.isParticipantProtected(serverLevel, snailPos)) {
-                            // Notify the protection manager - this updates the White Snail's visual state
-                            protectionManager.onCallProtectionStarted(serverLevel, snailPos);
-
-                            System.out.println("TransponderCallManager: Notified White Snail protection for snail at " + snailPos);
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Error notifying White Snails of call start: " + e.getMessage());
-        }
-    }
-
-    private void notifyWhiteSnailsOfCallEnd(CallSession callSession) {
-        try {
-            WhiteSnailProtectionManager protectionManager = WhiteSnailProtectionManager.getInstance();
-
-            for (CallSession.CallParticipant participant : callSession.getAllParticipants()) {
-                // Only block snails can be protected (not handheld)
-                if (participant.isBlock() && participant.getBlockPosition() != null) {
-                    TransponderSnailBlockEntity blockEntity =
-                            getRegisteredSnailBlock(participant.getSnailNumber());
-
-                    if (blockEntity != null && blockEntity.getLevel() instanceof ServerLevel serverLevel) {
-                        BlockPos snailPos = participant.getBlockPosition();
-
-                        // Check if this participant was protected by a White Snail
-                        if (protectionManager.isParticipantProtected(serverLevel, snailPos)) {
-                            // Notify the protection manager - this updates the White Snail's visual state
-                            protectionManager.onCallProtectionEnded(serverLevel, snailPos);
-
-                            System.out.println("TransponderCallManager: Notified White Snail protection ended for snail at " + snailPos);
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("TransponderCallManager: Error notifying White Snails of call end: " + e.getMessage());
-        }
-    }
-
-    
 
     /**
      * FIX #2: Notify call ended for BOTH block and handheld participants
@@ -1686,7 +1625,7 @@ public class TransponderCallManager {
 
     public void setAudioRelay(SnailAudioRelay audioRelay) {
         this.audioRelay = audioRelay;
-        // ✨ INTERCEPTION: Link interception manager to audio relay
+        // âœ¨ INTERCEPTION: Link interception manager to audio relay
         if (audioRelay != null && interceptionManager != null) {
             audioRelay.setInterceptionManager(interceptionManager);
         }
@@ -1696,7 +1635,7 @@ public class TransponderCallManager {
         return audioRelay;
     }
 
-    // ✨ INTERCEPTION: Getter for interception manager
+    // âœ¨ INTERCEPTION: Getter for interception manager
     public CallInterceptionManager getInterceptionManager() {
         return interceptionManager;
     }
@@ -1718,12 +1657,12 @@ public class TransponderCallManager {
             ServerPlayer player = getPlayerById(entry.getKey());
             String playerName = player != null ? player.getName().getString() : "Unknown";
             System.out.println("  Player " + playerName + " (" + entry.getKey().toString().substring(0, 8) +
-                    ") → Call " + entry.getValue().toString().substring(0, 8));
+                    ") â†’ Call " + entry.getValue().toString().substring(0, 8));
         }
 
         System.out.println("SnailToCallId entries: " + snailToCallId.size());
         for (Map.Entry<Integer, UUID> entry : snailToCallId.entrySet()) {
-            System.out.println("  Snail #" + entry.getKey() + " → Call " +
+            System.out.println("  Snail #" + entry.getKey() + " â†’ Call " +
                     entry.getValue().toString().substring(0, 8));
         }
 
@@ -1739,7 +1678,7 @@ public class TransponderCallManager {
         System.out.println("====================================");
     }
 
-    // =================== ✨ INTERCEPTION MANAGEMENT ===================
+    // =================== âœ¨ INTERCEPTION MANAGEMENT ===================
 
     /**
      * Validate all active interceptions - called periodically by scheduler
@@ -1846,7 +1785,7 @@ public class TransponderCallManager {
     // =================== CLEANUP ===================
 
     public void cleanup() {
-        // ✨ INTERCEPTION: Cleanup interception manager
+        // âœ¨ INTERCEPTION: Cleanup interception manager
         if (interceptionManager != null) {
             interceptionManager.cleanup();
         }

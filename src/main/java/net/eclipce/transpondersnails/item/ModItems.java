@@ -64,10 +64,7 @@ public class ModItems {
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL = ITEMS.register("black_transponder_snail",
-            () -> new BlackTransponderSnailItem(new Item.Properties().stacksTo(1)));
-
-    public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL_BLOCK_ITEM = ITEMS.register("black_transponder_snail_block",
-            () -> new BlackTransponderSnailBlockItem(
+            () -> new BlackTransponderSnailItem(
                     ModBlocks.BLACK_TRANSPONDER_SNAIL_BLOCK.get(),
                     new Item.Properties().stacksTo(1)));
 

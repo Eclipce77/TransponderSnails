@@ -81,7 +81,7 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(OPEN, false)
-                .setValue(SHELL_COLOR, DyeColor.YELLOW.getId()) // Default yellow
+                .setValue(SHELL_COLOR, DyeColor.WHITE.getId()) // Default white
                 .setValue(CALL_STATE, 0) // Idle
         );
     }
@@ -183,28 +183,31 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
                 snailBE.setOpen(newOpenState);
 
                 if (player instanceof ServerPlayer serverPlayer) {
-                    if (newOpenState) {
-                        // Opening - start interception
-                        snailBE.startInterception(serverPlayer);
+                    // Get call manager for InterceptionHelper
+                    var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
 
-                        // Display range info
-                        int range = snailBE.calculateRange();
-                        int rodCount = snailBE.countLightningRods();
-                        String rangeMessage = "Interception started - Range: " + range + " blocks";
-                        if (rodCount > 0) {
-                            rangeMessage += " (+" + rodCount + " lightning rods)";
+                    if (newOpenState) {
+                        // Opening - use InterceptionHelper with range indicators
+                        if (callManager != null) {
+                            // Get lightning rod count from block entity
+                            int lightningRodCount = snailBE.getLightningRodCount();
+
+                            // Use block-specific method with range indicators
+                            net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailBlockOpened(
+                                    serverPlayer, callManager, lightningRodCount, pos);
                         }
-                        player.displayClientMessage(
-                                Component.literal(rangeMessage).withStyle(ChatFormatting.GREEN),
-                                true
-                        );
+
+                        // Also start block entity interception
+                        snailBE.startInterception(serverPlayer);
                     } else {
-                        // Closing - stop interception
+                        // Closing - use InterceptionHelper messages
+                        // This shows "Search cancelled" or disconnect messages
+                        if (callManager != null) {
+                            net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
+                        }
+
+                        // Also stop block entity interception
                         snailBE.stopInterception();
-                        player.displayClientMessage(
-                                Component.literal("Interception stopped").withStyle(ChatFormatting.GRAY),
-                                true
-                        );
                     }
                 }
             }
@@ -281,7 +284,7 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public @NotNull List<ItemStack> getDrops(@NotNull BlockState state, LootParams.@NotNull Builder builder) {
-        // Create item with preserved NBT
+        // Create unified item with preserved NBT
         ItemStack drop = new ItemStack(ModItems.BLACK_TRANSPONDER_SNAIL.get());
 
         BlockEntity be = builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
@@ -289,11 +292,15 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
             CompoundTag tag = drop.getOrCreateTag();
             tag.putInt("shell_color", snailBE.getShellColor());
             tag.putBoolean("is_open", false); // Always drop closed
+            System.out.println("BlackTransponderSnailBlock: Dropping with shell color from BE: " +
+                    DyeColor.byId(snailBE.getShellColor()).getName());
         } else {
             // Fallback to block state
             CompoundTag tag = drop.getOrCreateTag();
             tag.putInt("shell_color", state.getValue(SHELL_COLOR));
             tag.putBoolean("is_open", false);
+            System.out.println("BlackTransponderSnailBlock: Dropping with shell color from state: " +
+                    DyeColor.byId(state.getValue(SHELL_COLOR)).getName());
         }
 
         return List.of(drop);

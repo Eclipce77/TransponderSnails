@@ -6,6 +6,7 @@
 
   "block.transpondersnails.transponder_snail": "Transponder Snail",
   "block.transpondersnails.transponder_snail_transmitter": "Transponder Snail with Transmitter",
+  "block.transpondersnails.black_transponder_snail_block": "Black Transponder Snail",
   "block.transpondersnails.white_transponder_snail": "White Transponder Snail",
   "block.transpondersnails.horned_transponder_snail": "Horned Transponder Snail",
   "block.transpondersnails.visual_transponder_snail": "Visual Transponder Snail",
@@ -16,6 +17,7 @@
 
   "item.transpondersnails.den_den_mushi": "Den Den Mushi",
   "item.transpondersnails.baby_den_den_mushi": "Baby Den Den Mushi",
+  "item.transpondersnails.transponder_snail": "Transponder Snail",
   "item.transpondersnails.baby_transponder_snail": "Baby Transponder Snail",
   "item.transpondersnails.black_transponder_snail": "Black Transponder Snail",
   "item.transpondersnails.baby_black_transponder_snail": "Baby Black Transponder Snail",
