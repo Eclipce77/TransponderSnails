@@ -47,6 +47,21 @@ public class ModConfig {
 
         public ClientConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("Transponder Snails Client Configuration")
+                    .comment("   =%%% :%%%: %@@@@@@@# ")
+                    .comment(" :@=  .@#   *%%#######%%= ")
+                    .comment(" :@=   @#   :-#*::::-#*:*@: ")
+                    .comment("   =@: @# =@#*:-#=:+*:-#%@: ")
+                    .comment("   =@: @# +@%#:::=#=:.-#%@: ")
+                    .comment("   =@:    =@%#:-#=:+*:-#%@: ")
+                    .comment("   =@:      +##*::::-*#*%@: ")
+                    .comment("   =@:      .:*#*****#*:*@: ")
+                    .comment("   =@:                :@= ")
+                    .comment("   =@=:               :@= ")
+                    .comment("     *%-::::::::::::::=@= ")
+                    .comment("      .%%%%%%%%%%%%%%%* ")
+                    .comment("These settings control the client");
+
+            builder.comment("Transponder Snails Client Configuration")
                     .comment("These settings are per-player and affect input/GUI preferences")
                     .push("client");
 
@@ -70,6 +85,14 @@ public class ModConfig {
         public final ForgeConfigSpec.LongValue ringTimeoutMs;
         public final ForgeConfigSpec.DoubleValue snailInteractionRange;
         public final ForgeConfigSpec.BooleanValue enablePhoneFilter;
+
+        // Call Management
+        public final ForgeConfigSpec.LongValue callInactivityTimeoutMs;
+        public final ForgeConfigSpec.DoubleValue participantProximityRange;
+
+        // Snail Number Management
+        public final ForgeConfigSpec.DoubleValue numberPreservationDays;
+        public final ForgeConfigSpec.LongValue numberCleanupIntervalSeconds;
 
         // Black Transponder Snail interception ranges
         public final ForgeConfigSpec.DoubleValue babyBlackSnailRange;
@@ -120,6 +143,43 @@ public class ModConfig {
                     .comment("Range in blocks for interacting with Transponder Snail blocks")
                     .comment("Players must be within this range to use snail blocks")
                     .defineInRange("snail_interaction_range", 10.0, 1.0, 50.0);
+
+            builder.pop();
+
+            // Call Management Settings
+            builder.comment("Call Management Settings")
+                    .comment("Configure call behavior and cleanup")
+                    .push("call_management");
+
+            callInactivityTimeoutMs = builder
+                    .comment("How long (in milliseconds) a call can be inactive before auto-cleanup")
+                    .comment("300000 ms = 5 minutes. Set to 0 to disable auto-cleanup.")
+                    .defineInRange("call_inactivity_timeout_ms", 300000L, 0L, 3600000L);
+
+            participantProximityRange = builder
+                    .comment("Distance in blocks a call participant must stay within to remain active")
+                    .comment("If a participant moves beyond this range, they can intercept their own call")
+                    .comment("Set to 0 to disable proximity-based participation removal")
+                    .defineInRange("participant_proximity_range", 15.0, 0.0, 100.0);
+
+            builder.pop();
+
+            // Snail Number Management Settings
+            builder.comment("Snail Number Management Settings")
+                    .comment("Configure how snail numbers are assigned and reclaimed")
+                    .push("snail_numbers");
+
+            numberPreservationDays = builder
+                    .comment("How many Minecraft days a snail number is preserved after conversion to Den Den Mushi")
+                    .comment("If reconverted to Transponder Snail within this time, keeps same number")
+                    .comment("Set to 0 to disable number preservation (always get new number)")
+                    .comment("Supports decimals (e.g., 0.5 = 12 hours, 2.5 = 2.5 days)")
+                    .defineInRange("number_preservation_days", 2.0, 0.0, 30.0);
+
+            numberCleanupIntervalSeconds = builder
+                    .comment("How often (in seconds) to check for unused snail numbers and reclaim them")
+                    .comment("Set to 0 to disable periodic cleanup")
+                    .defineInRange("number_cleanup_interval_seconds", 300L, 0L, 3600L);
 
             builder.pop();
 
@@ -520,6 +580,31 @@ public class ModConfig {
             return DEFAULT_INTERACTION_RANGE;
         }
         return cachedInteractionRange;
+    }
+
+    public static long getCallInactivityTimeoutMs() {
+        return SERVER.callInactivityTimeoutMs.get();
+    }
+
+    public static double getParticipantProximityRange() {
+        return SERVER.participantProximityRange.get();
+    }
+
+    // Snail Number Getters
+    public static double getNumberPreservationDays() {
+        return SERVER.numberPreservationDays.get();
+    }
+
+    public static long getNumberCleanupIntervalSeconds() {
+        return SERVER.numberCleanupIntervalSeconds.get();
+    }
+
+    // Convert days to milliseconds for internal use
+    public static long getNumberPreservationMs() {
+        double days = SERVER.numberPreservationDays.get();
+        if (days <= 0) return 0; // Disabled
+        // 1 Minecraft day = 20 minutes real time = 1200000 ms
+        return (long) (days * 1200000);
     }
 
     public static boolean isPhoneFilterEnabled() {
