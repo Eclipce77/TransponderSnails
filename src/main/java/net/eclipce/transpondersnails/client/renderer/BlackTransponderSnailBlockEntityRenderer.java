@@ -70,15 +70,18 @@ public class BlackTransponderSnailBlockEntityRenderer implements BlockEntityRend
 
         poseStack.pushPose();
 
-        // Center in block and lift off ground
-        poseStack.translate(0.535D, Y_OFFSET, 0.5D);
+        // 1. Center of block (world space)
+        poseStack.translate(0.5D, Y_OFFSET, 0.5D);
 
-        // Apply scale - same as entity renderer
-        poseStack.scale(BLOCK_SCALE, BLOCK_SCALE, BLOCK_SCALE);
-
-        // Rotate based on facing direction
+        // 2. Rotate
         float rotation = getRotationFromFacing(facing);
         poseStack.mulPose(Axis.YP.rotationDegrees(rotation));
+
+        // 3. Model offset (local space - rotates with model!)
+        poseStack.translate(0.035D, 0.0D, 0.0D);
+
+        // 4. Scale
+        poseStack.scale(BLOCK_SCALE, BLOCK_SCALE, BLOCK_SCALE);
 
         // Create ItemStack with appropriate state
         ItemStack itemStack = new ItemStack(ModItems.BLACK_TRANSPONDER_SNAIL.get());

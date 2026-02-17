@@ -62,10 +62,10 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
     public static final int STATE_BLOCKING = 2;
 
     // Voxel shapes for the snail (same as regular transponder snail)
-    private static final VoxelShape SHAPE_NORTH = Block.box(3, 0, 2, 13, 12, 14);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(3, 0, 2, 13, 12, 14);
-    private static final VoxelShape SHAPE_EAST = Block.box(2, 0, 3, 14, 12, 13);
-    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 3, 14, 12, 13);
+    private static final VoxelShape SHAPE_NORTH = Block.box(3, 0, 2, 12, 12, 16);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(3, 0, 2, 12, 12, 16);
+    private static final VoxelShape SHAPE_EAST = Block.box(2, 0, 3, 16, 12, 12);
+    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 3, 16, 12, 12);
 
     public WhiteTransponderSnailBlock(Properties properties) {
         super(properties);

@@ -20,18 +20,10 @@ public class PortableBlackSnailItemProperties {
      */
     public static float calculateCallState(ItemStack stack, @Nullable ClientLevel world,
                                            @Nullable LivingEntity entity, int seed) {
-        // ✅ IDENTITY TRACKING
-        System.out.println("====== PREDICATE CALLED ======");
-        System.out.println("Stack identity: " + System.identityHashCode(stack));
-        System.out.println("Stack.getTag() identity: " + (stack.getTag() != null ? System.identityHashCode(stack.getTag()) : "null"));
-        System.out.println("Stack NBT: " + stack.getTag());
 
         boolean isOpenValue = PortableBlackTransponderSnailItem.isOpen(stack);
-        System.out.println("isOpen() returns: " + isOpenValue);
 
         if (!isOpenValue) {
-            System.out.println("Result: Returning 0.0 (CLOSED)");
-            System.out.println("============================");
             return 0.0f;
         }
 
