@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.compat.CuriosCompat;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.item.PortableBlackTransponderSnailItem;
 import net.minecraft.server.level.ServerLevel;
@@ -87,8 +88,18 @@ public class PortableSnailForceCloseHandler {
             }
         }
 
+        // Close snails in Curios slots (safe — no-op if Curios is not installed)
+        if (CuriosCompat.isCuriosLoaded()) {
+            try {
+                closedCount += CuriosCloseHelper.closeSnailsInCuriosSlots(player);
+            } catch (Exception e) {
+                System.err.println("PortableSnailForceCloseHandler: Curios close failed: " + e.getMessage());
+            }
+        }
+
         if (closedCount > 0) {
-            System.out.println("PortableSnailForceCloseHandler: Closed " + closedCount + " portable snails for player " + player.getName().getString());
+            System.out.println("PortableSnailForceCloseHandler: Closed " + closedCount
+                    + " portable snail(s) for player " + player.getName().getString());
         }
     }
 
@@ -134,6 +145,55 @@ public class PortableSnailForceCloseHandler {
 
         if (closedCount.get() > 0) {
             System.out.println("PortableSnailForceCloseHandler: Closed " + closedCount.get() + " portable snails in world");
+        }
+    }
+
+    /**
+     * Inner class that references the Curios API directly.
+     * Kept separate so the JVM does not load Curios classes
+     * when Curios is not installed at runtime.
+     */
+    private static class CuriosCloseHelper {
+
+        /**
+         * Closes every open Portable Black Transponder Snail found in the
+         * player's Curios inventory. Returns the number of snails closed.
+         */
+        static int closeSnailsInCuriosSlots(ServerPlayer player) {
+            int count = 0;
+
+            var lazyOpt = top.theillusivec4.curios.api.CuriosApi.getCuriosInventory(player);
+            var opt = lazyOpt.resolve();
+            if (opt.isEmpty()) return 0;
+
+            var handler = opt.get();
+
+            for (var entry : handler.getCurios().entrySet()) {
+                var stacksHandler = entry.getValue();
+                var itemHandler  = stacksHandler.getStacks();
+
+                for (int i = 0; i < itemHandler.getSlots(); i++) {
+                    ItemStack stack = itemHandler.getStackInSlot(i);
+
+                    if (stack.isEmpty()
+                            || stack.getItem() != net.eclipce.transpondersnails.item.ModItems
+                            .PORTABLE_BLACK_TRANSPONDER_SNAIL.get()) {
+                        continue;
+                    }
+
+                    if (PortableBlackTransponderSnailItem.isOpen(stack)) {
+                        PortableBlackTransponderSnailItem.setOpen(stack, false);
+                        PortableBlackTransponderSnailItem.markInHand(stack, false);
+
+                        // Write back so Curios syncs the change to the client
+                        // Cast is safe - Curios always returns an IItemHandlerModifiable
+                        ((net.minecraftforge.items.IItemHandlerModifiable) itemHandler).setStackInSlot(i, stack);
+                        count++;
+                    }
+                }
+            }
+
+            return count;
         }
     }
 }

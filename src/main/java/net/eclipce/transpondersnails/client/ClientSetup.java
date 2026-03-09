@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -38,5 +39,14 @@ public class ClientSetup {
 
         System.out.println("Registered entity renderers");
 
+    }
+
+    /**
+     * Register keybinds on the MOD bus.
+     * RegisterKeyMappingsEvent fires separately from FMLClientSetupEvent.
+     */
+    @SubscribeEvent
+    public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
+        KeyBindings.register(event);
     }
 }

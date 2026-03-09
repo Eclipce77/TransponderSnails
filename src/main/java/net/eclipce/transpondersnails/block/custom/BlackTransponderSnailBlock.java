@@ -214,7 +214,7 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
 
             // Play sound
             level.playSound(null, pos,
-                    newOpenState ? SoundEvents.SHULKER_OPEN : SoundEvents.SHULKER_CLOSE,
+                    newOpenState ? SoundEvents.CORAL_BLOCK_BREAK : SoundEvents.CORAL_BLOCK_BREAK,
                     SoundSource.BLOCKS, 0.5F, 1.2F);
         }
 

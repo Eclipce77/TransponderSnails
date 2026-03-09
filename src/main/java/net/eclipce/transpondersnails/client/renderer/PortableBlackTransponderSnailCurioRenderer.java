@@ -31,19 +31,19 @@ public class PortableBlackTransponderSnailCurioRenderer implements ICurioRendere
     // ============================================================
 
     // HEIGHT on arm (0=shoulder, 0.5=elbow, 0.75=wrist, 1=hand)
-    private static final double WRIST_HEIGHT = 0.4425;
+    private static final double WRIST_HEIGHT = 0.46;
 
     // DISTANCE from arm (how far it sticks out)
-    private static final double OUTWARD_DISTANCE = 0.05;
+    private static final double OUTWARD_DISTANCE = -0.05;
 
     // FINE POSITIONING (small offsets for perfect placement)
     private static final double SIDE_OFFSET = -0.027;   // Left/right adjustment
     private static final double VERTICAL_OFFSET = -0.01875;  // Up/down fine-tune
 
     // ROTATION angles (in degrees)
-    private static final float YAW = 180.0f;      // Spin around arm (90=outward, 0=forward)
+    private static final float YAW = 0.0f;      // Spin around arm (90=outward, 0=forward)
     private static final float PITCH = 0.0f;   // Tip up/down (negative=forward)
-    private static final float ROLL = 0.0f;      // Tilt/lean (small values look natural)
+    private static final float ROLL = 180.0f;      // Tilt/lean (small values look natural)
 
     // SIZE on wrist
     private static final float SCALE = 0.70f;

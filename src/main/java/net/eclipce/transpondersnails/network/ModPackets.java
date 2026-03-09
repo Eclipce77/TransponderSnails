@@ -85,6 +85,13 @@ public class ModPackets {
                 .add();
 
         System.out.println("ModPackets: Registered " + nextId + " packet types");
+
+        // 9) Client → Server: Keybind snail interact (open/close via hand OR Curios slot)
+        CHANNEL.messageBuilder(CuriosSnailActionPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
+                .decoder(CuriosSnailActionPacket::new)
+                .encoder(CuriosSnailActionPacket::encode)
+                .consumerMainThread(CuriosSnailActionPacket::handle)
+                .add();
     }
 
     /** Client-side: send a packet to the server. */

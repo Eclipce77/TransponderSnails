@@ -3,6 +3,8 @@ package net.eclipce.transpondersnails.voice.server;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
+import net.eclipce.transpondersnails.compat.CuriosCompat;
+import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.minecraft.ChatFormatting;
@@ -768,23 +770,33 @@ public class CallInterceptionManager {
     /**
      * Determine the type of Black Transponder Snail the player is using
      */
-    @Nullable
     private InterceptionSession.InterceptorType determineInterceptorType(ServerPlayer player) {
         // Check main hand
         ItemStack mainHand = player.getMainHandItem();
         InterceptionSession.InterceptorType mainType = checkItemType(mainHand);
-        if (mainType != null) {
-            return mainType;
-        }
+        if (mainType != null) return mainType;
 
         // Check off hand
         ItemStack offHand = player.getOffhandItem();
         InterceptionSession.InterceptorType offType = checkItemType(offHand);
-        if (offType != null) {
-            return offType;
+        if (offType != null) return offType;
+
+        // Check Curios slot (safe — returns EMPTY if Curios is not installed)
+        if (CuriosCompat.isCuriosLoaded()) {
+            try {
+                ItemStack curiosStack = CuriosCompat.getEquippedCuriosItem(
+                        player,
+                        ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get()
+                );
+                if (!curiosStack.isEmpty()) {
+                    InterceptionSession.InterceptorType curiosType = checkItemType(curiosStack);
+                    if (curiosType != null) return curiosType;
+                }
+            } catch (Exception e) {
+                System.err.println("CallInterceptionManager: Curios slot check failed: " + e.getMessage());
+            }
         }
 
-        // TODO: Check Curios slots when integrated
         return null;
     }
 
@@ -827,19 +839,33 @@ public class CallInterceptionManager {
     private boolean hasOpenBlackSnail(ServerPlayer player) {
         // Check main hand
         ItemStack mainHand = player.getMainHandItem();
-        if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem &&
-                PortableBlackTransponderSnailItem.isOpen(mainHand)) {
+        if (mainHand.getItem() instanceof PortableBlackTransponderSnailItem
+                && PortableBlackTransponderSnailItem.isOpen(mainHand)) {
             return true;
         }
 
         // Check off hand
         ItemStack offHand = player.getOffhandItem();
-        if (offHand.getItem() instanceof PortableBlackTransponderSnailItem &&
-                PortableBlackTransponderSnailItem.isOpen(offHand)) {
+        if (offHand.getItem() instanceof PortableBlackTransponderSnailItem
+                && PortableBlackTransponderSnailItem.isOpen(offHand)) {
             return true;
         }
 
-        // TODO: Check Curios slots
+        // Check Curios slot (safe — returns EMPTY if Curios is not installed)
+        if (CuriosCompat.isCuriosLoaded()) {
+            try {
+                ItemStack curiosStack = CuriosCompat.getEquippedCuriosItem(
+                        player,
+                        ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get()
+                );
+                if (!curiosStack.isEmpty()
+                        && PortableBlackTransponderSnailItem.isOpen(curiosStack)) {
+                    return true;
+                }
+            } catch (Exception e) {
+                System.err.println("CallInterceptionManager: Curios open-check failed: " + e.getMessage());
+            }
+        }
 
         return false;
     }
