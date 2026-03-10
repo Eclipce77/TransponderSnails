@@ -1,0 +1,6 @@
+{
+	"parent": "transpondersnails:item/horned_den_den_mushi",
+	"textures": {
+		"shell": "transpondersnails:item/den_den_mushi/shell/den_den_mushi_shell_yellow"
+	}
+}

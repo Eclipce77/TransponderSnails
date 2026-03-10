@@ -29,7 +29,8 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
                         pOutput.accept(ModItems.TRANSMITTER.get());
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
-                        pOutput.accept(ModItems.WHITE_DEN_DEN_MUSHI.get());
+                        pOutput.accept(ModItems.HORNED_DEN_DEN_MUSHI_SPAWN_EGG.get());
+                        pOutput.accept(ModItems.WHITE_DEN_DEN_MUSHI_SPAWN_EGG.get());
                     })
                     .build());
 

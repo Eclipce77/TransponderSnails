@@ -62,6 +62,16 @@ public class ModItemProperties {
                 }
         );
 
+        // Horned Den Den Mushi - shell_color (same scale as adult DDM: id * 0.1)
+        ItemProperties.register(
+                ModItems.HORNED_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, level, entity, seed) -> {
+                    int shellColor = DenDenMushiItem.getShellColor(stack);
+                    return shellColor * 0.1f;
+                }
+        );
+
         System.out.println("✅ Registered Den Den Mushi predicates");
     }
 

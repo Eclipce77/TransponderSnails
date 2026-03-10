@@ -23,6 +23,14 @@ public class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL, 0xffbf66, 0xff526b,
                     new Item.Properties()));
 
+    public static final RegistryObject<Item> HORNED_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("horned_den_den_mushi_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.HORNED_DEN_DEN_MUSHI, 0xe6a853, 0xe83e56,
+                    new Item.Properties()));
+
+    public static final RegistryObject<Item> WHITE_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("white_den_den_mushi_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.WHITE_DEN_DEN_MUSHI, 0xbebebe, 0xdcdcdc,
+                    new Item.Properties()));
+
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL_SPAWN_EGG = ITEMS.register("black_transponder_snail_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.BLACK_TRANSPONDER_SNAIL, 0x38343b, 0x48424f,
                     new Item.Properties()));
@@ -36,6 +44,9 @@ public class ModItems {
 
     public static final RegistryObject<Item> BABY_DEN_DEN_MUSHI = ITEMS.register("baby_den_den_mushi",
             () -> new BabyDenDenMushiItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> HORNED_DEN_DEN_MUSHI = ITEMS.register("horned_den_den_mushi",
+            () -> new HornedDenDenMushiItem(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> ROTARY_DIAL = ITEMS.register("rotary_dial",
             () -> new Item(new Item.Properties()));

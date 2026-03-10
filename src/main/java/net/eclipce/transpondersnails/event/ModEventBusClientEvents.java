@@ -2,11 +2,8 @@ package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
-import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 
-import net.eclipce.transpondersnails.block.entity.WhiteTransponderSnailBlockEntity;
-import net.eclipce.transpondersnails.client.renderer.BlackTransponderSnailBlockEntityRenderer;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.*;
 import net.eclipce.transpondersnails.item.*;
@@ -14,10 +11,8 @@ import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -25,35 +20,6 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod.EventBusSubscriber(modid = TransponderSnails.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ModEventBusClientEvents {
-
-    @SubscribeEvent
-    public static void registerLayer(EntityRenderersEvent.RegisterLayerDefinitions event) {
-        event.registerLayerDefinition(ModModelLayers.DEN_DEN_MUSHI_LAYER, DenDenMushiModel::createBodyLayer);
-    }
-
-    @SubscribeEvent
-    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerEntityRenderer(
-                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
-                BabyBlackTransponderSnailRenderer::new
-        );
-
-        event.registerEntityRenderer(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
-                BlackTransponderSnailRenderer::new);
-
-        System.out.println("Registered Baby Black Transponder Snail renderer!");
-    }
-
-    @SubscribeEvent
-    public static void registerBlockEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        // Register the Black Transponder Snail Block Entity Renderer
-        event.registerBlockEntityRenderer(
-                ModBlockEntities.BLACK_TRANSPONDER_SNAIL_BE.get(),
-                BlackTransponderSnailBlockEntityRenderer::new
-        );
-
-        System.out.println("TransponderSnails: Registered Black Transponder Snail Block Entity Renderer");
-    }
 
     @SubscribeEvent
     public static void registerItemModelPredicates(FMLClientSetupEvent event) {
@@ -227,14 +193,14 @@ public class ModEventBusClientEvents {
                         return value;
                     });
 
-            System.out.println("✅ Registered 4 predicates for Portable Black Transponder Snail:");
+            System.out.println("âœ… Registered 4 predicates for Portable Black Transponder Snail:");
             System.out.println("   - open (0.0 or 1.0)");
             System.out.println("   - shell_color (0.0 to 15.0)");
             System.out.println("   - band_color (0.0 to 15.0)");
             System.out.println("   - call_state (0.0, 0.25, 0.5, 0.75)");
             System.out.println("=============================================================");
 
-            // ✅ CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
+            // âœ… CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
         });
     }
 
@@ -282,6 +248,19 @@ public class ModEventBusClientEvents {
             return -1;
         }, ModItems.BABY_DEN_DEN_MUSHI.get());
 
+        // Register Horned Den Den Mushi item coloring (reuses DenDenMushiItem color accessors)
+        event.register((stack, tintIndex) -> {
+            if (!(stack.getItem() instanceof HornedDenDenMushiItem)) {
+                return -1;
+            }
+
+            if (tintIndex == 0 && DenDenMushiItem.isCaptured(stack)) {
+                return DenDenMushiItem.getBodyColor(stack);
+            }
+
+            return -1;
+        }, ModItems.HORNED_DEN_DEN_MUSHI.get());
+
         // Register Transponder Snail block item coloring
         event.register((stack, tintIndex) -> {
             if (tintIndex == 0) {
@@ -318,29 +297,6 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
-
-        // Register White Transponder Snail item coloring
-        event.register((stack, tintIndex) -> {
-            if (tintIndex == 0) {
-                CompoundTag nbt = stack.getTag();
-                if (nbt != null) {
-                    // Check direct shell_color
-                    if (nbt.contains("shell_color")) {
-                        int colorId = nbt.getInt("shell_color");
-                        return DyeColor.byId(colorId).getTextColor();
-                    }
-                    // Check BlockEntityTag
-                    if (nbt.contains("BlockEntityTag")) {
-                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
-                        if (beTag.contains("ShellColor")) {
-                            int colorId = beTag.getInt("ShellColor");
-                            return DyeColor.byId(colorId).getTextColor();
-                        }
-                    }
-                }
-            }
-            return 0xFFFFFF; // Default white
-        }, ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
     }
 
     @SubscribeEvent
@@ -378,16 +334,5 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
-
-        // Register White Transponder Snail block coloring
-        event.register((state, level, pos, tintIndex) -> {
-            if (tintIndex == 0 && level != null && pos != null) {
-                BlockEntity be = level.getBlockEntity(pos);
-                if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
-                    return whiteBE.getShellColorRGB();
-                }
-            }
-            return 0xFFFFFF; // Default white
-        }, ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
     }
 }

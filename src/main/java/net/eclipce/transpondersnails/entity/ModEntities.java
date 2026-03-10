@@ -32,6 +32,14 @@ public class ModEntities {
                     .clientTrackingRange(10)
                     .build("white_den_den_mushi"));
 
+    // ---- Horned Den Den Mushi ----
+    public static final RegistryObject<EntityType<HornedDenDenMushiEntity>> HORNED_DEN_DEN_MUSHI =
+            ENTITY_TYPES.register("horned_den_den_mushi",
+                    () -> EntityType.Builder.of(HornedDenDenMushiEntity::new, MobCategory.CREATURE)
+                            .sized(0.77f, 0.77f)
+                            .clientTrackingRange(10)
+                            .build("horned_den_den_mushi"));
+
     // Baby Black Transponder Snail Entity
     public static final RegistryObject<EntityType<BabyBlackTransponderSnailEntity>> BABY_BLACK_TRANSPONDER_SNAIL =
             ENTITY_TYPES.register("baby_black_transponder_snail",
@@ -66,6 +74,7 @@ public class ModEntities {
     public static void onAttributeCreate(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiEntity.createAttributes().build());
+        event.put(ModEntities.HORNED_DEN_DEN_MUSHI.get(), HornedDenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
         event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailEntity.createAttributes().build());
     }
@@ -97,6 +106,15 @@ public class ModEntities {
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
         System.out.println("  ✓ White Den Den Mushi spawn placement registered");
+
+        // Horned Den Den Mushi
+        event.register(
+                ModEntities.HORNED_DEN_DEN_MUSHI.get(),
+                SpawnPlacements.Type.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                HornedDenDenMushiSpawnConditions::checkHornedDenDenMushiSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE);
+        System.out.println("  ✓ Horned Den Den Mushi spawn placement registered");
 
         // Black Transponder Snail - spawns underwater
         event.register(

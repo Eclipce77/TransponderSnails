@@ -75,6 +75,7 @@ public class TransponderSnails {
         ModSounds.register(modEventBus);
 
         ModEntities.register(modEventBus);
+        modEventBus.register(ModEntities.class);
         ModBlockEntities.register(modEventBus);
 
         ModRecipeSerializers.register(modEventBus);
