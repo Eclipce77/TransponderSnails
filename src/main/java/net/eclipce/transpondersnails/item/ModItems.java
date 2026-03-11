@@ -28,11 +28,11 @@ public class ModItems {
                     new Item.Properties()));
 
     public static final RegistryObject<Item> WHITE_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("white_den_den_mushi_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.WHITE_DEN_DEN_MUSHI, 0xbebebe, 0xdcdcdc,
+            () -> new ForgeSpawnEggItem(ModEntities.WHITE_DEN_DEN_MUSHI, 0xFAF9F6, 0xdcdcdc,
                     new Item.Properties()));
 
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL_SPAWN_EGG = ITEMS.register("black_transponder_snail_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.BLACK_TRANSPONDER_SNAIL, 0x38343b, 0x48424f,
+            () -> new ForgeSpawnEggItem(ModEntities.BLACK_TRANSPONDER_SNAIL, 0x38343b, 0xE2DFD2,
                     new Item.Properties()));
 
     public static final RegistryObject<Item> BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_EGG = ITEMS.register("baby_black_transponder_snail_spawn_egg",
