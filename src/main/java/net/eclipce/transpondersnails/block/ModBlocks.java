@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
+import net.eclipce.transpondersnails.block.custom.HornedDenDenMushiBlock;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WhiteTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WireBlock;
@@ -54,7 +55,23 @@ public class ModBlocks {
                         return callState == 3 ? 7 : (callState > 0 ? 3 : 0);
                     })));
 
-    private static <T extends Block>  RegistryObject<T> registerBlock(String name, Supplier<T> block) {
+    /**
+     * The Horned Den Den Mushi jammer block.
+     *
+     * - No block item is registered here — the existing HornedDenDenMushiItem
+     *   places this block on sneak+right-click.
+     * - noOcclusion() so the BER is not culled by neighbouring blocks.
+     * - strength(0.5F) so it can be broken easily (same as TransponderSnailBlock).
+     * - pushReaction(DESTROY) so pistons don't move it (they break it and drop the item).
+     */
+    public static final RegistryObject<Block> HORNED_DEN_DEN_MUSHI_BLOCK = BLOCKS.register("horned_den_den_mushi_block",
+            () -> new HornedDenDenMushiBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL)
+                    .strength(0.5F)
+                    .sound(SoundType.CORAL_BLOCK)
+                    .noOcclusion()
+                    .pushReaction(PushReaction.DESTROY)));
+
+    private static <T extends Block> RegistryObject<T> registerBlock(String name, Supplier<T> block) {
         RegistryObject<T> toReturn = BLOCKS.register(name, block);
         registerBlockItem(name, toReturn);
         return toReturn;

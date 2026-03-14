@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_body",
+    "particle": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_body"
+  }
+}

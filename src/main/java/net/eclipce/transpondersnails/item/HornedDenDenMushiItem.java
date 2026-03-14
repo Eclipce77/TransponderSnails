@@ -1,5 +1,8 @@
 package net.eclipce.transpondersnails.item;
 
+import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.block.custom.HornedDenDenMushiBlock;
+import net.eclipce.transpondersnails.block.entity.HornedDenDenMushiBlockEntity;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.custom.DenDenMushiEntity;
 import net.eclipce.transpondersnails.entity.custom.HornedDenDenMushiEntity;
@@ -11,11 +14,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
@@ -27,8 +32,12 @@ import java.util.List;
  * the three methods the base class hardcodes to the regular DDM:
  *
  *   - createFromEntity  → produces a HornedDenDenMushiItem stack
- *   - useOn             → spawns a HornedDenDenMushiEntity
- *   - appendHoverText   → shows the correct name in the tooltip
+ *   - createFromColors  → produces a HornedDenDenMushiItem stack from raw colour values
+ *                         (used by HornedDenDenMushiBlock.getDrops)
+ *   - useOn             → two modes:
+ *                           Normal right-click   → spawn HornedDenDenMushiEntity
+ *                           Sneak + right-click  → place HornedDenDenMushiBlock (jammer)
+ *   - appendHoverText   → shows the correct name and placement tips in the tooltip
  */
 public class HornedDenDenMushiItem extends DenDenMushiItem {
 
@@ -67,52 +76,143 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
     }
 
     // -----------------------------------------------------------------------
-    // useOn — spawns HornedDenDenMushiEntity, not a regular DenDenMushiEntity
+    // createFromColors
+    // Used by HornedDenDenMushiBlock.getDrops() to rebuild the item stack
+    // with the correct colours when the placed block is broken.
+    // -----------------------------------------------------------------------
+
+    public static ItemStack createFromColors(int shellColor, int bodyColor) {
+        ItemStack stack = new ItemStack(ModItems.HORNED_DEN_DEN_MUSHI.get());
+        CompoundTag nbt = stack.getOrCreateTag();
+        nbt.putInt(SHELL_COLOR_TAG, shellColor);
+        nbt.putInt(BODY_COLOR_TAG,  bodyColor);
+        return stack;
+    }
+
+    // -----------------------------------------------------------------------
+    // useOn
+    //
+    //  Normal right-click  → spawns HornedDenDenMushiEntity  (existing behaviour)
+    //  Sneak + right-click → places HornedDenDenMushiBlock   (jammer)
     // -----------------------------------------------------------------------
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
-        Level level = context.getLevel();
-        if (!level.isClientSide) {
-            BlockPos pos      = context.getClickedPos();
-            Direction face    = context.getClickedFace();
-            BlockPos spawnPos = pos.relative(face);
+        Level level   = context.getLevel();
+        Player player = context.getPlayer();
+        BlockPos pos  = context.getClickedPos();
+        Direction face = context.getClickedFace();
+        BlockPos target = pos.relative(face);
 
-            if (level.getBlockState(spawnPos).isAir() &&
-                    level.getBlockState(spawnPos.below()).isSolid()) {
+        // ── Shared pre-checks ──────────────────────────────────────────────
+        // Validate on both sides so the client gets the right result for the
+        // arm-swing animation.
+        boolean canPlace = level.getBlockState(target).isAir()
+                && level.getBlockState(target.below()).isSolid();
 
-                HornedDenDenMushiEntity entity =
-                        ModEntities.HORNED_DEN_DEN_MUSHI.get().create(level);
+        if (!canPlace) return InteractionResult.PASS;
 
-                if (entity != null) {
-                    entity.setPos(
-                            spawnPos.getX() + 0.5,
-                            spawnPos.getY(),
-                            spawnPos.getZ() + 0.5);
-
-                    // applyToEntity is a public static method on the parent — reuse it
-                    DenDenMushiItem.applyToEntity(context.getItemInHand(), entity);
-
-                    level.addFreshEntity(entity);
-
-                    level.playSound(null,
-                            spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(),
-                            SoundEvents.SLIME_SQUISH_SMALL, SoundSource.BLOCKS,
-                            0.5f, 0.8f + level.random.nextFloat() * 0.4f);
-
-                    if (!context.getPlayer().isCreative()) {
-                        context.getItemInHand().shrink(1);
-                    }
-
-                    return InteractionResult.SUCCESS;
-                }
+        // ── Branch: sneak → place jammer block ────────────────────────────
+        if (player != null && player.isShiftKeyDown()) {
+            if (!level.isClientSide) {
+                placeJammerBlock(context, level, target, player);
             }
+            // sidedSuccess: SUCCESS on server, CONSUME on client (triggers arm swing)
+            return InteractionResult.sidedSuccess(level.isClientSide);
         }
-        return InteractionResult.PASS;
+
+        // ── Branch: normal → spawn entity ──────────────────────────────────
+        if (!level.isClientSide) {
+            spawnEntity(context, level, target, player);
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
     // -----------------------------------------------------------------------
-    // appendHoverText — shows "Horned Den Den Mushi" instead of "Den Den Mushi"
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Places the HornedDenDenMushiBlock, writes shell/body colours to its
+     * block entity, and consumes one item from the player's stack.
+     */
+    private void placeJammerBlock(UseOnContext context, Level level,
+                                  BlockPos target, Player player) {
+        Direction facing  = context.getHorizontalDirection().getOpposite();
+        int shellColorId  = getShellColor(context.getItemInHand());
+
+        // Build the block state with FACING and SHELL_COLOR set
+        BlockState state = ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get()
+                .defaultBlockState()
+                .setValue(HornedDenDenMushiBlock.FACING, facing)
+                .setValue(HornedDenDenMushiBlock.SHELL_COLOR, shellColorId);
+
+        // Place the block (flags=3: notify neighbours + send to clients)
+        level.setBlock(target, state, 3);
+
+        // Write colour data into the freshly created block entity
+        if (level.getBlockEntity(target) instanceof HornedDenDenMushiBlockEntity be) {
+            be.setShellColor(shellColorId);
+            be.setBodyColor(getBodyColor(context.getItemInHand()));
+            // syncToClient() is called inside the setters above
+        }
+
+        // Placement sound
+        level.playSound(
+                null,
+                target.getX(), target.getY(), target.getZ(),
+                SoundEvents.SLIME_SQUISH_SMALL,
+                SoundSource.BLOCKS,
+                0.6f,
+                0.9f + level.random.nextFloat() * 0.2f
+        );
+
+        System.out.println("HornedDenDenMushiItem: Placed jammer block at " + target
+                + " (facing=" + facing + ", shell=" + shellColorId + ")");
+
+        if (!player.isCreative()) {
+            context.getItemInHand().shrink(1);
+        }
+    }
+
+    /**
+     * Spawns a HornedDenDenMushiEntity at the target position and consumes
+     * one item from the player's stack.
+     */
+    private void spawnEntity(UseOnContext context, Level level,
+                             BlockPos target, Player player) {
+        HornedDenDenMushiEntity entity =
+                ModEntities.HORNED_DEN_DEN_MUSHI.get().create(level);
+
+        if (entity != null) {
+            entity.setPos(
+                    target.getX() + 0.5,
+                    target.getY(),
+                    target.getZ() + 0.5
+            );
+
+            // applyToEntity is a public static method on the parent — reuse it
+            DenDenMushiItem.applyToEntity(context.getItemInHand(), entity);
+
+            level.addFreshEntity(entity);
+
+            level.playSound(
+                    null,
+                    target.getX(), target.getY(), target.getZ(),
+                    SoundEvents.SLIME_SQUISH_SMALL,
+                    SoundSource.BLOCKS,
+                    0.5f,
+                    0.8f + level.random.nextFloat() * 0.4f
+            );
+
+            if (player != null && !player.isCreative()) {
+                context.getItemInHand().shrink(1);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // appendHoverText
     // -----------------------------------------------------------------------
 
     @Override
@@ -139,8 +239,11 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
         } else {
             tooltip.add(Component.literal("Wild Horned Den Den Mushi")
                     .withStyle(ChatFormatting.GREEN));
-            tooltip.add(Component.literal("Right-click to place")
-                    .withStyle(ChatFormatting.GRAY));
         }
+
+        tooltip.add(Component.literal("Right-click to place")
+                .withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.literal("Sneak + Right-click to activate as jammer")
+                .withStyle(ChatFormatting.DARK_AQUA));
     }
 }

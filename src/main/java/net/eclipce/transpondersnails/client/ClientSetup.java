@@ -4,6 +4,7 @@ package net.eclipce.transpondersnails.client;
 // Import your exact classes from the screen package
 import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.client.renderer.BlackTransponderSnailBlockEntityRenderer;
+import net.eclipce.transpondersnails.client.renderer.HornedDenDenMushiBlockEntityRenderer;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.BabyBlackTransponderSnailRenderer;
 import net.eclipce.transpondersnails.entity.client.BlackTransponderSnailRenderer;
@@ -49,6 +50,11 @@ public class ClientSetup {
         // Block Entity Renderer — REQUIRED because BlackTransponderSnailBlock implements EntityBlock.
         // EntityBlock blocks render NO geometry without a registered BlockEntityRenderer.
         BlockEntityRenderers.register(ModBlockEntities.BLACK_TRANSPONDER_SNAIL_BE.get(), BlackTransponderSnailBlockEntityRenderer::new);
+
+        // Block Entity Renderer for the Horned Den Den Mushi jammer block.
+        // HornedDenDenMushiBlock uses RenderShape.ENTITYBLOCK_ANIMATED — without this
+        // registration the block will be invisible in the world.
+        BlockEntityRenderers.register(ModBlockEntities.HORNED_DEN_DEN_MUSHI_BLOCK_ENTITY.get(), HornedDenDenMushiBlockEntityRenderer::new);
 
         System.out.println("Registered entity renderers");
 

@@ -34,6 +34,11 @@ public class ModBlockEntities {
                     BlockEntityType.Builder.of(WhiteTransponderSnailBlockEntity::new,
                             ModBlocks.WHITE_TRANSPONDER_SNAIL.get()).build(null));
 
+    public static final RegistryObject<BlockEntityType<HornedDenDenMushiBlockEntity>> HORNED_DEN_DEN_MUSHI_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("horned_den_den_mushi_block_entity", () ->
+                    BlockEntityType.Builder.of(HornedDenDenMushiBlockEntity::new,
+                            ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get()).build(null));
+
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);
     }

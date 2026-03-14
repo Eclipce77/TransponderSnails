@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.event;
 
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.block.entity.HornedDenDenMushiBlockEntity;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
@@ -13,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -20,6 +22,24 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod.EventBusSubscriber(modid = TransponderSnails.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ModEventBusClientEvents {
+
+    @SubscribeEvent
+    public static void registerLayer(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(ModModelLayers.DEN_DEN_MUSHI_LAYER, DenDenMushiModel::createBodyLayer);
+    }
+
+    @SubscribeEvent
+    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(
+                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                BabyBlackTransponderSnailRenderer::new
+        );
+
+        event.registerEntityRenderer(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+                BlackTransponderSnailRenderer::new);
+
+        System.out.println("Registered Baby Black Transponder Snail renderer!");
+    }
 
     @SubscribeEvent
     public static void registerItemModelPredicates(FMLClientSetupEvent event) {
@@ -248,19 +268,6 @@ public class ModEventBusClientEvents {
             return -1;
         }, ModItems.BABY_DEN_DEN_MUSHI.get());
 
-        // Register Horned Den Den Mushi item coloring (reuses DenDenMushiItem color accessors)
-        event.register((stack, tintIndex) -> {
-            if (!(stack.getItem() instanceof HornedDenDenMushiItem)) {
-                return -1;
-            }
-
-            if (tintIndex == 0 && DenDenMushiItem.isCaptured(stack)) {
-                return DenDenMushiItem.getBodyColor(stack);
-            }
-
-            return -1;
-        }, ModItems.HORNED_DEN_DEN_MUSHI.get());
-
         // Register Transponder Snail block item coloring
         event.register((stack, tintIndex) -> {
             if (tintIndex == 0) {
@@ -297,6 +304,23 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
+
+        // Register Horned Den Den Mushi item coloring.
+        // Reads "BodyColor" (int RGB) written by HornedDenDenMushiItem and, when
+        // the block is placed, by HornedDenDenMushiBlockEntityRenderer into the
+        // render ItemStack.  tintIndex 0 targets the body/head/eyes mesh parts.
+        event.register((stack, tintIndex) -> {
+            if (!(stack.getItem() instanceof HornedDenDenMushiItem)) {
+                return -1;
+            }
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null && nbt.contains("BodyColor")) {
+                    return nbt.getInt("BodyColor");
+                }
+            }
+            return -1;
+        }, ModItems.HORNED_DEN_DEN_MUSHI.get());
     }
 
     @SubscribeEvent
@@ -334,5 +358,18 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
+
+        // Horned Den Den Mushi block — tints break particles to match body color.
+        // Minecraft samples the "particle" texture from the block model and
+        // multiplies it by the tintIndex-0 color returned here.
+        event.register((state, level, pos, tintIndex) -> {
+            if (tintIndex == 0 && level != null && pos != null) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof HornedDenDenMushiBlockEntity hornedBE) {
+                    return hornedBE.getBodyColor();
+                }
+            }
+            return -1;
+        }, ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get());
     }
 }

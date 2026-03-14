@@ -100,6 +100,9 @@ public class ModConfig {
         public final ForgeConfigSpec.DoubleValue adultBlackSnailMinRange;
         public final ForgeConfigSpec.DoubleValue adultBlackSnailMaxRange;
 
+        // Horned Den Den Mushi jamming settings
+        public final ForgeConfigSpec.DoubleValue hornedDDMJammingRadius;
+
         // Spawn configuration
         public final SpawnConfig spawning;
 
@@ -217,6 +220,20 @@ public class ModConfig {
                     .comment("Maximum enhanced range for Adult Black Transponder Snails with lightning rods")
                     .comment("This is the maximum range achievable with a full lightning rod array")
                     .defineInRange("adult_black_snail_max_enhanced_range", 400.0, 100.0, 1000.0);
+
+            builder.pop();
+
+            // Horned Den Den Mushi Jamming Settings
+            builder.comment("Horned Den Den Mushi Jamming Settings")
+                    .comment("Configure the jamming sphere of the placed Horned Den Den Mushi block")
+                    .push("horned_den_den_mushi");
+
+            hornedDDMJammingRadius = builder
+                    .comment("Radius in blocks of the jamming sphere")
+                    .comment("Any transponder snail call with a participant (player or block) inside")
+                    .comment("this sphere will be blocked or terminated.")
+                    .comment("Default: 20 blocks — gives a 20-block spherical jamming area.")
+                    .defineInRange("jamming_radius", 20.0, 1.0, 200.0);
 
             builder.pop();
 
@@ -407,6 +424,8 @@ public class ModConfig {
     private static final double DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE = 100.0;
     private static final double DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE = 400.0;
 
+    private static final double DEFAULT_HORNED_DDM_JAMMING_RADIUS = 20.0;
+
     // Spawn defaults
     private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
     private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
@@ -428,6 +447,8 @@ public class ModConfig {
     private static double cachedAdultBlackSnailDefaultRange = DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE;
     private static double cachedAdultBlackSnailMinRange = DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE;
     private static double cachedAdultBlackSnailMaxRange = DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
+
+    private static double cachedHornedDDMJammingRadius = DEFAULT_HORNED_DDM_JAMMING_RADIUS;
 
     // Cache for spawn values
     private static List<String> cachedAllowedDimensions = Arrays.asList("minecraft:overworld");
@@ -476,6 +497,7 @@ public class ModConfig {
             cachedAdultBlackSnailDefaultRange = getValidatedValue(SERVER.adultBlackSnailDefaultRange.get(), DEFAULT_ADULT_BLACK_SNAIL_DEFAULT_RANGE, 20.0, 300.0);
             cachedAdultBlackSnailMinRange = getValidatedValue(SERVER.adultBlackSnailMinRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE, 50.0, 500.0);
             cachedAdultBlackSnailMaxRange = getValidatedValue(SERVER.adultBlackSnailMaxRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE, 100.0, 1000.0);
+            cachedHornedDDMJammingRadius = getValidatedValue(SERVER.hornedDDMJammingRadius.get(), DEFAULT_HORNED_DDM_JAMMING_RADIUS, 1.0, 200.0);
 
             // Load spawn config
             cachedAllowedDimensions = SERVER.spawning.allowedDimensions.get().stream().map(Object::toString).toList();
@@ -509,6 +531,7 @@ public class ModConfig {
             System.out.println("    Adult Black Snail Default: " + cachedAdultBlackSnailDefaultRange + " blocks");
             System.out.println("    Adult Black Snail Min Enhanced: " + cachedAdultBlackSnailMinRange + " blocks");
             System.out.println("    Adult Black Snail Max Enhanced: " + cachedAdultBlackSnailMaxRange + " blocks");
+            System.out.println("    Horned DDM Jamming Radius: " + cachedHornedDDMJammingRadius + " blocks");
             System.out.println("  Spawn Config:");
             System.out.println("    Allowed Dimensions: " + cachedAllowedDimensions);
             System.out.println("    Spawn Biomes: " + cachedSpawnBiomes);
@@ -707,5 +730,12 @@ public class ModConfig {
             return DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
         }
         return cachedAdultBlackSnailMaxRange;
+    }
+
+    public static double getHornedDDMJammingRadius() {
+        if (cachedHornedDDMJammingRadius <= 0 || Double.isNaN(cachedHornedDDMJammingRadius)) {
+            return DEFAULT_HORNED_DDM_JAMMING_RADIUS;
+        }
+        return cachedHornedDDMJammingRadius;
     }
 }

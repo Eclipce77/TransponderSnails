@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.eclipce.transpondersnails.voice.server.HornedDDMJammerManager;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import javax.annotation.Nullable;
@@ -83,6 +84,9 @@ public class TransponderCallManager {
                 interceptionManager.refreshStatusMessages();
             }
         }, 2, 2, TimeUnit.SECONDS);
+
+        // ✨ JAMMING: End calls whose participants fall inside a Horned DDM jammer sphere
+        scheduler.scheduleAtFixedRate(this::checkJammedCalls, 2, 2, TimeUnit.SECONDS);
 
         System.out.println("TransponderCallManager: Initialized with handheld snail support + interception");
     }
@@ -253,6 +257,56 @@ public class TransponderCallManager {
                 handleTargetBusy(caller, callerSnailNumber, targetSnailNumber);
                 return false;
             }
+
+            // ── Jamming check ──────────────────────────────────────────────
+            // Block call initiation if the caller or the target snail's
+            // location falls inside any active Horned Den Den Mushi jammer.
+            HornedDDMJammerManager jammerManager = HornedDDMJammerManager.getInstance();
+            if (jammerManager.getActiveJammerCount() > 0) {
+
+                // Check caller position
+                if (jammerManager.isPlayerJammed(caller)) {
+                    caller.displayClientMessage(
+                            Component.literal("Communications are being jammed in this area!")
+                                    .withStyle(ChatFormatting.RED),
+                            true
+                    );
+                    System.out.println("TransponderCallManager: Call blocked — caller is jammed.");
+                    return false;
+                }
+
+                // Check target snail position (handheld owner OR block position)
+                boolean targetJammed = false;
+                if (isHandheldSnail(targetSnailNumber)) {
+                    UUID targetOwner = getHandheldSnailOwner(targetSnailNumber);
+                    if (targetOwner == null) targetOwner = findHandheldSnailOwner(targetSnailNumber);
+                    if (targetOwner != null) {
+                        ServerPlayer targetPlayer = getPlayerById(targetOwner);
+                        if (targetPlayer != null && jammerManager.isPlayerJammed(targetPlayer)) {
+                            targetJammed = true;
+                        }
+                    }
+                } else if (isSnailBlockRegistered(targetSnailNumber)) {
+                    TransponderSnailBlockEntity targetBlock = getRegisteredSnailBlock(targetSnailNumber);
+                    if (targetBlock != null && targetBlock.getLevel() instanceof ServerLevel sl) {
+                        if (jammerManager.isBlockPosJammed(targetBlock.getBlockPos(), sl)) {
+                            targetJammed = true;
+                        }
+                    }
+                }
+
+                if (targetJammed) {
+                    caller.displayClientMessage(
+                            Component.literal("Cannot reach snail #" + targetSnailNumber
+                                            + " — communications are being jammed!")
+                                    .withStyle(ChatFormatting.RED),
+                            true
+                    );
+                    System.out.println("TransponderCallManager: Call blocked — target snail is jammed.");
+                    return false;
+                }
+            }
+            // ── End jamming check ──────────────────────────────────────────
 
             // Create call session
             UUID callId = UUID.randomUUID();
@@ -1782,13 +1836,86 @@ public class TransponderCallManager {
         return interceptionManager != null && interceptionManager.isCallBeingIntercepted(callId);
     }
 
+    // =================== ✨ JAMMING ===================
+
+    /**
+     * ✨ JAMMING: Periodically checks all active and ringing calls to see if any
+     * participant has moved into (or was already in) a Horned Den Den Mushi
+     * jammer's radius.  If so, the call is terminated and participants notified.
+     *
+     * Called every 2 seconds by the constructor scheduler.
+     */
+    private void checkJammedCalls() {
+        try {
+            HornedDDMJammerManager jammerManager = HornedDDMJammerManager.getInstance();
+            if (jammerManager.getActiveJammerCount() == 0) return;
+
+            for (CallSession session : new ArrayList<>(activeCalls.values())) {
+                // Only check RINGING or CONNECTED calls
+                if (session.getState() != CallSession.CallState.RINGING
+                        && session.getState() != CallSession.CallState.CONNECTED) {
+                    continue;
+                }
+
+                boolean shouldEnd = false;
+
+                for (CallSession.CallParticipant participant : session.getAllParticipants()) {
+                    if (participant.isHandheld() && participant.hasActivePlayer()) {
+                        ServerPlayer player = getPlayerById(participant.getPlayerId());
+                        if (player != null && jammerManager.isPlayerJammed(player)) {
+                            shouldEnd = true;
+                            System.out.println("TransponderCallManager: Ending call "
+                                    + session.getCallId().toString().substring(0, 8)
+                                    + " — handheld participant " + player.getName().getString()
+                                    + " is inside a jammer's range.");
+                            break;
+                        }
+                    } else if (participant.isBlock()) {
+                        TransponderSnailBlockEntity blockEntity =
+                                getRegisteredSnailBlock(participant.getSnailNumber());
+                        if (blockEntity != null
+                                && blockEntity.getLevel() instanceof ServerLevel sl
+                                && jammerManager.isBlockPosJammed(blockEntity.getBlockPos(), sl)) {
+                            shouldEnd = true;
+                            System.out.println("TransponderCallManager: Ending call "
+                                    + session.getCallId().toString().substring(0, 8)
+                                    + " — block snail #" + participant.getSnailNumber()
+                                    + " is inside a jammer's range.");
+                            break;
+                        }
+                    }
+                }
+
+                if (shouldEnd) {
+                    // Notify all active player participants before ending the call
+                    for (UUID playerId : session.getActivePlayerParticipants()) {
+                        ServerPlayer player = getPlayerById(playerId);
+                        if (player != null) {
+                            player.displayClientMessage(
+                                    Component.literal("Call ended — communications jammed!")
+                                            .withStyle(ChatFormatting.RED),
+                                    true
+                            );
+                        }
+                    }
+                    endCall(session.getCallId());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Error in checkJammedCalls: " + e.getMessage());
+        }
+    }
+
     // =================== CLEANUP ===================
 
     public void cleanup() {
-        // âœ¨ INTERCEPTION: Cleanup interception manager
+        // ✨ INTERCEPTION: Cleanup interception manager
         if (interceptionManager != null) {
             interceptionManager.cleanup();
         }
+
+        // ✨ JAMMING: Clear all jammer registrations on server stop
+        HornedDDMJammerManager.getInstance().clear();
 
         for (UUID callId : new HashSet<>(activeCalls.keySet())) {
             try {
