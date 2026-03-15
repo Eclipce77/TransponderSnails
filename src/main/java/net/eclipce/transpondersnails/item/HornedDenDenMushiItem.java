@@ -157,15 +157,32 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
             // syncToClient() is called inside the setters above
         }
 
-        // Placement sound
+        // SNAIL_CONNECTED plays for all nearby players — audible confirmation of jammer activation
         level.playSound(
                 null,
                 target.getX(), target.getY(), target.getZ(),
-                SoundEvents.SLIME_SQUISH_SMALL,
+                net.eclipce.transpondersnails.sound.ModSounds.SNAIL_CONNECTED.get(),
                 SoundSource.BLOCKS,
-                0.6f,
-                0.9f + level.random.nextFloat() * 0.2f
+                1.0f,
+                1.0f
         );
+
+        // Barely audible static hum to nearby players — signals active jamming
+        double staticRange = 16.0;
+        for (Player nearby : level.getEntitiesOfClass(
+                Player.class,
+                new net.minecraft.world.phys.AABB(
+                        target.getX() - staticRange, target.getY() - staticRange, target.getZ() - staticRange,
+                        target.getX() + staticRange, target.getY() + staticRange, target.getZ() + staticRange))) {
+            level.playSound(
+                    nearby,
+                    target.getX(), target.getY(), target.getZ(),
+                    net.eclipce.transpondersnails.sound.ModSounds.LOOPING_STATIC.get(),
+                    SoundSource.BLOCKS,
+                    0.06f,   // barely audible
+                    1.0f
+            );
+        }
 
         System.out.println("HornedDenDenMushiItem: Placed jammer block at " + target
                 + " (facing=" + facing + ", shell=" + shellColorId + ")");

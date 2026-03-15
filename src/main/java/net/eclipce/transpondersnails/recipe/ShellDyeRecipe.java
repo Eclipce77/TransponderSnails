@@ -98,6 +98,7 @@ public class ShellDyeRecipe extends CustomRecipe {
                 || item instanceof BabyBlackTransponderSnailItem
                 || item instanceof WhiteDenDenMushiItem
                 || item instanceof TransponderSnailItem
+                || item instanceof net.eclipce.transpondersnails.item.HornedDenDenMushiItem
                 || item instanceof BlockItem blockItem && (
                 blockItem.getBlock() == net.eclipce.transpondersnails.block.ModBlocks.TRANSPONDER_SNAIL.get()
                         || blockItem.getBlock() == net.eclipce.transpondersnails.block.ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()
@@ -106,87 +107,69 @@ public class ShellDyeRecipe extends CustomRecipe {
     }
 
     /**
-     * Apply shell color to the appropriate snail type
-     * FIXED: Ensures proper NBT structure for entity placement
+     * Apply shell color to the appropriate snail type.
+     *
+     * Key map (MUST match each item's own SHELL_COLOR_TAG constant):
+     *   DenDenMushiItem          → "ShellColor"  (capital)
+     *   BabyDenDenMushiItem      → "ShellColor"  (capital)
+     *   WhiteDenDenMushiItem     → "ShellColor"  (capital)
+     *   HornedDenDenMushiItem    → "ShellColor"  (capital)
+     *   BlackTransponderSnailItem     → "shell_color" (lowercase)
+     *   BabyBlackTransponderSnailItem → "shell_color" (lowercase)
+     *   TransponderSnailItem     → "shell_color" (lowercase)
      */
     private void applyShellColor(ItemStack stack, DyeColor dyeColor) {
         Item item = stack.getItem();
         int colorId = dyeColor.getId();
 
-        // Den Den Mushi (regular)
+        // Den Den Mushi (regular) — preserves existing body color
         if (item instanceof DenDenMushiItem) {
             CompoundTag nbt = stack.getOrCreateTag();
-
-            // Get existing body color, or use default if none exists
             int bodyColor = nbt.contains("BodyColor") ? nbt.getInt("BodyColor") : 0xF5E6A3;
-
-            // Set colors using proper tag names
             nbt.putInt("BodyColor", bodyColor);
             nbt.putInt("ShellColor", colorId);
-
-            System.out.println("ShellDyeRecipe: Den Den Mushi - Body: #" +
-                    Integer.toHexString(bodyColor) + ", Shell: " + dyeColor.getName() + " (ID: " + colorId + ")");
         }
-        // Baby Den Den Mushi
+        // Baby Den Den Mushi — preserves existing body color
         else if (item instanceof BabyDenDenMushiItem) {
             CompoundTag nbt = stack.getOrCreateTag();
-
-            // Get existing body color, or use default if none exists
             int bodyColor = nbt.contains("BodyColor") ? nbt.getInt("BodyColor") : 0xF5E6A3;
-
-            // Set colors using proper tag names
             nbt.putInt("BodyColor", bodyColor);
             nbt.putInt("ShellColor", colorId);
-
-            System.out.println("ShellDyeRecipe: Baby Den Den Mushi - Body: #" +
-                    Integer.toHexString(bodyColor) + ", Shell: " + dyeColor.getName() + " (ID: " + colorId + ")");
-        }
-        // Black Transponder Snail
-        else if (item instanceof BlackTransponderSnailItem) {
-            CompoundTag nbt = stack.getOrCreateTag();
-            nbt.putInt("ShellColor", colorId);
-
-            System.out.println("ShellDyeRecipe: Black Transponder Snail - Shell: " +
-                    dyeColor.getName() + " (ID: " + colorId + ")");
-        }
-        // Baby Black Transponder Snail
-        else if (item instanceof BabyBlackTransponderSnailItem) {
-            CompoundTag nbt = stack.getOrCreateTag();
-            nbt.putInt("ShellColor", colorId);
-
-            System.out.println("ShellDyeRecipe: Baby Black Transponder Snail - Shell: " +
-                    dyeColor.getName() + " (ID: " + colorId + ")");
         }
         // White Den Den Mushi
         else if (item instanceof WhiteDenDenMushiItem) {
-            CompoundTag nbt = stack.getOrCreateTag();
-            nbt.putInt("ShellColor", colorId);
-
-            System.out.println("ShellDyeRecipe: White Den Den Mushi - Shell: " +
-                    dyeColor.getName() + " (ID: " + colorId + ")");
-            System.out.println("  NBT after dyeing: " + nbt);
+            stack.getOrCreateTag().putInt("ShellColor", colorId);
         }
-        // Transponder Snail blocks (regular and transmitter)
+        // Horned Den Den Mushi — preserves existing body color
+        else if (item instanceof net.eclipce.transpondersnails.item.HornedDenDenMushiItem) {
+            CompoundTag nbt = stack.getOrCreateTag();
+            // Preserve BodyColor; only update ShellColor
+            nbt.putInt("ShellColor", colorId);
+        }
+        // Black Transponder Snail — lowercase key to match SHELL_COLOR_TAG
+        else if (item instanceof BlackTransponderSnailItem) {
+            stack.getOrCreateTag().putInt("shell_color", colorId);
+        }
+        // Baby Black Transponder Snail — lowercase key to match SHELL_COLOR_TAG
+        else if (item instanceof BabyBlackTransponderSnailItem) {
+            stack.getOrCreateTag().putInt("shell_color", colorId);
+        }
+        // Transponder Snail block item — lowercase key + BlockEntityTag for placement
         else if (item instanceof TransponderSnailItem) {
             CompoundTag nbt = stack.getOrCreateTag();
             nbt.putInt("shell_color", colorId);
-
-            // Also set in BlockEntityTag for when placed
             CompoundTag beTag = nbt.getCompound("BlockEntityTag");
             beTag.putInt("ShellColor", colorId);
             nbt.put("BlockEntityTag", beTag);
-
-            System.out.println("ShellDyeRecipe: Transponder Snail Block - Shell: " +
-                    dyeColor.getName() + " (ID: " + colorId + ")");
         }
-        // White Transponder Snail block
+        // White Transponder Snail block item
         else if (item instanceof BlockItem blockItem) {
             if (blockItem.getBlock() == net.eclipce.transpondersnails.block.ModBlocks.WHITE_TRANSPONDER_SNAIL.get()) {
                 CompoundTag nbt = stack.getOrCreateTag();
                 nbt.putInt("shell_color", colorId);
-
-                System.out.println("ShellDyeRecipe: White Transponder Snail Block - Shell: " +
-                        dyeColor.getName() + " (ID: " + colorId + ")");
+                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                beTag.putInt("ShellColor", colorId);
+                nbt.put("BlockEntityTag", beTag);
             }
         }
     }

@@ -4,8 +4,17 @@ import net.eclipce.transpondersnails.block.entity.HornedDenDenMushiBlockEntity;
 import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.item.HornedDenDenMushiItem;
 import net.eclipce.transpondersnails.item.ModItems;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -22,8 +31,10 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import javax.annotation.Nullable;
@@ -62,10 +73,10 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
     // WEST   : swap X↔Z depth → X: 0.5-14, Z: 4-12
     // EAST   : mirror WEST in X → 16-14=2, 16-0.5=15.5
 
-    private static final VoxelShape SHAPE_NORTH = Block.box(4,   0, 0.5, 12,   10.5, 14);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(4,   0, 2,   12,   10.5, 15.5);
-    private static final VoxelShape SHAPE_WEST  = Block.box(0.5, 0, 4,   14,   10.5, 12);
-    private static final VoxelShape SHAPE_EAST  = Block.box(2,   0, 4,   15.5, 10.5, 12);
+    private static final VoxelShape SHAPE_NORTH = Block.box(4, 0, 2, 12, 10.5, 15);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(4, 0, 1, 12, 10.5, 14);  // 180° rotation
+    private static final VoxelShape SHAPE_EAST = Block.box(1, 0, 4, 14, 10.5, 12);   // 90° rotation
+    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 4, 15, 10.5, 12);   // 270° rotation
 
     // =================== CONSTRUCTOR ===================
 
@@ -109,6 +120,52 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
             case EAST  -> SHAPE_EAST;
             default    -> SHAPE_NORTH; // NORTH and any unexpected value
         };
+    }
+
+    // =================== DYE RIGHT-CLICK ===================
+
+    /**
+     * Right-click with a DyeItem to change the shell colour.
+     * Updates both the SHELL_COLOR blockstate property (read by the BER)
+     * and the block entity (for persistence across chunk loads).
+     */
+    @Override
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        ItemStack heldItem = player.getItemInHand(hand);
+
+        if (heldItem.getItem() instanceof DyeItem dyeItem) {
+            if (!level.isClientSide) {
+                DyeColor newColor  = dyeItem.getDyeColor();
+                int newColorId     = newColor.getId();
+                int currentColorId = state.getValue(SHELL_COLOR);
+
+                if (newColorId != currentColorId) {
+                    // Update blockstate so BER reads the new colour immediately
+                    level.setBlock(pos, state.setValue(SHELL_COLOR, newColorId), 3);
+
+                    // Update block entity so the colour is persisted
+                    BlockEntity be = level.getBlockEntity(pos);
+                    if (be instanceof HornedDenDenMushiBlockEntity hornedBE) {
+                        hornedBE.setShellColor(newColorId);
+                    }
+
+                    // Consume one dye in survival mode
+                    if (!player.getAbilities().instabuild) {
+                        heldItem.shrink(1);
+                    }
+
+                    level.playSound(null, pos, SoundEvents.DYE_USE,
+                            SoundSource.BLOCKS, 1.0F, 1.0F);
+
+                }
+            }
+            // sidedSuccess: SUCCESS on server (consumes action, swings arm),
+            // CONSUME on client (prevents ghost items from appearing).
+            return InteractionResult.sidedSuccess(level.isClientSide);
+        }
+
+        return InteractionResult.PASS;
     }
 
     // =================== RENDERING ===================

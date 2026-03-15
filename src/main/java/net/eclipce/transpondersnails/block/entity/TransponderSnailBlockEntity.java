@@ -777,17 +777,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 setShellColor(newColor);
 
                 if (player instanceof ServerPlayer serverPlayer) {
-                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail shell dyed " +
-                                    dye.getDyeColor().getName().replace("_", " ") + "!")
-                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+
                 }
 
                 return true;
             } else {
                 if (player instanceof ServerPlayer serverPlayer) {
-                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail is already " +
-                                    dye.getDyeColor().getName().replace("_", " ") + "!")
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+
                 }
             }
         }

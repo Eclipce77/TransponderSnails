@@ -4,6 +4,7 @@ import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.entity.HornedDenDenMushiBlockEntity;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.block.entity.WhiteTransponderSnailBlockEntity;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.*;
@@ -12,6 +13,7 @@ import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -321,6 +323,31 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModItems.HORNED_DEN_DEN_MUSHI.get());
+
+        // White Transponder Snail block item — tints shell faces at tintIndex 0
+        // Reads "shell_color" from item NBT (set by dye recipe / break drop),
+        // or falls back to BlockEntityTag.ShellColor (for placed-then-broken items).
+        event.register((stack, tintIndex) -> {
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                int shellId = -1;
+                if (nbt != null) {
+                    if (nbt.contains("shell_color")) {
+                        shellId = nbt.getInt("shell_color");
+                    } else if (nbt.contains("BlockEntityTag")) {
+                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                        if (beTag.contains("ShellColor")) {
+                            shellId = beTag.getInt("ShellColor");
+                        }
+                    }
+                }
+                if (shellId >= 0 && shellId <= 15) {
+                    float[] c = DyeColor.byId(shellId).getTextureDiffuseColors();
+                    return ((int)(c[0] * 255) << 16) | ((int)(c[1] * 255) << 8) | (int)(c[2] * 255);
+                }
+            }
+            return -1;
+        }, ModItems.WHITE_TRANSPONDER_SNAIL.get());
     }
 
     @SubscribeEvent
@@ -371,5 +398,18 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get());
+
+        // White Transponder Snail block — shell color stored in BE, not blockstate.
+        // Converts DyeColor id (0-15) to RGB for the tintIndex 0 shell faces.
+        event.register((state, level, pos, tintIndex) -> {
+            if (tintIndex == 0 && level != null && pos != null) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
+                    float[] c = DyeColor.byId(whiteBE.getShellColorId()).getTextureDiffuseColors();
+                    return ((int)(c[0] * 255) << 16) | ((int)(c[1] * 255) << 8) | (int)(c[2] * 255);
+                }
+            }
+            return -1;
+        }, ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
     }
 }

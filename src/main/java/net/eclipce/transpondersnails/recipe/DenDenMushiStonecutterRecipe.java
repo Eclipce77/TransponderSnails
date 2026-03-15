@@ -101,6 +101,31 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
             }
         }
 
+        // White Transponder Snail → White Den Den Mushi (shell color only — no body color)
+        if (!input.isEmpty() && input.getItem() == net.eclipce.transpondersnails.item.ModItems.WHITE_TRANSPONDER_SNAIL.get()) {
+            // Override result to be WHITE_DEN_DEN_MUSHI
+            result = new ItemStack(net.eclipce.transpondersnails.item.ModItems.WHITE_DEN_DEN_MUSHI.get());
+            CompoundTag inputNbt = input.getTag();
+            if (inputNbt != null) {
+                int shellColor = -1;
+                // Check top-level shell_color first (item NBT)
+                if (inputNbt.contains("shell_color")) {
+                    shellColor = inputNbt.getInt("shell_color");
+                }
+                // Fall back to BlockEntityTag (placed-then-broken item)
+                else if (inputNbt.contains("BlockEntityTag")) {
+                    CompoundTag beTag = inputNbt.getCompound("BlockEntityTag");
+                    if (beTag.contains("ShellColor")) {
+                        shellColor = beTag.getInt("ShellColor");
+                    }
+                }
+                if (shellColor >= 0) {
+                    result.getOrCreateTag().putInt("ShellColor", shellColor);
+                    System.out.println("DenDenMushiStonecutterRecipe: White TS → White DDM, shell=" + shellColor);
+                }
+            }
+        }
+
         return result;
     }
 

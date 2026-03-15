@@ -132,12 +132,15 @@ public class ModItemProperties {
         );
 
         // Shell color predicate (0.00-0.15 in 0.01 increments)
+        // NOTE: must use / 100.0f, not * 0.01f — multiplication has accumulated float
+        // error that pushes ids 5/10/15 just below their JSON thresholds (Lime→Yellow,
+        // Purple→Cyan, Black→Red). Division rounds to the exact threshold value.
         ItemProperties.register(
                 ModItems.BLACK_TRANSPONDER_SNAIL.get(),
                 new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
                 (stack, level, entity, seed) -> {
                     int colorId = BlackTransponderSnailItem.getShellColorId(stack);
-                    return colorId * 0.01f;
+                    return colorId / 100.0f;
                 }
         );
 
@@ -166,12 +169,13 @@ public class ModItemProperties {
         );
 
         // Shell color predicate (0.00-0.15 in 0.01 increments)
+        // Same fix as adult: use / 100.0f to avoid float precision error at ids 5/10/15
         ItemProperties.register(
                 ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get(),
                 new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
                 (stack, level, entity, seed) -> {
                     int colorId = BabyBlackTransponderSnailItem.getShellColorId(stack);
-                    return colorId * 0.01f;
+                    return colorId / 100.0f;
                 }
         );
 

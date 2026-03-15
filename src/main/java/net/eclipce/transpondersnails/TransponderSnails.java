@@ -15,6 +15,7 @@ import net.eclipce.transpondersnails.item.ModCreativeModeTabs;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.recipe.ModRecipeSerializers;
+import net.eclipce.transpondersnails.recipe.ModRecipeTypes;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
 import net.eclipce.transpondersnails.sound.ModSounds;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
@@ -79,6 +80,7 @@ public class TransponderSnails {
         ModBlockEntities.register(modEventBus);
 
         ModRecipeSerializers.register(modEventBus);
+        ModRecipeTypes.register(modEventBus);
 
         ModMenuTypes.MENU_TYPES.register(modEventBus);
 

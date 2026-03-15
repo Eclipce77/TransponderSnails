@@ -95,19 +95,16 @@ public class BlackTransponderSnailItem extends BlockItem implements ICurioItem {
         Player player = context.getPlayer();
 
         if (player != null && player.isCrouching()) {
-            // Crouching - don't place block, handle as handheld instead
-            return InteractionResult.PASS; // Pass to use() method
+            // Crouching — place the block
+            InteractionResult result = super.useOn(context);
+            if (result.consumesAction()) {
+                return result;
+            }
+            // Placement failed (e.g. can't place here) — fall through to use()
+            return InteractionResult.PASS;
         }
 
-        // Not crouching - try to place block
-        InteractionResult result = super.useOn(context);
-
-        // If placement succeeded, don't open/close
-        if (result.consumesAction()) {
-            return result;
-        }
-
-        // Placement failed (e.g., can't place here) - pass to use() for open/close
+        // Not crouching — pass to use() for open/close
         return InteractionResult.PASS;
     }
 

@@ -164,11 +164,6 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
                 }
 
                 level.playSound(null, pos, SoundEvents.DYE_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
-
-                player.displayClientMessage(
-                        Component.literal("Shell dyed " + newColor.getName()).withStyle(ChatFormatting.GREEN),
-                        true
-                );
             }
             return InteractionResult.sidedSuccess(level.isClientSide);
         }

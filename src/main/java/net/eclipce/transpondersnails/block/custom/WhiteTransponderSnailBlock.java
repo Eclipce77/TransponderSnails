@@ -6,6 +6,8 @@ import net.eclipce.transpondersnails.voice.server.WhiteSnailProtectionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -62,10 +64,10 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
     public static final int STATE_BLOCKING = 2;
 
     // Voxel shapes for the snail (same as regular transponder snail)
-    private static final VoxelShape SHAPE_NORTH = Block.box(3, 0, 2, 12, 12, 16);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(3, 0, 2, 12, 12, 16);
-    private static final VoxelShape SHAPE_EAST = Block.box(2, 0, 3, 16, 12, 12);
-    private static final VoxelShape SHAPE_WEST = Block.box(2, 0, 3, 16, 12, 12);
+    private static final VoxelShape SHAPE_NORTH = Block.box(3.5, 0, 0, 12.5, 11, 15);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(3.5, 0, 0, 12.5, 11, 15);
+    private static final VoxelShape SHAPE_EAST = Block.box(0, 0, 3.5, 15, 11, 12.5);
+    private static final VoxelShape SHAPE_WEST = Block.box(0, 0, 3.5, 15, 11, 12.5);
 
     public WhiteTransponderSnailBlock(Properties properties) {
         super(properties);
@@ -171,6 +173,9 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
                 if (be instanceof WhiteTransponderSnailBlockEntity whiteBE) {
                     DyeColor color = dyeItem.getDyeColor();
                     whiteBE.setShellColor(color);
+
+                    level.playSound(null, pos, SoundEvents.DYE_USE,
+                            SoundSource.BLOCKS, 1.0F, 1.0F);
                     
                     System.out.println("WhiteTransponderSnailBlock: Dyed shell to " + color.getName() + 
                             " at " + pos);

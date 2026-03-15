@@ -4,7 +4,7 @@
   "pattern": [
     "   ",
     "NWN",
-    "   "
+    " C "
   ],
   "key": {
     "W": {
@@ -12,6 +12,9 @@
     },
     "N": {
       "item": "transpondersnails:copper_nugget"
+    },
+    "C": {
+      "item": "transpondersnails:wire"
     }
   },
   "result": {

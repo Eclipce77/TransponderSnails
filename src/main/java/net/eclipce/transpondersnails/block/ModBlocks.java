@@ -35,7 +35,11 @@ public class ModBlocks {
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
     public static final RegistryObject<Block> WHITE_TRANSPONDER_SNAIL = BLOCKS.register("white_transponder_snail",
-            () -> new WhiteTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+            () -> new WhiteTransponderSnailBlock(BlockBehaviour.Properties.of()
+                    .strength(0.5F)
+                    .sound(SoundType.CORAL_BLOCK)
+                    .noOcclusion()
+                    .pushReaction(PushReaction.DESTROY)));
 
     public static final RegistryObject<Block> WIRE = BLOCKS.register("wire",
             () -> new WireBlock(BlockBehaviour.Properties.of()
@@ -45,11 +49,12 @@ public class ModBlocks {
             ));
 
     public static final RegistryObject<Block> BLACK_TRANSPONDER_SNAIL_BLOCK = BLOCKS.register("black_transponder_snail_block",
-            () -> new BlackTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL)
+            () -> new BlackTransponderSnailBlock(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.COLOR_BLACK)
                     .strength(0.5F)
                     .sound(SoundType.CORAL_BLOCK)
                     .noOcclusion()
+                    .pushReaction(PushReaction.DESTROY)
                     .lightLevel(state -> {
                         int callState = state.getValue(BlackTransponderSnailBlock.CALL_STATE);
                         return callState == 3 ? 7 : (callState > 0 ? 3 : 0);
@@ -65,7 +70,7 @@ public class ModBlocks {
      * - pushReaction(DESTROY) so pistons don't move it (they break it and drop the item).
      */
     public static final RegistryObject<Block> HORNED_DEN_DEN_MUSHI_BLOCK = BLOCKS.register("horned_den_den_mushi_block",
-            () -> new HornedDenDenMushiBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL)
+            () -> new HornedDenDenMushiBlock(BlockBehaviour.Properties.of()
                     .strength(0.5F)
                     .sound(SoundType.CORAL_BLOCK)
                     .noOcclusion()

@@ -9,6 +9,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -160,18 +162,14 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
                     // Update block entity and notify player
                     snailEntity.setShellColor(newShellColor);
-                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail shell dyed " +
-                                    dyeColor.getName().replace("_", " ") + "!")
-                            .withStyle(net.minecraft.ChatFormatting.GREEN));
+                    level.playSound(null, pos, SoundEvents.DYE_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
 
                     if (!player.isCreative()) {
                         itemStack.shrink(1);
                     }
                     return InteractionResult.SUCCESS;
                 } else {
-                    serverPlayer.sendSystemMessage(Component.literal("Transponder Snail is already " +
-                                    dyeColor.getName().replace("_", " ") + "!")
-                            .withStyle(net.minecraft.ChatFormatting.YELLOW));
+
                     return InteractionResult.FAIL;
                 }
             }
@@ -260,6 +258,12 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
                     snailBE.colorsInitialized = true;
                 } else {
                     snailBE.ensureColorsInitialized();
+                }
+
+                // Apply shell color from item NBT even when body_color is absent
+                // (e.g. freshly dyed item from crafting table only writes shell_color)
+                if (nbt != null && nbt.contains("shell_color") && shellColor == 0) {
+                    shellColor = nbt.getInt("shell_color");
                 }
 
                 BlockState newState = level.getBlockState(pos).setValue(SHELL_COLOR, shellColor);
