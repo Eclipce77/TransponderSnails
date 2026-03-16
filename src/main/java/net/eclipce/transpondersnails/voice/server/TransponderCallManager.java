@@ -267,7 +267,7 @@ public class TransponderCallManager {
                 // Check caller position
                 if (jammerManager.isPlayerJammed(caller)) {
                     caller.displayClientMessage(
-                            Component.literal("Communications are being jammed in this area!")
+                            Component.literal("Failed to place call")
                                     .withStyle(ChatFormatting.RED),
                             true
                     );
@@ -297,8 +297,7 @@ public class TransponderCallManager {
 
                 if (targetJammed) {
                     caller.displayClientMessage(
-                            Component.literal("Cannot reach snail #" + targetSnailNumber
-                                            + " — communications are being jammed!")
+                            Component.literal("Failed to place call")
                                     .withStyle(ChatFormatting.RED),
                             true
                     );
@@ -1892,8 +1891,8 @@ public class TransponderCallManager {
                         ServerPlayer player = getPlayerById(playerId);
                         if (player != null) {
                             player.displayClientMessage(
-                                    Component.literal("Call ended — communications jammed!")
-                                            .withStyle(ChatFormatting.RED),
+                                    Component.literal("Call ended!")
+                                            .withStyle(ChatFormatting.YELLOW),
                                     true
                             );
                         }
