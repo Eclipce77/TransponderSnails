@@ -1,3 +1,6 @@
-Transponder Snails from the Manga/Anime One Piece, now in Minecraft. (via Simple Voice Chat)
+Transponder Snails from the hit Manga/Anime One Piece, now in Minecraft. (via Simple Voice Chat)
 
-Now available on both [CurseForge]([url](https://www.curseforge.com/minecraft/mc-mods/transponder-snails)) and [Modrinth]([url](https://modrinth.com/mod/transponder-snails))
+Available for Download on:
+
+- CurseForge | https://www.curseforge.com/minecraft/mc-mods/transponder-snails
+- Modrinth | https://modrinth.com/mod/transponder-snails
