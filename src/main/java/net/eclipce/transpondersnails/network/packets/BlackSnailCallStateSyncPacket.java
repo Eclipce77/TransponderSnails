@@ -39,11 +39,25 @@ public class BlackSnailCallStateSyncPacket {
 
     /**
      * Decode packet from network buffer
+     *
+     * FIXED: Added bounds validation for the state ordinal to prevent
+     * ArrayIndexOutOfBoundsException if a corrupted or malformed packet
+     * arrives with an invalid ordinal value. Falls back to IDLE state
+     * if the ordinal is out of range.
      */
     public BlackSnailCallStateSyncPacket(FriendlyByteBuf buf) {
         this.playerId = buf.readUUID();
         int stateOrdinal = buf.readInt();
-        this.state = PortableBlackSnailCallStateManager.CallState.values()[stateOrdinal];
+
+        // Validate ordinal bounds to prevent ArrayIndexOutOfBoundsException
+        PortableBlackSnailCallStateManager.CallState[] values = PortableBlackSnailCallStateManager.CallState.values();
+        if (stateOrdinal >= 0 && stateOrdinal < values.length) {
+            this.state = values[stateOrdinal];
+        } else {
+            System.err.println("[BlackSnailCallStateSyncPacket] WARNING: Received invalid state ordinal " +
+                    stateOrdinal + " (max=" + (values.length - 1) + "), defaulting to IDLE");
+            this.state = PortableBlackSnailCallStateManager.CallState.IDLE;
+        }
     }
 
     /**
@@ -81,16 +95,16 @@ public class BlackSnailCallStateSyncPacket {
 
         // 1. Update PortableBlackSnailCallStateManager (uses 0.25, 0.5, 0.75)
         PortableBlackSnailCallStateManager.getInstance().setState(playerId, state);
-        System.out.println("  → Updated PortableBlackSnailCallStateManager");
+        System.out.println("  -> Updated PortableBlackSnailCallStateManager");
 
         // 2. Update BlackSnailCallStateManager (uses 0.1, 0.2, 0.3 to match black_transponder_snail.json)
         BlackSnailCallStateManager.getInstance().setStateFromPortable(playerId, state);
-        System.out.println("  → Updated BlackSnailCallStateManager (predicate=" +
+        System.out.println("  -> Updated BlackSnailCallStateManager (predicate=" +
                 BlackSnailCallStateManager.getInstance().getPredicateValue(playerId) + ")");
 
         // 3. Update BabyBlackSnailCallStateManager (uses 0.1, 0.2, 0.3 to match baby_black_transponder_snail.json)
         BabyBlackSnailCallStateManager.getInstance().setStateFromPortable(playerId, state);
-        System.out.println("  → Updated BabyBlackSnailCallStateManager (predicate=" +
+        System.out.println("  -> Updated BabyBlackSnailCallStateManager (predicate=" +
                 BabyBlackSnailCallStateManager.getInstance().getPredicateValue(playerId) + ")");
 
         System.out.println("[BLACK-SNAIL-SYNC-PACKET] All state managers updated successfully");

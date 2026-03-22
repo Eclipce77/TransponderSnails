@@ -50,6 +50,7 @@ import static net.eclipce.transpondersnails.item.ModItemProperties.registerItemP
 
 /**
  * Main mod class for Transponder Snails
+ * FIXED: No-arg constructor for maximum Forge compatibility (47.2.x through 47.4.x)
  * FIXED: Maximum crash resistance with immediate saves + JVM shutdown hook
  */
 @Mod(TransponderSnails.MOD_ID)
@@ -63,11 +64,19 @@ public class TransponderSnails {
     // Call manager - will be set by the VoiceChat plugin
     private static TransponderCallManager callManager;
 
-    // ⚡ Shutdown hook for emergency saves
+    // Shutdown hook for emergency saves
     private static Thread emergencyShutdownHook;
 
-    public TransponderSnails(FMLJavaModLoadingContext context) {
-        IEventBus modEventBus = context.getModEventBus();
+    /**
+     * FIXED: No-arg constructor using FMLJavaModLoadingContext.get()
+     * This works on ALL Forge 1.20.1 versions (47.2.x, 47.3.x, 47.4.x)
+     *
+     * The previous constructor signature:
+     *   public TransponderSnails(FMLJavaModLoadingContext context)
+     * only works on Forge 47.3.0+ and causes NoSuchMethodException on older versions.
+     */
+    public TransponderSnails() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
@@ -104,13 +113,13 @@ public class TransponderSnails {
 
         modEventBus.addListener(this::setup);
 
-        // ⚡ Register JVM shutdown hook for emergency saves
+        // Register JVM shutdown hook for emergency saves
         registerEmergencyShutdownHook();
     }
 
     private void setup(final FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // If you also have server→client packets, register them here too
+            // If you also have server->client packets, register them here too
         });
     }
 
@@ -141,32 +150,32 @@ public class TransponderSnails {
     }
 
     /**
-     * ⚡ Register a JVM shutdown hook for emergency saves
+     * Register a JVM shutdown hook for emergency saves
      * This catches SIGTERM and other kill signals (but not SIGKILL)
      * Provides last-ditch attempt to save data when server is killed
      */
     private void registerEmergencyShutdownHook() {
         emergencyShutdownHook = new Thread(() -> {
-            System.out.println("═════════════════════════════════════════════════");
-            System.out.println("⚠️  EMERGENCY SHUTDOWN DETECTED! ⚠️");
+            System.out.println("=================================================");
+            System.out.println("  EMERGENCY SHUTDOWN DETECTED!");
             System.out.println("TransponderSnails: Attempting emergency save...");
-            System.out.println("═════════════════════════════════════════════════");
+            System.out.println("=================================================");
 
             try {
                 SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
                 if (registry != null) {
                     System.out.println("TransponderSnails: Emergency saving registry...");
                     registry.forceSave();
-                    System.out.println("✅ TransponderSnails: Emergency save successful!");
+                    System.out.println("TransponderSnails: Emergency save successful!");
                 } else {
                     System.out.println("TransponderSnails: No registry to save (server may not have started)");
                 }
             } catch (Exception e) {
-                System.err.println("❌ TransponderSnails: Emergency save failed: " + e.getMessage());
+                System.err.println("TransponderSnails: Emergency save failed: " + e.getMessage());
                 e.printStackTrace();
             }
 
-            System.out.println("═════════════════════════════════════════════════");
+            System.out.println("=================================================");
         }, "TransponderSnails-EmergencyShutdown");
 
         Runtime.getRuntime().addShutdownHook(emergencyShutdownHook);
@@ -188,9 +197,9 @@ public class TransponderSnails {
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
-        System.out.println("╔════════════════════════════════════════════════════════════╗");
-        System.out.println("║ TransponderSnails: GRACEFUL SHUTDOWN INITIATED             ║");
-        System.out.println("╚════════════════════════════════════════════════════════════╝");
+        System.out.println("============================================================");
+        System.out.println(" TransponderSnails: GRACEFUL SHUTDOWN INITIATED              ");
+        System.out.println("============================================================");
 
         // Set shutdown flag to prevent infinite loops during world save
         TransponderSnailBlockEntity.setServerShuttingDown();
@@ -201,7 +210,7 @@ public class TransponderSnails {
         if (registry != null) {
             System.out.println("TransponderSnails: Graceful shutdown - saving registry...");
             registry.forceSave();
-            System.out.println("TransponderSnails: ✅ Registry saved successfully");
+            System.out.println("TransponderSnails: Registry saved successfully");
         } else {
             System.out.println("TransponderSnails: No registry instance to save");
         }
@@ -210,9 +219,9 @@ public class TransponderSnails {
         SnailNumberRegistry.resetInstance();
         System.out.println("TransponderSnails: Instance cache reset");
 
-        System.out.println("╔════════════════════════════════════════════════════════════╗");
-        System.out.println("║ TransponderSnails: GRACEFUL SHUTDOWN COMPLETE              ║");
-        System.out.println("╚════════════════════════════════════════════════════════════╝");
+        System.out.println("============================================================");
+        System.out.println(" TransponderSnails: GRACEFUL SHUTDOWN COMPLETE               ");
+        System.out.println("============================================================");
     }
 
     // Register commands

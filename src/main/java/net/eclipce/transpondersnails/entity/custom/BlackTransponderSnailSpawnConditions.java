@@ -14,6 +14,12 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * Spawn conditions for Black Transponder Snails (both adult and baby)
  * These snails ONLY spawn underwater in medium to deep water
+ *
+ * FIXED: isEnclosed() and getWaterDepthAbove() now safely handle WorldGenRegion
+ * boundary access during chunk generation. Previously, checking neighboring blocks
+ * at chunk edges could access positions outside the WorldGenRegion's available area,
+ * causing "We are asking a region for a chunk out of bound" RuntimeExceptions that
+ * crashed the server during world generation.
  */
 public class BlackTransponderSnailSpawnConditions {
 
@@ -61,7 +67,7 @@ public class BlackTransponderSnailSpawnConditions {
                         " > " + spawnRate + "%)");
                 return false;
             }
-            System.out.println("✓ Passed spawn rate check (" + String.format("%.1f", roll) +
+            System.out.println("Passed spawn rate check (" + String.format("%.1f", roll) +
                     " <= " + spawnRate + "%)");
         }
 
@@ -70,7 +76,7 @@ public class BlackTransponderSnailSpawnConditions {
             System.out.println("REJECTED: Not underwater");
             return false;
         }
-        System.out.println("✓ Underwater");
+        System.out.println("Underwater - OK");
 
         // 4. Check water depth (must be medium to deep)
         int waterDepth = getWaterDepthAbove(level, pos);
@@ -82,7 +88,7 @@ public class BlackTransponderSnailSpawnConditions {
             System.out.println("REJECTED: Water too deep (" + waterDepth + " blocks, max " + MAX_WATER_DEPTH + ")");
             return false;
         }
-        System.out.println("✓ Water depth OK (" + waterDepth + " blocks)");
+        System.out.println("Water depth OK (" + waterDepth + " blocks)");
 
         // 5. Must have solid block below (can't swim, need floor)
         BlockPos below = pos.below();
@@ -90,7 +96,7 @@ public class BlackTransponderSnailSpawnConditions {
             System.out.println("REJECTED: No solid block below");
             return false;
         }
-        System.out.println("✓ Solid block below");
+        System.out.println("Solid block below - OK");
 
         // 6. Block below should not be bedrock or barriers (reasonable spawning surface)
         if (level.getBlockState(below).is(Blocks.BEDROCK) ||
@@ -98,29 +104,34 @@ public class BlackTransponderSnailSpawnConditions {
             System.out.println("REJECTED: Invalid spawn surface (bedrock/barrier)");
             return false;
         }
-        System.out.println("✓ Valid spawn surface");
+        System.out.println("Valid spawn surface - OK");
 
         // 7. Check that spawn pos and above are water (not just the pos)
         if (!level.getFluidState(pos.above()).is(FluidTags.WATER)) {
             System.out.println("REJECTED: No water above spawn position");
             return false;
         }
-        System.out.println("✓ Water above spawn position");
+        System.out.println("Water above spawn position - OK");
 
         // 8. Not in a tight space (need some room)
         if (isEnclosed(level, pos)) {
             System.out.println("REJECTED: Too enclosed/cramped");
             return false;
         }
-        System.out.println("✓ Open enough space");
+        System.out.println("Open enough space - OK");
 
-        System.out.println("✓✓✓ UNDERWATER SPAWN APPROVED ✓✓✓");
+        System.out.println("=== UNDERWATER SPAWN APPROVED ===");
         return true;
     }
 
     /**
      * Get the depth of water above a position
      * Returns the number of water blocks above
+     *
+     * FIXED: Wrapped in try-catch to handle WorldGenRegion boundary access.
+     * During chunk generation, vertical scans that cross into unloaded chunk
+     * columns could theoretically throw. If that happens, we return the depth
+     * counted so far rather than crashing.
      */
     private static int getWaterDepthAbove(LevelAccessor level, BlockPos pos) {
         int depth = 0;
@@ -129,10 +140,18 @@ public class BlackTransponderSnailSpawnConditions {
         // Count water blocks above (up to MAX_WATER_DEPTH + 1 to detect "too deep")
         for (int i = 0; i < MAX_WATER_DEPTH + 10; i++) {
             mutablePos.move(0, 1, 0);
-            if (level.getFluidState(mutablePos).is(FluidTags.WATER)) {
-                depth++;
-            } else {
-                break; // Hit surface or non-water block
+            try {
+                if (level.getFluidState(mutablePos).is(FluidTags.WATER)) {
+                    depth++;
+                } else {
+                    break; // Hit surface or non-water block
+                }
+            } catch (RuntimeException e) {
+                // WorldGenRegion can throw RuntimeException when accessing blocks
+                // outside the available chunk area during world generation.
+                // Return the depth counted so far rather than crashing.
+                System.out.println("BlackTransponderSnailSpawnConditions: Hit WorldGenRegion boundary during depth check at " + mutablePos + ", returning depth=" + depth);
+                break;
             }
         }
 
@@ -142,9 +161,18 @@ public class BlackTransponderSnailSpawnConditions {
     /**
      * Check if the spawn position is too enclosed/cramped
      * Black Transponder Snails need some open water space
+     *
+     * FIXED: Wrapped each neighbor block check in try-catch to handle
+     * WorldGenRegion boundary access. During chunk generation, the spawn
+     * predicate can be called at positions on the edge of the generation
+     * region. Checking neighboring blocks with offset(x, 0, z) can read
+     * into chunks that are outside the WorldGenRegion's accessible area,
+     * causing "We are asking a region for a chunk out of bound" crashes.
+     *
+     * If a neighbor check fails, we simply skip it (treat it as non-solid /
+     * open water), which is a safe assumption for ocean biomes.
      */
     private static boolean isEnclosed(LevelAccessor level, BlockPos pos) {
-        // Check 3x3 area horizontally
         int solidBlocks = 0;
         int totalChecked = 0;
 
@@ -155,8 +183,15 @@ public class BlackTransponderSnailSpawnConditions {
                 BlockPos checkPos = pos.offset(x, 0, z);
                 totalChecked++;
 
-                if (level.getBlockState(checkPos).isSolid()) {
-                    solidBlocks++;
+                try {
+                    if (level.getBlockState(checkPos).isSolid()) {
+                        solidBlocks++;
+                    }
+                } catch (RuntimeException e) {
+                    // WorldGenRegion throws RuntimeException when accessing blocks
+                    // outside the available chunk area during world generation.
+                    // Treat inaccessible blocks as non-solid (open water assumption
+                    // is safe since this spawns in ocean biomes).
                 }
             }
         }

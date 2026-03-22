@@ -39,5 +39,9 @@
   "item.transpondersnails.transmitter": "Transmitter",
   "item.transpondersnails.microphone_capsule": "Microphone Capsule",
 
-  "creativetab.transpondersnails": "Transponder Snails"
+  "creativetab.transpondersnails": "Transponder Snails",
+
+  "key.category.transpondersnails": "Transponder Snails",
+
+  "key.transpondersnails.snail_interact": "Snail Interact (Curios)"
 }
