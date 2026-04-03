@@ -67,6 +67,7 @@ public class SnailAudioRelay {
     private static final long AUDIO_TIMEOUT_MS = 500;
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
+        System.out.println("SnailAudioRelay: Initialized");
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 
@@ -81,10 +82,6 @@ public class SnailAudioRelay {
         // ✅ Cleanup old speaker codecs every 5 seconds
         cleanupExecutor.scheduleAtFixedRate(this::cleanupOldCodecs, 5000, 5000, TimeUnit.MILLISECONDS);
 
-        System.out.println("SnailAudioRelay: Initialized TIER 2 + Handheld + Per-Speaker Filters/Codecs + White Snail Protection");
-        System.out.println("  Phone Filter: " + (ModConfig.isPhoneFilterEnabled() ? "ENABLED (per-speaker)" : "DISABLED"));
-        System.out.println("  Opus Codecs: PER-SPEAKER (prevents simultaneous audio corruption)");
-        System.out.println("  White Snail Protection: Looping static via CallSoundManager");
     }
 
     /**
@@ -93,7 +90,6 @@ public class SnailAudioRelay {
      */
     public void setInterceptionManager(CallInterceptionManager interceptionManager) {
         this.interceptionManager = interceptionManager;
-        System.out.println("SnailAudioRelay: Interception manager linked");
     }
 
     // =================== AUDIO PROCESSING ===================
@@ -148,7 +144,8 @@ public class SnailAudioRelay {
                     sessionCache.transmittingSnail.getBlockPos() : null;
 
             // =================== FORWARD TO BLOCK SNAILS ===================
-            Set<BlockPos> targetPositions = callSession.getInvolvedBlockPositions();
+            // PERFORMANCE: use cached set from CallSessionCache (avoids new HashSet<> per packet)
+            Set<BlockPos> targetPositions = sessionCache.cachedBlockPositions;
             for (BlockPos targetPos : targetPositions) {
                 // Skip if this is the transmitting block snail
                 if (transmittingPos == null || !targetPos.equals(transmittingPos)) {
@@ -158,7 +155,8 @@ public class SnailAudioRelay {
             }
 
             // =================== FORWARD TO HANDHELD SNAILS ===================
-            Set<UUID> handheldParticipants = callSession.getHandheldParticipantIds();
+            // PERFORMANCE: use cached set from CallSessionCache (avoids new HashSet<> per packet)
+            Set<UUID> handheldParticipants = sessionCache.cachedHandheldParticipants;
             for (UUID handheldPlayerId : handheldParticipants) {
                 // Don't echo to self
                 if (!handheldPlayerId.equals(speaker.getUUID())) {
@@ -190,12 +188,13 @@ public class SnailAudioRelay {
                                 forwardOpusToInterceptor(interceptorChannel, opusData, speaker.getUUID());
                             }
 
-                            // Mark audio activity AND sync ACTIVE state for visual feedback
-                            interceptionManager.markAudioActivity(interceptorId);
-
+                            // PERFORMANCE: markAudioActivityAndSync only sends a packet
+                            // on the CALL→ACTIVE transition, not every ~50Hz audio frame.
                             ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
                             if (interceptorPlayer != null) {
-                                BlackSnailStateSyncHelper.syncActive(interceptorPlayer);
+                                interceptionManager.markAudioActivityAndSync(interceptorId, interceptorPlayer);
+                            } else {
+                                interceptionManager.markAudioActivity(interceptorId);
                             }
                         }
                     }
@@ -285,8 +284,7 @@ public class SnailAudioRelay {
             OpusDecoder decoder = speakerDecoders.computeIfAbsent(speakerId,
                     id -> {
                         OpusDecoder newDecoder = voiceChatApi.createDecoder();
-                        System.out.println("SnailAudioRelay: Created dedicated Opus decoder for speaker " +
-                                id.toString().substring(0, 8));
+                        id.toString().substring(0, 8);
                         return newDecoder;
                     });
 
@@ -294,8 +292,7 @@ public class SnailAudioRelay {
             OpusEncoder encoder = speakerEncoders.computeIfAbsent(speakerId,
                     id -> {
                         OpusEncoder newEncoder = voiceChatApi.createEncoder();
-                        System.out.println("SnailAudioRelay: Created dedicated Opus encoder for speaker " +
-                                id.toString().substring(0, 8));
+                        id.toString().substring(0, 8);
                         return newEncoder;
                     });
 
@@ -310,8 +307,7 @@ public class SnailAudioRelay {
             PhoneAudioFilter filter = speakerFilters.computeIfAbsent(speakerId,
                     id -> {
                         PhoneAudioFilter newFilter = new PhoneAudioFilter();
-                        System.out.println("SnailAudioRelay: Created phone filter for speaker " +
-                                id.toString().substring(0, 8));
+                        id.toString().substring(0, 8);
                         return newFilter;
                     });
 
@@ -494,8 +490,7 @@ public class SnailAudioRelay {
         if (closestSnail == null) {
             CallSession.CallParticipant participant = callSession.getParticipantByPlayer(player.getUUID());
             if (participant != null && participant.isHandheld()) {
-                System.out.println("SnailAudioRelay: Player " + player.getName().getString() +
-                        " is using handheld snail #" + participant.getSnailNumber());
+                participant.getSnailNumber();
             }
         }
 
@@ -534,7 +529,6 @@ public class SnailAudioRelay {
     public void onPlayerLeftCall(UUID playerId) {
         playerSessionCache.remove(playerId);
 
-        System.out.println("SnailAudioRelay: Cleaned up player " + playerId.toString().substring(0, 8));
     }
 
     /**
@@ -554,7 +548,6 @@ public class SnailAudioRelay {
             }
         }
 
-        System.out.println("SnailAudioRelay: Cleaned up call " + callId.toString().substring(0, 8));
     }
 
     /**
@@ -579,7 +572,6 @@ public class SnailAudioRelay {
                 }
                 lastFilterActivity.remove(speakerId);
             }
-            System.out.println("SnailAudioRelay: Cleaned up " + toRemove.size() + " inactive speaker filters");
         }
     }
 
@@ -623,7 +615,6 @@ public class SnailAudioRelay {
 
                 lastCodecActivity.remove(speakerId);
             }
-            System.out.println("SnailAudioRelay: Cleaned up " + toRemove.size() + " inactive speaker codecs");
         }
     }
 
@@ -642,7 +633,6 @@ public class SnailAudioRelay {
         }
 
         // ✅ Close all per-speaker codecs
-        System.out.println("SnailAudioRelay: Closing " + speakerDecoders.size() + " speaker decoders...");
         for (OpusDecoder decoder : speakerDecoders.values()) {
             try {
                 decoder.close();
@@ -651,7 +641,6 @@ public class SnailAudioRelay {
             }
         }
 
-        System.out.println("SnailAudioRelay: Closing " + speakerEncoders.size() + " speaker encoders...");
         for (OpusEncoder encoder : speakerEncoders.values()) {
             try {
                 encoder.close();
@@ -670,7 +659,6 @@ public class SnailAudioRelay {
         speakerEncoders.clear();
         lastCodecActivity.clear();
 
-        System.out.println("SnailAudioRelay: Shutdown complete");
     }
 
     // =================== DATA STRUCTURES ===================
@@ -683,10 +671,19 @@ public class SnailAudioRelay {
         final TransponderSnailBlockEntity transmittingSnail;
         final long timestamp;
 
+        // PERFORMANCE: Cache sets that would otherwise be allocated fresh on every
+        // audio packet (~50Hz). getInvolvedBlockPositions() and getHandheldParticipantIds()
+        // both do `new HashSet<>()` on every call. Caching here avoids ~100 short-lived
+        // allocations per second per active call.
+        final java.util.Set<net.minecraft.core.BlockPos> cachedBlockPositions;
+        final java.util.Set<java.util.UUID> cachedHandheldParticipants;
+
         CallSessionCache(CallSession callSession, @Nullable TransponderSnailBlockEntity transmittingSnail) {
             this.callSession = callSession;
             this.transmittingSnail = transmittingSnail;
             this.timestamp = System.currentTimeMillis();
+            this.cachedBlockPositions = callSession.getInvolvedBlockPositions();
+            this.cachedHandheldParticipants = callSession.getHandheldParticipantIds();
         }
 
         boolean isValid() {

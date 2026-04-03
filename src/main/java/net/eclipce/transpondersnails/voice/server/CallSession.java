@@ -224,12 +224,10 @@ public class CallSession {
     // ✨ NEW: Handheld channels
     public void addHandheldChannel(UUID playerId, AudioChannel channel) {
         handheldChannels.put(playerId, channel);
-        System.out.println("CallSession: Added handheld channel for player " + playerId.toString().substring(0, 8));
     }
 
     public void removeHandheldChannel(UUID playerId) {
         handheldChannels.remove(playerId);
-        System.out.println("CallSession: Removed handheld channel for player " + playerId.toString().substring(0, 8));
     }
 
     @Nullable

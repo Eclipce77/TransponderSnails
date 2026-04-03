@@ -39,9 +39,6 @@ public class CallInitiationPacket {
                 return;
             }
 
-            System.out.println("CallInitiationPacket: Player " + player.getName().getString() +
-                    " (snail #" + callerSnailNumber + ") attempting to call snail #" + targetSnailNumber);
-
             // Validate caller's snail number matches what we expect
             if (player.containerMenu instanceof net.eclipce.transpondersnails.screen.DialingMenu dialingMenu) {
                 int actualCallerNumber = dialingMenu.getOwnSnailNumber();

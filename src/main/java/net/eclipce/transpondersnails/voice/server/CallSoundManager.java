@@ -88,13 +88,11 @@ public class CallSoundManager {
     // Register for blockstate updates
     public void registerBlockstateCallback(BlockstateUpdateCallback callback) {
         blockstateCallbacks.add(callback);
-        System.out.println("CallSoundManager: Registered blockstate callback");
     }
 
     public void unregisterBlockstateCallback(BlockstateUpdateCallback callback) {
         boolean removed = blockstateCallbacks.remove(callback);
         if (removed) {
-            System.out.println("CallSoundManager: Unregistered blockstate callback");
         }
     }
 
@@ -121,8 +119,7 @@ public class CallSoundManager {
 
             playersHearingStatic.add(playerId);
 
-            System.out.println("CallSoundManager: Started looping static for player " +
-                    player.getName().getString());
+            player.getName().getString();
 
         } catch (Exception e) {
             System.err.println("CallSoundManager: Failed to start looping static: " + e.getMessage());
@@ -146,8 +143,7 @@ public class CallSoundManager {
             // or when explicitly stopped via the client
             // We rely on the client to handle the stop when it receives the state change
 
-            System.out.println("CallSoundManager: Stopped looping static for player " +
-                    player.getName().getString());
+            player.getName().getString();
 
         } catch (Exception e) {
             System.err.println("CallSoundManager: Failed to stop looping static: " + e.getMessage());
@@ -172,7 +168,6 @@ public class CallSoundManager {
         playSnailPositionRepeatingSound(player.level(), snailLocation, SNAIL_RINGING_SOUND,
                 soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
                 2000); // Reduced from 2000ms to 1500ms
-        System.out.println("CallSoundManager: Started ambient ringtone at snail position " + snailLocation);
     }
 
     public void playLocationalRingToneAtPosition(Level level, BlockPos snailLocation) {
@@ -180,7 +175,6 @@ public class CallSoundManager {
         playSnailPositionRepeatingSound(level, snailLocation, SNAIL_RINGING_SOUND,
                 soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
                 2000); // Reduced from 2000ms to 1500ms
-        System.out.println("CallSoundManager: Started ambient ringtone at snail position " + snailLocation + " (no player required)");
     }
 
     /**
@@ -191,7 +185,6 @@ public class CallSoundManager {
         UUID soundId = UUID.randomUUID();
         playPlayerFollowingRepeatingSound(player, SNAIL_RINGING_SOUND, soundId,
                 SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Started ringtone for player " + player.getName().getString());
     }
 
     /**
@@ -199,7 +192,6 @@ public class CallSoundManager {
      */
     public void playCallConnectedSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played ambient connection sound at snail position " + snailPos);
     }
 
     /**
@@ -207,7 +199,6 @@ public class CallSoundManager {
      */
     public void playConnectedSoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played connected sound for player " + player.getName().getString());
     }
 
     /**
@@ -215,7 +206,6 @@ public class CallSoundManager {
      */
     public void playCallDisconnectedSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_DISCONNECTED_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played ambient disconnection sound at snail position " + snailPos);
     }
 
     /**
@@ -223,7 +213,6 @@ public class CallSoundManager {
      */
     public void playDisconnectedSoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, SNAIL_CALL_DISCONNECTED_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played disconnected sound for player " + player.getName().getString());
     }
 
     /**
@@ -231,7 +220,6 @@ public class CallSoundManager {
      */
     public void playPickUpSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, HANDSET_CALL_PICK_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
-        System.out.println("CallSoundManager: Played interaction pick up sound at snail position " + snailPos);
     }
 
     /**
@@ -239,7 +227,6 @@ public class CallSoundManager {
      */
     public void playPickUpSoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, HANDSET_CALL_PICK_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
-        System.out.println("CallSoundManager: Played pick up sound for player " + player.getName().getString());
     }
 
     /**
@@ -247,7 +234,6 @@ public class CallSoundManager {
      */
     public void playHangUpSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, HANDSET_CALL_HANG_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
-        System.out.println("CallSoundManager: Played interaction hang up sound at snail position " + snailPos);
     }
 
     /**
@@ -255,7 +241,6 @@ public class CallSoundManager {
      */
     public void playHangUpSoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, HANDSET_CALL_HANG_UP_SOUND, SoundCategory.INTERACTION_SOUNDS);
-        System.out.println("CallSoundManager: Played hang up sound for player " + player.getName().getString());
     }
 
     /**
@@ -263,7 +248,6 @@ public class CallSoundManager {
      */
     public void playBusySoundAtSnail(ServerPlayer player, BlockPos snailPos) {
         playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_BUSY_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played ambient busy sound at snail position " + snailPos);
     }
 
     /**
@@ -271,7 +255,6 @@ public class CallSoundManager {
      */
     public void playBusySoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, SNAIL_CALL_BUSY_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
-        System.out.println("CallSoundManager: Played busy sound for player " + player.getName().getString());
     }
 
     // =================== CORE SOUND METHODS WITH FASTER TIMING ===================
@@ -314,7 +297,6 @@ public class CallSoundManager {
                 }, 1000, TimeUnit.MILLISECONDS); // Reduced from 2000ms to 1000ms for faster cleanup
             }
 
-            System.out.println("CallSoundManager: Played spatial sound " + soundLocation + " (" + category + ") at " + snailPos);
 
         } catch (Exception e) {
             System.err.println("CallSoundManager: Failed to play snail position sound " + soundLocation + " at " + snailPos);
@@ -348,11 +330,9 @@ public class CallSoundManager {
             if (activeSounds.containsKey(soundId)) {
                 playSnailPositionSoundDirect(level, snailPos, soundLocation);
             } else {
-                System.out.println("CallSoundManager: Repeating sound " + soundLocation + " at " + snailPos + " was stopped, cleaning up");
             }
         }, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
 
-        System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " (" + category + ") at " + snailPos + " with " + intervalMs + "ms interval");
     }
 
     /**
@@ -410,7 +390,6 @@ public class CallSoundManager {
             }
         }, 2000, 2000, TimeUnit.MILLISECONDS); // 2 second intervals for ringtone
 
-        System.out.println("CallSoundManager: Started repeating sound " + soundLocation + " for player " + player.getName().getString());
     }
 
     /**
@@ -468,7 +447,6 @@ public class CallSoundManager {
         }
 
         if (stoppedCount > 0) {
-            System.out.println("CallSoundManager: Stopped " + stoppedCount + " " + type + " sound(s) at snail position " + snailPos);
         }
     }
 
@@ -502,7 +480,6 @@ public class CallSoundManager {
         }
 
         if (stoppedCount > 0) {
-            System.out.println("CallSoundManager: Stopped all " + stoppedCount + " sound(s) at snail position " + snailPos);
         }
     }
 
@@ -621,7 +598,6 @@ public class CallSoundManager {
         }
 
         if (stoppedCount > 0) {
-            System.out.println("CallSoundManager: Stopped " + stoppedCount + " ringtone(s) for player " + player.getName().getString());
         }
     }
 
@@ -639,7 +615,6 @@ public class CallSoundManager {
         blockstateCallbacks.clear();
         playersHearingStatic.clear(); // ✨ NEW: Clean up static tracking
         scheduler.shutdown();
-
         System.out.println("CallSoundManager: Cleanup complete");
     }
 

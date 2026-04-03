@@ -136,10 +136,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             TransponderSnailBlock.updateVisualState(level, worldPosition, newHasSound, newInCall);
             lastBlockstateUpdate = now;
 
-            System.out.println("TransponderSnailBlockEntity: Updated blockstate to " + targetModel +
-                    " (Sound: " + newHasSound + ", Call: " + newInCall + ") for CallSession state: " +
-                    (currentCallSession != null ? currentCallSession.getState() : "NO_SESSION") +
-                    " at " + worldPosition);
         }
     }
 
@@ -248,9 +244,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     public void setCallSession(CallSession callSession) {
         this.currentCallSession = callSession;
         updateBlockstateVisuals();
-        System.out.println("TransponderSnailBlockEntity: Call session set to " +
-                (callSession != null ? callSession.getState() : "null") +
-                " for snail #" + assignedSnailNumber);
+
     }
 
     /**
@@ -259,7 +253,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     public void clearCallSession() {
         this.currentCallSession = null;
         updateBlockstateVisuals();
-        System.out.println("TransponderSnailBlockEntity: Call session cleared for snail #" + assignedSnailNumber);
     }
 
     /**
@@ -321,10 +314,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             } else if (hasAmbientSound) {
                 soundType = "ambient sound (no session)";
             }
-
-            System.out.println("TransponderSnailBlockEntity: Sound state changed - " + soundType +
-                    " hasAmbientSound: " + hasAmbientSound +
-                    " sessionState: " + (currentCallSession != null ? currentCallSession.getState() : "NO_SESSION"));
         }
     }
 
@@ -521,7 +510,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             }
         }
 
-        System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " receiving call from #" + callerSnailNumber);
     }
 
     /**
@@ -547,7 +535,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             );
         }
 
-        System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " call connected");
     }
 
     /**
@@ -557,9 +544,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (this.activeCallId != null && this.activeCallId.equals(callId)) {
             this.audioReady = true;
             setChanged();
-
-            System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber +
-                    " is now ready for audio transmission");
         }
     }
 
@@ -598,7 +582,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             }
         }
 
-        System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " call ended");
     }
 
     /**
@@ -618,7 +601,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             );
         }
 
-        System.out.println("TransponderSnailBlockEntity: Snail #" + assignedSnailNumber + " call failed: " + reason);
     }
 
     /**
@@ -687,7 +669,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 }
             }
 
-            System.out.println("TransponderSnailBlockEntity: Call state changed from " + oldState + " to " + newState);
         }
     }
 
@@ -731,10 +712,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             this.shellColor = DenDenMushiItem.getShellColor(denDenMushiItem);
             this.colorsInitialized = true;
             setChanged();
-
-            System.out.println("TransponderSnailBlockEntity: Transferred colors from Den Den Mushi - " +
-                    "Body: #" + Integer.toHexString(bodyColor) +
-                    ", Shell: " + DyeColor.byId(shellColor).getName());
         }
     }
 
@@ -828,12 +805,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
     // 3. Test method - Add this temporarily to debug
     public void testColorSystem() {
-        System.out.println("=== TransponderSnail Color Debug ===");
-        System.out.println("Colors initialized: " + colorsInitialized);
-        System.out.println("Body color: #" + Integer.toHexString(bodyColor));
-        System.out.println("Shell color: " + shellColor + " (" + DyeColor.byId(shellColor).getName() + ")");
-        System.out.println("Level client side: " + (level != null ? level.isClientSide : "null"));
-        System.out.println("===================================");
     }
 
     // =================== LIFECYCLE METHODS ===================
@@ -851,11 +822,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         }
 
         if (!level.isClientSide && !isUnloading) {
-            System.out.println("TransponderSnailBlockEntity: onLoad called for position " + worldPosition);
 
             // Prevent processing the same position multiple times
             if (processedPositions.contains(worldPosition)) {
-                System.out.println("TransponderSnailBlockEntity: Skipping duplicate onLoad for position " + worldPosition);
                 return;
             }
 
@@ -867,7 +836,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 CallSoundManager soundManager = getCallManager().getSoundManager();
                 if (soundManager != null) {
                     soundManager.registerBlockstateCallback(this);
-                    System.out.println("TransponderSnailBlockEntity: Registered blockstate callback for position " + worldPosition);
                 }
             }
 
@@ -901,7 +869,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         processedPositions.remove(worldPosition);
 
         if (!level.isClientSide) {
-            System.out.println("TransponderSnailBlockEntity: setRemoved called for position " + worldPosition);
 
             // Unregister from call manager
             unregisterFromCallManager();
@@ -911,7 +878,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 CallSoundManager soundManager = getCallManager().getSoundManager();
                 if (soundManager != null) {
                     soundManager.unregisterBlockstateCallback(this);
-                    System.out.println("TransponderSnailBlockEntity: Unregistered blockstate callback for position " + worldPosition);
                 }
             }
 
@@ -942,7 +908,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         validationCompleted = true;
 
-        System.out.println("TransponderSnailBlockEntity: Starting deferred validation for snail at " + worldPosition);
 
         SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
         if (registry == null) {
@@ -958,24 +923,20 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             UUID registryUUID = registry.getSnailByNumber(assignedSnailNumber);
             if (registryUUID != null && registryUUID.equals(snailUUID)) {
                 // Data is valid
-                System.out.println("TransponderSnailBlockEntity: Validation passed - snail #" + assignedSnailNumber + " matches registry");
                 restored = true;
             } else {
                 // Data mismatch - try to restore
-                System.out.println("TransponderSnailBlockEntity: Data mismatch detected - attempting restoration");
                 int restoredNumber = registry.assignNumberToSnail(snailUUID);
                 if (restoredNumber != -1) {
                     this.assignedSnailNumber = restoredNumber;
                     this.initialized = true;
                     setChanged();
                     restored = true;
-                    System.out.println("TransponderSnailBlockEntity: Successfully restored with number #" + restoredNumber);
                 }
             }
         }
         // If we have UUID but no number, try to restore
         else if (snailUUID != null && (assignedSnailNumber == -1 || !initialized)) {
-            System.out.println("TransponderSnailBlockEntity: Found UUID without number - attempting restoration");
             int registryNumber = registry.getSnailNumber(snailUUID);
             if (registryNumber != -1) {
                 // UUID exists in registry
@@ -983,7 +944,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 this.initialized = true;
                 setChanged();
                 restored = true;
-                System.out.println("TransponderSnailBlockEntity: Restored existing assignment #" + registryNumber);
             } else {
                 // UUID not in registry - try to assign new number
                 int restoredNumber = registry.assignNumberToSnail(snailUUID);
@@ -992,7 +952,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     this.initialized = true;
                     setChanged();
                     restored = true;
-                    System.out.println("TransponderSnailBlockEntity: Restored new assignment #" + restoredNumber);
                 }
             }
         }
@@ -1000,7 +959,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (restored && !isUnloading && !isServerShuttingDown) {
             // Register with call manager now that we have valid data
             registerWithCallManager();
-            System.out.println("TransponderSnailBlockEntity: Deferred validation completed successfully");
         } else if (!restored) {
             System.err.println("TransponderSnailBlockEntity: Deferred validation failed - snail will need manual reassignment");
             // Reset to uninitialized state
@@ -1016,8 +974,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Ensures this placed snail has a number assigned.
      */
     public void ensureSnailNumberAssigned(Player player) {
-        System.out.println("TransponderSnailBlockEntity: ensureSnailNumberAssigned called for snail at " + worldPosition +
-                " (initialized: " + initialized + ", number: " + assignedSnailNumber + ")");
 
         // If we need validation, do it now
         if (needsValidation) {
@@ -1033,12 +989,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     // Number is still valid - just sync to client
                     if (player instanceof ServerPlayer serverPlayer) {
                         ModPackets.sendToPlayer(new SnailNumberSyncPacket(assignedSnailNumber), serverPlayer);
-                        System.out.println("TransponderSnailBlockEntity: Re-syncing existing valid number #" + assignedSnailNumber + " to client");
                     }
                     return;
                 } else {
                     // Number is no longer valid - attempt restoration
-                    System.out.println("TransponderSnailBlockEntity: Number #" + assignedSnailNumber + " no longer valid, attempting restoration");
                     int restoredNumber = registry.assignNumberToSnail(snailUUID);
                     if (restoredNumber != -1) {
                         this.assignedSnailNumber = restoredNumber;
@@ -1066,7 +1020,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             // Generate new UUID if needed
             if (snailUUID == null) {
                 snailUUID = UUID.randomUUID();
-                System.out.println("TransponderSnailBlockEntity: Generated new UUID: " + snailUUID);
             }
 
             SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
@@ -1082,7 +1035,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     if (level != null && !level.isClientSide) {
                         BlockState currentState = level.getBlockState(worldPosition);
                         level.sendBlockUpdated(worldPosition, currentState, currentState, Block.UPDATE_ALL);
-                        System.out.println("TransponderSnailBlock: Assigned number and forced color sync");
                     }
 
                     // Register with call manager
@@ -1096,10 +1048,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
                         // Send sync packet to client
                         ModPackets.sendToPlayer(new SnailNumberSyncPacket(assignedSnailNumber), serverPlayer);
-                        System.out.println("TransponderSnailBlockEntity: Assigned new number #" + assignedSnailNumber + " and synced to client");
                     }
 
-                    System.out.println("TransponderSnailBlockEntity: Successfully assigned new number #" + assignedSnailNumber + " to snail at " + worldPosition);
                 } else {
                     System.err.println("TransponderSnailBlockEntity: Failed to assign number - registry may be full");
                 }
@@ -1123,7 +1073,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         TransponderCallManager callManager = getCallManager();
         if (!callManager.isSnailBlockRegistered(assignedSnailNumber)) {
             callManager.registerSnailBlock(assignedSnailNumber, this);
-            System.out.println("TransponderSnailBlockEntity: Registered snail #" + assignedSnailNumber + " with call manager");
         }
     }
 
@@ -1138,7 +1087,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         TransponderCallManager callManager = getCallManager();
         if (callManager.isSnailBlockRegistered(assignedSnailNumber)) {
             callManager.unregisterSnailBlock(assignedSnailNumber);
-            System.out.println("TransponderSnailBlockEntity: Unregistered snail #" + assignedSnailNumber + " from call manager");
         }
     }
 
@@ -1229,11 +1177,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             }
 
             nbt.put("BlockEntityTag", blockEntityTag);
-
-            System.out.println("TransponderSnailBlockEntity: Saved snail data to item - UUID: " + snailUUID +
-                    ", Number: #" + assignedSnailNumber +
-                    (colorsInitialized ? ", Colors: #" + Integer.toHexString(bodyColor) +
-                            "/" + DyeColor.byId(shellColorToSave).getName() : ""));
         }
     }
 
@@ -1252,7 +1195,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     this.initialized = blockEntityTag.getBoolean("Initialized");
                     this.needsValidation = true; // CHANGE THIS TO FALSE
                     setChanged();
-                    System.out.println("TransponderSnailBlockEntity: Loaded from BlockEntityTag - UUID: " + snailUUID + ", Number: #" + assignedSnailNumber);
                     return;
                 }
             }
@@ -1263,7 +1205,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 this.initialized = true;
                 this.needsValidation = true; // CHANGE THIS TO FALSE
                 setChanged();
-                System.out.println("TransponderSnailBlockEntity: Loaded from NBT - UUID: " + snailUUID + ", Number: #" + assignedSnailNumber);
             }
 
             if (nbt.contains("body_color")) {
@@ -1369,8 +1310,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             this.shellColor = dyeColor;
             setChanged();
 
-            System.out.println("TransponderSnailBlockEntity: Shell color updated to " +
-                    DyeColor.byId(dyeColor).getName());
+            DyeColor.byId(dyeColor).getName();
         }
     }
 
@@ -1387,9 +1327,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.shellColor = 0;
         this.colorsInitialized = true;
         setChanged(); // This marks the block entity as needing sync
-
-        System.out.println("TransponderSnailBlockEntity: Generated colors - Body: #" +
-                Integer.toHexString(bodyColor) + " at " + worldPosition);
     }
 
     /**
@@ -1488,7 +1425,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
 
-        System.out.println("TransponderSnailBlockEntity: Saving additional data - UUID: " + snailUUID + ", Number: #" + assignedSnailNumber + ", Initialized: " + initialized);
 
         if (snailUUID != null) {
             tag.putUUID("SnailUUID", snailUUID);
@@ -1535,10 +1471,6 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             this.shellColor = tag.getInt("ShellColor");
             this.colorsInitialized = tag.getBoolean("ColorsInitialized");
 
-            System.out.println((level != null && level.isClientSide ? "CLIENT" : "SERVER") +
-                    ": Loaded colors - Body: #" + Integer.toHexString(bodyColor) +
-                    ", Shell: " + shellColor + ", Initialized: " + colorsInitialized);
-
             // CRITICAL: Force chunk re-render on client after loading colors
             if (level != null && level.isClientSide && colorsInitialized) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_ALL);
@@ -1552,11 +1484,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.assignedSnailNumber = tag.getInt("AssignedNumber");
         this.initialized = tag.getBoolean("Initialized");
 
-        System.out.println("TransponderSnailBlockEntity: Loaded from NBT - UUID: " + snailUUID + ", Number: #" + assignedSnailNumber + ", Initialized: " + initialized);
 
         if (!isServerShuttingDown && !validationCompleted && snailUUID != null && (assignedSnailNumber != -1 || initialized)) {
             this.needsValidation = true;
-            System.out.println("TransponderSnailBlockEntity: Marked for deferred validation");
         }
 
         if (tag.hasUUID("ActiveCallId")) {

@@ -84,7 +84,6 @@ public class ModPackets {
                 .consumerMainThread(BlackSnailCallStateSyncPacket::handle)
                 .add();
 
-        System.out.println("ModPackets: Registered " + nextId + " packet types");
 
         // 9) Client → Server: Keybind snail interact (open/close via hand OR Curios slot)
         CHANNEL.messageBuilder(CuriosSnailActionPacket.class, nextId++, NetworkDirection.PLAY_TO_SERVER)

@@ -65,11 +65,9 @@ public class InterceptionHelper {
 
         // Check if already searching or intercepting
         if (interceptionManager.isSearching(player.getUUID())) {
-            System.out.println("Player already searching");
             return;
         }
         if (interceptionManager.isIntercepting(player.getUUID())) {
-            System.out.println("Player already intercepting");
             return;
         }
 
@@ -309,8 +307,6 @@ public class InterceptionHelper {
         }
 
         if (nearestCallId != null) {
-            System.out.println("Found nearby call: " + nearestCallId.toString().substring(0, 8) +
-                    " at distance " + nearestDistance + " blocks (search range: " + searchRange + ")");
         }
 
         return nearestCallId;

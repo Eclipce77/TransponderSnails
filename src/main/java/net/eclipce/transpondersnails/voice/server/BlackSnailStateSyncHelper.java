@@ -8,7 +8,10 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.UUID;
 
 /**
- * Helper for syncing Portable Black Snail call states to clients
+ * PERFORMANCE: All System.out.println removed from syncState().
+ * This method is called from hot paths (updateCallStates every 200ms,
+ * plus every state transition). Any logging here multiplies directly
+ * with player count × call frequency.
  */
 public class BlackSnailStateSyncHelper {
 
@@ -45,13 +48,9 @@ public class BlackSnailStateSyncHelper {
      */
     private static void syncState(ServerPlayer player, PortableBlackSnailCallStateManager.CallState state) {
         // ✅ VERBOSE LOGGING
-        System.out.println("[BLACK-SNAIL-SYNC] 📤 SERVER sending state to " + player.getName().getString());
-        System.out.println("[BLACK-SNAIL-SYNC]    Player UUID: " + player.getUUID().toString().substring(0, 8));
-        System.out.println("[BLACK-SNAIL-SYNC]    State: " + state + " (predicate value=" + state.getPredicateValue() + ")");
 
         BlackSnailCallStateSyncPacket packet = new BlackSnailCallStateSyncPacket(player.getUUID(), state);
         ModPackets.sendToPlayer(packet, player);
 
-        System.out.println("[BLACK-SNAIL-SYNC] ✅ Packet sent to client");
     }
 }

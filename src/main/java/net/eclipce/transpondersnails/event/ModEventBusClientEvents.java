@@ -90,7 +90,6 @@ public class ModEventBusClientEvents {
                     new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
                     TransponderSnailItemProperties::calculateCallState);
 
-            System.out.println("TransponderSnails: Registered item properties for dynamic models");
 
             // Shell color for block item
             ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get().asItem(),
@@ -116,7 +115,6 @@ public class ModEventBusClientEvents {
                     new ResourceLocation(TransponderSnails.MOD_ID, "call_state"),
                     TransponderSnailItemProperties::calculateCallState);
 
-            System.out.println("TransponderSnails: Registered item properties for dynamic models");
 
             // =================== BABY BLACK TRANSPONDER SNAIL PROPERTIES ===================
 
@@ -209,7 +207,6 @@ public class ModEventBusClientEvents {
 
                         // Debug logging to verify predicate is being called
                         if (value > 0.0f) {
-                            System.out.println("[CALL-STATE-PREDICATE] Minecraft called predicate, returning: " + value);
                         }
 
                         return value;
@@ -357,13 +354,9 @@ public class ModEventBusClientEvents {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof TransponderSnailBlockEntity snailBE) {
                     int color = snailBE.getBodyColor();
-                    System.out.println("BlockColors handler - Position: " + pos +
-                            ", Body color: #" + Integer.toHexString(color) +
-                            ", Initialized: " + snailBE.isColorsInitialized());
                     return color;
                 } else {
-                    System.out.println("BlockColors handler - Position: " + pos +
-                            ", BE is null or wrong type");
+
                 }
             }
             return -1;
@@ -374,13 +367,9 @@ public class ModEventBusClientEvents {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof TransponderSnailBlockEntity snailBE) {
                     int color = snailBE.getBodyColor();
-                    System.out.println("BlockColors handler - Position: " + pos +
-                            ", Body color: #" + Integer.toHexString(color) +
-                            ", Initialized: " + snailBE.isColorsInitialized());
                     return color;
                 } else {
-                    System.out.println("BlockColors handler - Position: " + pos +
-                            ", BE is null or wrong type");
+
                 }
             }
             return -1;

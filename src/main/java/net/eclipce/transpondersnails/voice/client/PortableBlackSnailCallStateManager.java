@@ -47,19 +47,19 @@ public class PortableBlackSnailCallStateManager {
      */
     public void setState(UUID playerId, CallState state) {
         // ✅ VERBOSE LOGGING
-        System.out.println("[STATE-MGR] setState called on CLIENT");
-        System.out.println("[STATE-MGR]    Player: " + playerId.toString().substring(0, 8));
-        System.out.println("[STATE-MGR]    New state: " + state + " (value=" + state.getPredicateValue() + ")");
+//        System.out.println("[STATE-MGR] setState called on CLIENT");
+//        System.out.println("[STATE-MGR]    Player: " + playerId.toString().substring(0, 8));
+//        System.out.println("[STATE-MGR]    New state: " + state + " (value=" + state.getPredicateValue() + ")");
 
         if (state == CallState.IDLE) {
             playerStates.remove(playerId);
             lastUpdateTime.remove(playerId);
-            System.out.println("[STATE-MGR]    Action: Removed from map (IDLE state)");
+//            System.out.println("[STATE-MGR]    Action: Removed from map (IDLE state)");
         } else {
             playerStates.put(playerId, state);
             lastUpdateTime.put(playerId, System.currentTimeMillis());
-            System.out.println("[STATE-MGR]    Action: Added to map");
-            System.out.println("[STATE-MGR]    Map now contains " + playerStates.size() + " entries");
+//            System.out.println("[STATE-MGR]    Action: Added to map");
+//            System.out.println("[STATE-MGR]    Map now contains " + playerStates.size() + " entries");
         }
     }
 
@@ -75,15 +75,15 @@ public class PortableBlackSnailCallStateManager {
                 // State is stale, clear it
                 playerStates.remove(playerId);
                 lastUpdateTime.remove(playerId);
-                System.out.println("[STATE-MGR] ⚠️ State timeout for player " + playerId.toString().substring(0, 8) +
-                        " (age: " + timeSinceUpdate + "ms)");
+//                System.out.println("[STATE-MGR] ⚠️ State timeout for player " + playerId.toString().substring(0, 8) +
+//                        " (age: " + timeSinceUpdate + "ms)");
                 return CallState.IDLE;
             }
         }
 
         CallState state = playerStates.getOrDefault(playerId, CallState.IDLE);
-        System.out.println("[STATE-MGR] getState for " + playerId.toString().substring(0, 8) +
-                " -> " + state + " (value=" + state.getPredicateValue() + ")");
+//        System.out.println("[STATE-MGR] getState for " + playerId.toString().substring(0, 8) +
+//                " -> " + state + " (value=" + state.getPredicateValue() + ")");
         return state;
     }
 
@@ -93,8 +93,8 @@ public class PortableBlackSnailCallStateManager {
     public float getPredicateValue(UUID playerId) {
         CallState state = getState(playerId);
         float value = state.getPredicateValue();
-        System.out.println("[STATE-MGR] getPredicateValue for " + playerId.toString().substring(0, 8) +
-                " -> " + value);
+//        System.out.println("[STATE-MGR] getPredicateValue for " + playerId.toString().substring(0, 8) +
+//                " -> " + value);
         return value;
     }
 

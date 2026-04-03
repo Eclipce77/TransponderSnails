@@ -178,8 +178,7 @@ public class BlackTransponderSnailItem extends BlockItem implements ICurioItem {
             int shellColor = getShellColorId(stack);
             level.setBlock(pos, state.setValue(BlackTransponderSnailBlock.SHELL_COLOR, shellColor), 3);
 
-            System.out.println("BlackTransponderSnailItem: Placed with shell color " +
-                    DyeColor.byId(shellColor).getName());
+            DyeColor.byId(shellColor).getName();
         }
 
         return placed;

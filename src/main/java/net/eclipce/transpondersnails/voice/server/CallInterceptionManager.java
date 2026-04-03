@@ -56,13 +56,16 @@ public class CallInterceptionManager {
     private final Map<UUID, Long> lastAudioActivity = new ConcurrentHashMap<>();
     private static final long AUDIO_ACTIVITY_WINDOW_MS = 500; // 500ms window
 
+    // PERFORMANCE: Track last sent state per interceptor to avoid packet spam.
+    // true = last sent ACTIVE, false = last sent CALL, absent = not yet sent.
+    private final Map<UUID, Boolean> lastSentCallState = new ConcurrentHashMap<>();
+
     // Searching delay (5 seconds to "find" the call)
     private static final long SEARCHING_DELAY_MS = 5000;
 
     public CallInterceptionManager(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
-        System.out.println("CallInterceptionManager initialized");
     }
 
     /**
@@ -213,17 +216,14 @@ public class CallInterceptionManager {
 
         // Check if already searching or intercepting
         if (isSearching(interceptor.getUUID())) {
-            System.out.println("Player already searching");
             return false;
         }
         if (isIntercepting(interceptor.getUUID())) {
-            System.out.println("Player already intercepting");
             return false;
         }
 
         // Check if player is in a call
         if (interceptor != null && callManager.isInCall(interceptor.getUUID())) {
-            System.out.println("Cannot intercept - player is in a call");
             return false;
         }
 
@@ -231,13 +231,11 @@ public class CallInterceptionManager {
         if (targetCallId != null) {
             CallSession targetCall = callManager.getCallSessionById(targetCallId);
             if (targetCall == null || targetCall.getState() != CallSession.CallState.CONNECTED) {
-                System.out.println("Target call not found or not connected: " + targetCallId);
                 targetCallId = null;  // ✅ Treat as "no call found"
             }
 
             // Check if the interceptor is a participant in the target call
             if (targetCallId != null && targetCall != null && targetCall.isParticipant(interceptor.getUUID())) {
-                System.out.println("Cannot intercept own call");
                 return false;
             }
         }
@@ -245,7 +243,6 @@ public class CallInterceptionManager {
         // Determine interceptor type based on held item
         InterceptionSession.InterceptorType type = determineInterceptorType(interceptor);
         if (type == null) {
-            System.out.println("Player not holding a valid Black Transponder Snail");
             return false;
         }
 
@@ -261,8 +258,6 @@ public class CallInterceptionManager {
         String targetInfo = targetCallId != null
                 ? targetCallId.toString().substring(0, 8)
                 : "null (no calls found)";
-        System.out.println("Started searching: Player " + interceptor.getName().getString() +
-                " searching for call " + targetInfo);
 
         // ✨ SYNC: Tell client we're searching (SOUND state)
         BlackSnailStateSyncHelper.syncSearching(interceptor);
@@ -283,17 +278,14 @@ public class CallInterceptionManager {
 
         // Check if already searching or intercepting
         if (isSearching(interceptor.getUUID())) {
-            System.out.println("Player already searching");
             return false;
         }
         if (isIntercepting(interceptor.getUUID())) {
-            System.out.println("Player already intercepting");
             return false;
         }
 
         // Check if player is in a call
         if (callManager.isInCall(interceptor.getUUID())) {
-            System.out.println("Cannot intercept - player is in a call");
             return false;
         }
 
@@ -301,10 +293,8 @@ public class CallInterceptionManager {
         if (targetCallId != null) {
             CallSession targetCall = callManager.getCallSessionById(targetCallId);
             if (targetCall == null || targetCall.getState() != CallSession.CallState.CONNECTED) {
-                System.out.println("Target call not found or not connected");
                 targetCallId = null;  // ✅ Treat as "no call found"
             } else if (targetCall.isParticipant(interceptor.getUUID())) {
-                System.out.println("Cannot intercept own call");
                 return false;
             }
         }
@@ -326,8 +316,6 @@ public class CallInterceptionManager {
         String targetInfo = targetCallId != null
                 ? targetCallId.toString().substring(0, 8)
                 : "null (no calls)";
-        System.out.println("Started searching (BLOCK): " + interceptor.getName().getString() +
-                " → call " + targetInfo + ", rods=" + lightningRodCount);
 
         // Sync client state
         BlackSnailStateSyncHelper.syncSearching(interceptor);
@@ -372,7 +360,6 @@ public class CallInterceptionManager {
 
         ServerPlayer interceptor = callManager.getPlayerById(interceptorId);
         if (interceptor == null) {
-            System.out.println("Interceptor player not found: " + interceptorId);
             return;
         }
 
@@ -396,7 +383,6 @@ public class CallInterceptionManager {
 
         // Create audio channel for interceptor
         if (!createInterceptorAudioChannel(interceptor, session)) {
-            System.out.println("Failed to create interceptor audio channel");
             interceptor.displayClientMessage(
                     net.minecraft.network.chat.Component.literal("✗ Failed to connect to call")
                             .withStyle(net.minecraft.ChatFormatting.RED),
@@ -423,7 +409,6 @@ public class CallInterceptionManager {
         // âœ¨ SYNC: Tell client we're intercepting (CALL state - no audio yet)
         BlackSnailStateSyncHelper.syncIntercepting(interceptor);
 
-        System.out.println("Connected interception: " + session);
     }
 
     /**
@@ -444,7 +429,6 @@ public class CallInterceptionManager {
     public void stopSearching(UUID interceptorId) {
         SearchingSession searchingSession = searchingSessions.remove(interceptorId);
         if (searchingSession != null) {
-            System.out.println("Cancelled searching session for " + interceptorId.toString().substring(0, 8));
 
             // âœ¨ SYNC: Tell client search cancelled (back to IDLE)
             ServerPlayer player = callManager.getPlayerById(interceptorId);
@@ -458,10 +442,10 @@ public class CallInterceptionManager {
      * Stop an active interception or searching session
      */
     public void stopInterception(UUID interceptorId) {
+        lastSentCallState.remove(interceptorId); // PERF: reset state tracking on stop
         // Stop searching session if exists
         SearchingSession searchingSession = searchingSessions.remove(interceptorId);
         if (searchingSession != null) {
-            System.out.println("Cancelled searching session for " + interceptorId.toString().substring(0, 8));
             // Don't notify player here - InterceptionHelper handles it
             return;
         }
@@ -484,7 +468,6 @@ public class CallInterceptionManager {
         // Clean up audio channel
         AudioChannel channel = interceptorChannels.remove(interceptorId);
         if (channel != null) {
-            System.out.println("Removed interceptor audio channel for " + interceptorId.toString().substring(0, 8));
         }
 
         // Notify player
@@ -500,7 +483,6 @@ public class CallInterceptionManager {
             BlackSnailStateSyncHelper.syncIdle(player);
         }
 
-        System.out.println("Stopped interception: " + session);
     }
 
     /**
@@ -566,8 +548,6 @@ public class CallInterceptionManager {
                             .withStyle(net.minecraft.ChatFormatting.YELLOW),
                     true
             );
-            System.out.println("CallInterceptionManager: Player " + interceptor.getName().getString() +
-                    " switching to call " + nextCallId.toString().substring(0, 8));
         }
 
         return success;
@@ -646,7 +626,6 @@ public class CallInterceptionManager {
             for (UUID interceptorId : interceptors) {
                 stopInterception(interceptorId);
             }
-            System.out.println("Stopped all interceptions for call " + callId.toString().substring(0, 8));
         }
     }
 
@@ -692,6 +671,21 @@ public class CallInterceptionManager {
      * Validate all active interceptions - called periodically
      * Checks range limits and snail state
      */
+    /**
+     * PERFORMANCE: Validate only active interceptors (not all server players).
+     * Called by TransponderCallManager.validateAllInterceptions().
+     */
+    public void validateAllActive() {
+        for (UUID interceptorId : new ArrayList<>(activeInterceptions.keySet())) {
+            ServerPlayer player = callManager.getPlayerById(interceptorId);
+            if (player != null) {
+                validateInterceptions(player);
+            } else {
+                stopInterception(interceptorId);
+            }
+        }
+    }
+
     public void validateInterceptions(ServerPlayer interceptor) {
         if (interceptor == null) return;
 
@@ -748,8 +742,6 @@ public class CallInterceptionManager {
         }
 
         for (UUID interceptorId : toRemove) {
-            System.out.println("Cleaning up invalid interception (out of range) for " +
-                    interceptorId.toString().substring(0, 8));
 
             // Notify player before disconnecting (persistent error message)
             ServerPlayer player = callManager.getPlayerById(interceptorId);
@@ -921,9 +913,6 @@ public class CallInterceptionManager {
 
                 interceptorChannels.put(interceptor.getUUID(), channel);
 
-                System.out.println("Created interceptor audio channel for " +
-                        interceptor.getName().getString() +
-                        " (range: " + session.getMaxRange() + " blocks)");
                 return true;
             }
         } catch (Exception e) {
@@ -1017,6 +1006,23 @@ public class CallInterceptionManager {
      * Mark that audio was forwarded to an interceptor
      * Called by SnailAudioRelay when audio packets are sent
      */
+
+    /**
+     * PERFORMANCE: Mark audio activity and only send ACTIVE packet on state transition.
+     * Called from SnailAudioRelay at ~50Hz per speaking player per interceptor.
+     * Without deduplication, a network packet fires on every single audio frame.
+     * Now only fires once when transitioning from CALL → ACTIVE.
+     */
+    public void markAudioActivityAndSync(UUID interceptorId, ServerPlayer player) {
+        markAudioActivity(interceptorId);
+        Boolean wasActive = lastSentCallState.get(interceptorId);
+        if (wasActive == null || !wasActive) {
+            lastSentCallState.put(interceptorId, true);
+            BlackSnailStateSyncHelper.syncActive(player);
+        }
+        // wasActive == true means ACTIVE already sent — skip until audio stops
+    }
+
     public void markAudioActivity(UUID interceptorId) {
         lastAudioActivity.put(interceptorId, System.currentTimeMillis());
     }
@@ -1049,12 +1055,21 @@ public class CallInterceptionManager {
     public void updateCallStates() {
         for (UUID interceptorId : activeInterceptions.keySet()) {
             ServerPlayer player = callManager.getPlayerById(interceptorId);
-            if (player != null) {
-                // If no recent audio, sync CALL state (intercepting but silent)
-                if (!hasRecentAudioActivity(interceptorId)) {
+            if (player == null) continue;
+
+            boolean hasAudio = hasRecentAudioActivity(interceptorId);
+            Boolean wasActive = lastSentCallState.get(interceptorId);
+
+            if (hasAudio) {
+                // SnailAudioRelay sends ACTIVE packets. Just track the transition.
+                lastSentCallState.put(interceptorId, true);
+            } else {
+                // No audio — should be CALL state. Only send if state changed.
+                if (wasActive == null || wasActive) {
+                    lastSentCallState.put(interceptorId, false);
                     BlackSnailStateSyncHelper.syncIntercepting(player);
                 }
-                // If has recent audio, ACTIVE state is already synced by SnailAudioRelay
+                // wasActive == false means CALL already sent — do nothing.
             }
         }
     }
@@ -1204,7 +1219,7 @@ public class CallInterceptionManager {
         activeInterceptions.clear();
         callInterceptors.clear();
         interceptorChannels.clear();
+        lastSentCallState.clear();
 
-        System.out.println("CallInterceptionManager cleaned up");
     }
 }

@@ -450,6 +450,13 @@ public class ModConfig {
 
     private static double cachedHornedDDMJammingRadius = DEFAULT_HORNED_DDM_JAMMING_RADIUS;
 
+    // PERFORMANCE: These were previously calling ForgeConfigSpec.get() on every use.
+    // Cached here so hot-path callers (call session management, cleanup scheduler) read primitives.
+    private static long   cachedCallInactivityTimeout    = 600000L;
+    private static double cachedParticipantProximityRange = 10.0;
+    private static double cachedNumberPreservationDays    = 30.0;
+    private static long   cachedNumberCleanupInterval     = 3600L;
+
     // Cache for spawn values
     private static List<String> cachedAllowedDimensions = Arrays.asList("minecraft:overworld");
     private static List<String> cachedSpawnBiomes = Arrays.asList(
@@ -482,8 +489,6 @@ public class ModConfig {
         if (event.getConfig().getSpec() == CLIENT_SPEC) {
             // Client config changed
             cachedEnableNumpad = CLIENT.enableNumpadSupport.get();
-            System.out.println("TransponderSnails client config loaded:");
-            System.out.println("  Numpad Enabled: " + cachedEnableNumpad);
         } else if (event.getConfig().getSpec() == SERVER_SPEC) {
             // Server config changed
             cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
@@ -498,6 +503,11 @@ public class ModConfig {
             cachedAdultBlackSnailMinRange = getValidatedValue(SERVER.adultBlackSnailMinRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE, 50.0, 500.0);
             cachedAdultBlackSnailMaxRange = getValidatedValue(SERVER.adultBlackSnailMaxRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE, 100.0, 1000.0);
             cachedHornedDDMJammingRadius = getValidatedValue(SERVER.hornedDDMJammingRadius.get(), DEFAULT_HORNED_DDM_JAMMING_RADIUS, 1.0, 200.0);
+            cachedCallInactivityTimeout    = SERVER.callInactivityTimeoutMs.get();
+            cachedParticipantProximityRange = SERVER.participantProximityRange.get();
+            cachedNumberPreservationDays    = SERVER.numberPreservationDays.get();
+            cachedNumberCleanupInterval     = SERVER.numberCleanupIntervalSeconds.get();
+            System.out.println("TransponderSnails: Server config loaded");
 
             // Load spawn config
             cachedAllowedDimensions = SERVER.spawning.allowedDimensions.get().stream().map(Object::toString).toList();
@@ -520,26 +530,6 @@ public class ModConfig {
             cachedWhiteDenDenMushiMinGroup = SERVER.spawning.whiteDenDenMushiMinGroup.get();
             cachedWhiteDenDenMushiMaxGroup = SERVER.spawning.whiteDenDenMushiMaxGroup.get();
 
-            System.out.println("TransponderSnails server config loaded:");
-            System.out.println("  Locational Snail Range: " + cachedLocationalRange);
-            System.out.println("  Handheld Snail Range: " + cachedHandheldRange);
-            System.out.println("  Ring Timeout: " + cachedRingTimeout + "ms");
-            System.out.println("  Interaction Range: " + cachedInteractionRange);
-            System.out.println("  Phone Filter Enabled: " + cachedEnablePhoneFilter);
-            System.out.println("  Interception Ranges:");
-            System.out.println("    Baby Black Snail: " + cachedBabyBlackSnailRange + " blocks");
-            System.out.println("    Adult Black Snail Default: " + cachedAdultBlackSnailDefaultRange + " blocks");
-            System.out.println("    Adult Black Snail Min Enhanced: " + cachedAdultBlackSnailMinRange + " blocks");
-            System.out.println("    Adult Black Snail Max Enhanced: " + cachedAdultBlackSnailMaxRange + " blocks");
-            System.out.println("    Horned DDM Jamming Radius: " + cachedHornedDDMJammingRadius + " blocks");
-            System.out.println("  Spawn Config:");
-            System.out.println("    Allowed Dimensions: " + cachedAllowedDimensions);
-            System.out.println("    Spawn Biomes: " + cachedSpawnBiomes);
-            System.out.println("    Disabled Snails: " + (cachedDisabledSnails.isEmpty() ? "None" : cachedDisabledSnails));
-            System.out.println("    Den Den Mushi: " + cachedDenDenMushiSpawnRate + "% (Groups: " + cachedDenDenMushiMinGroup + "-" + cachedDenDenMushiMaxGroup + ")");
-            System.out.println("    Black Transponder Snail: " + cachedBlackTransponderSnailSpawnRate + "% (Groups: " + cachedBlackTransponderSnailMinGroup + "-" + cachedBlackTransponderSnailMaxGroup + ")");
-            System.out.println("    Baby Black Transponder Snail: " + cachedBabyBlackTransponderSnailSpawnRate + "% (Groups: " + cachedBabyBlackTransponderSnailMinGroup + "-" + cachedBabyBlackTransponderSnailMaxGroup + ")");
-            System.out.println("    White Den Den Mushi: " + cachedWhiteDenDenMushiSpawnRate + "% (Groups: " + cachedWhiteDenDenMushiMinGroup + "-" + cachedWhiteDenDenMushiMaxGroup + ")");
         }
     }
 
@@ -548,7 +538,6 @@ public class ModConfig {
      */
     private static double getValidatedValue(double value, double defaultValue, double min, double max) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value < min || value > max) {
-            System.out.println("TransponderSnails: Invalid config value " + value + ", using default " + defaultValue);
             return defaultValue;
         }
         return value;
@@ -559,7 +548,6 @@ public class ModConfig {
      */
     private static long getValidatedValue(long value, long defaultValue, long min, long max) {
         if (value < min || value > max) {
-            System.out.println("TransponderSnails: Invalid config value " + value + ", using default " + defaultValue);
             return defaultValue;
         }
         return value;
@@ -606,28 +594,26 @@ public class ModConfig {
     }
 
     public static long getCallInactivityTimeoutMs() {
-        return SERVER.callInactivityTimeoutMs.get();
+        return cachedCallInactivityTimeout;
     }
 
     public static double getParticipantProximityRange() {
-        return SERVER.participantProximityRange.get();
+        return cachedParticipantProximityRange;
     }
 
     // Snail Number Getters
     public static double getNumberPreservationDays() {
-        return SERVER.numberPreservationDays.get();
+        return cachedNumberPreservationDays;
     }
 
     public static long getNumberCleanupIntervalSeconds() {
-        return SERVER.numberCleanupIntervalSeconds.get();
+        return cachedNumberCleanupInterval;
     }
 
     // Convert days to milliseconds for internal use
     public static long getNumberPreservationMs() {
-        double days = SERVER.numberPreservationDays.get();
-        if (days <= 0) return 0; // Disabled
-        // 1 Minecraft day = 20 minutes real time = 1200000 ms
-        return (long) (days * 1200000);
+        if (cachedNumberPreservationDays <= 0) return 0;
+        return (long)(cachedNumberPreservationDays * 1200000);
     }
 
     public static boolean isPhoneFilterEnabled() {

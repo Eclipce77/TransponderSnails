@@ -116,7 +116,6 @@ public class BabyBlackTransponderSnailItem extends Item implements ICurioItem {
                     stack  // The updated stack
             ));
 
-            System.out.println("[BABY-BLACK-SNAIL] Sent slot update for slot " + slot + " (hand: " + hand + ")");
 
             // Handle call interception
             var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();

@@ -66,7 +66,6 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
         ensureColorsInitialized(stack, false);
 
         // Debug log
-        System.out.println("Portable Snail equipped in " + slotContext.identifier() + " slot " + slotContext.index());
     }
 
     /**
@@ -80,7 +79,6 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
         slotContext.entity().playSound(SoundEvents.ARMOR_EQUIP_LEATHER, 1.0F, 0.8F);
 
         // Debug log
-        System.out.println("Portable Snail unequipped from " + slotContext.identifier() + " slot " + slotContext.index());
     }
 
     /**
@@ -169,7 +167,6 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
                     stack  // The updated stack
             ));
 
-            System.out.println("[PORTABLE-SNAIL] Sent slot update for slot " + slot + " (hand: " + hand + ")");
 
             // ✨ INTERCEPTION: Handle interception when snail state changes
             var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();

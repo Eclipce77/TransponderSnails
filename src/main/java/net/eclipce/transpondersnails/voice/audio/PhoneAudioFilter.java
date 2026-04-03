@@ -153,12 +153,6 @@ public class PhoneAudioFilter {
         // De-emphasis: Reduce highs at 3kHz by 2dB for smoothness
         deEmphasis = BiquadFilter.createHighShelf(3000.0, SAMPLE_RATE, -2.0);
 
-        System.out.println("PhoneAudioFilter (v2) initialized:");
-        System.out.println("  Bandwidth: " + LOW_CUTOFF + "Hz - " + HIGH_CUTOFF + "Hz");
-        System.out.println("  Rolloff: 24dB/octave (cascaded 12dB stages)");
-        System.out.println("  Pre-emphasis: +3dB @ 2kHz");
-        System.out.println("  De-emphasis: -2dB @ 3kHz");
-        System.out.println("  Dynamics: Noise gate, soft saturation");
     }
 
     /**

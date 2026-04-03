@@ -87,27 +87,18 @@ public class BlackSnailCallStateSyncPacket {
      * Client-side handling - updates ALL THREE state managers
      */
     private void handleOnClient() {
-        System.out.println("[BLACK-SNAIL-SYNC-PACKET] Received state sync on CLIENT:");
-        System.out.println("  Player: " + playerId.toString().substring(0, 8));
-        System.out.println("  State: " + state + " (portable value=" + state.getPredicateValue() + ")");
 
         // Update ALL THREE state managers so any black snail type will work
 
         // 1. Update PortableBlackSnailCallStateManager (uses 0.25, 0.5, 0.75)
         PortableBlackSnailCallStateManager.getInstance().setState(playerId, state);
-        System.out.println("  -> Updated PortableBlackSnailCallStateManager");
 
         // 2. Update BlackSnailCallStateManager (uses 0.1, 0.2, 0.3 to match black_transponder_snail.json)
         BlackSnailCallStateManager.getInstance().setStateFromPortable(playerId, state);
-        System.out.println("  -> Updated BlackSnailCallStateManager (predicate=" +
-                BlackSnailCallStateManager.getInstance().getPredicateValue(playerId) + ")");
 
         // 3. Update BabyBlackSnailCallStateManager (uses 0.1, 0.2, 0.3 to match baby_black_transponder_snail.json)
         BabyBlackSnailCallStateManager.getInstance().setStateFromPortable(playerId, state);
-        System.out.println("  -> Updated BabyBlackSnailCallStateManager (predicate=" +
-                BabyBlackSnailCallStateManager.getInstance().getPredicateValue(playerId) + ")");
 
-        System.out.println("[BLACK-SNAIL-SYNC-PACKET] All state managers updated successfully");
     }
 
     // Getters for testing/debugging

@@ -643,7 +643,7 @@ public class DialingMenu extends AbstractContainerMenu {
 
     // Called from client via packet to set the snail number
     public void setOwnSnailNumber(int number) {
-        System.out.println("DialingMenu: setOwnSnailNumber called with number #" + number);
+//        System.out.println("DialingMenu: setOwnSnailNumber called with number #" + number);
         this.ownSnailNumber = number;
         this.numberAssigned = number != -1;
     }
@@ -652,7 +652,7 @@ public class DialingMenu extends AbstractContainerMenu {
     public void setClientDialedNumber(String number) {
         if (player.level().isClientSide) {
             this.clientDialedNumber = number != null ? number : "";
-            System.out.println("DialingMenu: setClientDialedNumber called with: '" + this.clientDialedNumber + "'");
+//            System.out.println("DialingMenu: setClientDialedNumber called with: '" + this.clientDialedNumber + "'");
         }
     }
 

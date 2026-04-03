@@ -79,32 +79,26 @@ public class CallResponsePacket {
     }
 
     private void handleAcceptCall(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
-        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " accepting call " + callId.toString().substring(0, 8));
 
         boolean success = callManager.acceptCall(player, callId);
         if (success) {
-            System.out.println("CallResponsePacket: Successfully accepted call");
         } else {
             System.err.println("CallResponsePacket: Failed to accept call");
         }
     }
 
     private void handleRejectCall(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
-        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " rejecting call " + callId.toString().substring(0, 8));
 
         boolean success = callManager.rejectCall(player, callId);
         if (success) {
-            System.out.println("CallResponsePacket: Successfully rejected call");
         } else {
             System.err.println("CallResponsePacket: Failed to reject call");
         }
     }
 
     private void handleHangUp(TransponderCallManager callManager, ServerPlayer player, UUID callId) {
-        System.out.println("CallResponsePacket: Player " + player.getName().getString() + " hanging up call " + callId.toString().substring(0, 8));
 
         callManager.endCall(player);
-        System.out.println("CallResponsePacket: Call ended");
     }
 
     // Getters

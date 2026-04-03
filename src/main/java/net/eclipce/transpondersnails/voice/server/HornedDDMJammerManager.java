@@ -50,9 +50,6 @@ public class HornedDDMJammerManager {
      */
     public void registerJammer(BlockPos pos, ServerLevel level) {
         activeJammers.put(pos.immutable(), level.dimension());
-        System.out.println("HornedDDMJammerManager: Jammer REGISTERED at " + pos
-                + " in " + level.dimension().location()
-                + " | Total active: " + activeJammers.size());
     }
 
     /**
@@ -61,8 +58,6 @@ public class HornedDDMJammerManager {
     public void unregisterJammer(BlockPos pos) {
         ResourceKey<Level> removed = activeJammers.remove(pos.immutable());
         if (removed != null) {
-            System.out.println("HornedDDMJammerManager: Jammer REMOVED at " + pos
-                    + " | Remaining active: " + activeJammers.size());
         }
     }
 
@@ -133,7 +128,6 @@ public class HornedDDMJammerManager {
         int count = activeJammers.size();
         activeJammers.clear();
         if (count > 0) {
-            System.out.println("HornedDDMJammerManager: Cleared " + count + " jammer(s) on shutdown.");
         }
     }
 }
