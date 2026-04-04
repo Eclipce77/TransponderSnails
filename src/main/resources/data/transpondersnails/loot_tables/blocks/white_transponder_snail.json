@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "transpondersnails:white_transponder_snail",
+          "functions": [
+            {
+              "function": "minecraft:copy_nbt",
+              "source": "block_entity",
+              "ops": [
+                {
+                  "source": "ShellColor",
+                  "target": "shell_color",
+                  "op": "replace"
+                },
+                {
+                  "source": "ShellColor",
+                  "target": "BlockEntityTag.ShellColor",
+                  "op": "replace"
+                },
+                {
+                  "source": "Initialized",
+                  "target": "BlockEntityTag.Initialized",
+                  "op": "replace"
+                },
+                {
+                  "source": "ColorsInitialized",
+                  "target": "BlockEntityTag.ColorsInitialized",
+                  "op": "replace"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
