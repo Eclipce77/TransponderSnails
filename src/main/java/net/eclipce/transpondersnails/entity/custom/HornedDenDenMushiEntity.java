@@ -66,14 +66,6 @@ public class HornedDenDenMushiEntity extends DenDenMushiEntity {
 
             baby.setBodyColor(babyBodyColor);
             baby.setShellColor(babyShellColor);
-
-            System.out.println("HORNED BREEDING: Created baby with inherited colours");
-            System.out.println("  Parent 1 - Body: #" + Integer.toHexString(this.getBodyColor()).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(this.getShellColor()).getName());
-            System.out.println("  Parent 2 - Body: #" + Integer.toHexString(otherDenDen.getBodyColor()).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(otherDenDen.getShellColor()).getName());
-            System.out.println("  Baby - Body: #" + Integer.toHexString(babyBodyColor).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(babyShellColor).getName());
         }
 
         return baby;
@@ -90,22 +82,13 @@ public class HornedDenDenMushiEntity extends DenDenMushiEntity {
 
         // Empty-hand pickup — same logic as base class but uses HornedDenDenMushiItem
         if (itemStack.isEmpty()) {
-            System.out.println("HornedDenDenMushi: empty-hand pickup | side: " +
-                    (level().isClientSide() ? "CLIENT" : "SERVER") + " | hand: " + hand);
 
             if (!this.level().isClientSide) {
-                System.out.println("=== HORNED ENTITY PICKUP ===");
-                System.out.println("Shell: " + DyeColor.byId(this.getShellColor()).getName());
-                System.out.println("Body:  #" + Integer.toHexString(this.getBodyColor()).toUpperCase());
-                System.out.println("Baby:  " + this.isBaby());
 
                 // Horned DDM does not have a separate baby item — use adult item for both
                 // (mirrors how WhiteDenDenMushi handles pickup; adjust if a baby variant is added later)
                 ItemStack hornedItem = HornedDenDenMushiItem.createFromEntity(this);
 
-                System.out.println("Created item shell: " + HornedDenDenMushiItem.getShellColor(hornedItem));
-                System.out.println("Created item body:  #" +
-                        Integer.toHexString(HornedDenDenMushiItem.getBodyColor(hornedItem)).toUpperCase());
 
                 if (!player.getInventory().add(hornedItem)) {
                     player.drop(hornedItem, false);
@@ -116,7 +99,6 @@ public class HornedDenDenMushiEntity extends DenDenMushiEntity {
                         ((this.random.nextFloat() - this.random.nextFloat()) * 0.7F + 1.0F) * 2.0F);
 
                 this.discard();
-                System.out.println("============================");
             }
 
             return InteractionResult.sidedSuccess(this.level().isClientSide);

@@ -26,13 +26,11 @@ public class CuriosGUISlots {
             try {
                 // Use helper class to avoid loading Curios classes when not present
                 CuriosSlotHelper.registerSlots();
-                System.out.println("TransponderSnails: Registered Curios wrist slots (hands preset)");
             } catch (Exception e) {
                 System.err.println("TransponderSnails: Failed to register Curios slots: " + e.getMessage());
                 e.printStackTrace();
             }
         } else {
-            System.out.println("TransponderSnails: Skipping Curios slot registration (Curios not loaded)");
         }
     }
 

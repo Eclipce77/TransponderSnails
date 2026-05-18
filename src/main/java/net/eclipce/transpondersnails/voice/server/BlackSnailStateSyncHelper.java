@@ -8,7 +8,6 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.UUID;
 
 /**
- * PERFORMANCE: All System.out.println removed from syncState().
  * This method is called from hot paths (updateCallStates every 200ms,
  * plus every state transition). Any logging here multiplies directly
  * with player count × call frequency.

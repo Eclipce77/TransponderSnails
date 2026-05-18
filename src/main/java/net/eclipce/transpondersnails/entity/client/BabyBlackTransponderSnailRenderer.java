@@ -53,12 +53,6 @@ public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackT
 
         // Debug output (only every 100 frames to reduce spam)
         if (DEBUG && debugCounter++ % 100 == 0) {
-            System.out.println("=== RENDERER DEBUG ===");
-            System.out.println("Entity ID: " + entity.getId());
-            System.out.println("Entity Shell Color from getShellColor(): " + shellColor);
-            System.out.println("Color Name: " + DyeColor.byId(shellColor).getName());
-            System.out.println("Entity is on client: " + entity.level().isClientSide());
-            System.out.println("======================");
         }
 
         // Create ItemStack with shell color NBT

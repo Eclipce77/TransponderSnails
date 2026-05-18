@@ -31,7 +31,6 @@ public class PortableSnailForceCloseHandler {
     @SubscribeEvent
     public static void onWorldUnload(LevelEvent.Unload event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
-            System.out.println("PortableSnailForceCloseHandler: World unloading, closing all portable snails");
             closeAllPortableSnailsInWorld(serverLevel);
         }
     }
@@ -43,7 +42,6 @@ public class PortableSnailForceCloseHandler {
     @SubscribeEvent
     public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-            System.out.println("PortableSnailForceCloseHandler: Player " + serverPlayer.getName().getString() + " logged in, checking for open snails");
             closeAllPortableSnailsForPlayer(serverPlayer);
         }
     }
@@ -54,7 +52,6 @@ public class PortableSnailForceCloseHandler {
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-            System.out.println("PortableSnailForceCloseHandler: Player " + serverPlayer.getName().getString() + " died, closing all portable snails");
             closeAllPortableSnailsForPlayer(serverPlayer);
         }
     }
@@ -65,7 +62,6 @@ public class PortableSnailForceCloseHandler {
     @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-            System.out.println("PortableSnailForceCloseHandler: Player " + serverPlayer.getName().getString() + " respawned, checking for open snails");
             closeAllPortableSnailsForPlayer(serverPlayer);
         }
     }
@@ -98,8 +94,6 @@ public class PortableSnailForceCloseHandler {
         }
 
         if (closedCount > 0) {
-            System.out.println("PortableSnailForceCloseHandler: Closed " + closedCount
-                    + " portable snail(s) for player " + player.getName().getString());
         }
     }
 
@@ -144,7 +138,6 @@ public class PortableSnailForceCloseHandler {
         });
 
         if (closedCount.get() > 0) {
-            System.out.println("PortableSnailForceCloseHandler: Closed " + closedCount.get() + " portable snails in world");
         }
     }
 

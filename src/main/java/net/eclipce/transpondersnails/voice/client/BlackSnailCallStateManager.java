@@ -76,8 +76,6 @@ public class BlackSnailCallStateManager {
      * Set call state for a player (called by packet handler)
      */
     public void setState(UUID playerId, CallState state) {
-//        System.out.println("[BLACK-STATE-MGR] setState: player=" + playerId.toString().substring(0, 8) +
-//                ", state=" + state + " (value=" + state.getPredicateValue() + ")");
 
         if (state == CallState.IDLE) {
             playerStates.remove(playerId);

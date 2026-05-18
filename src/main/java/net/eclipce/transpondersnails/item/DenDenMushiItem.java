@@ -58,7 +58,6 @@ public class DenDenMushiItem extends Item {
         entity.addAdditionalSaveData(entityData);
         nbt.put(ENTITY_DATA_TAG, entityData);
 
-        System.out.println("===================================");
 
         return stack;
     }
@@ -69,12 +68,6 @@ public class DenDenMushiItem extends Item {
         CompoundTag nbt = stack.getTag();
         if (nbt == null) return;
 
-        System.out.println("=== applyToEntity DEBUG ===");
-        System.out.println("Item NBT: " + nbt);
-        System.out.println("Item has BodyColor: " + nbt.contains(BODY_COLOR_TAG));
-        System.out.println("Item has ShellColor: " + nbt.contains(SHELL_COLOR_TAG));
-        System.out.println("Item has EntityData: " + nbt.contains(ENTITY_DATA_TAG));
-
         // Apply colors from top-level NBT FIRST
         boolean hasTopLevelBodyColor = nbt.contains(BODY_COLOR_TAG);
         boolean hasTopLevelShellColor = nbt.contains(SHELL_COLOR_TAG);
@@ -82,12 +75,10 @@ public class DenDenMushiItem extends Item {
         if (hasTopLevelBodyColor) {
             int bodyColor = nbt.getInt(BODY_COLOR_TAG);
             entity.setBodyColor(bodyColor);
-            System.out.println("  Applied top-level body color: #" + Integer.toHexString(bodyColor));
         }
         if (hasTopLevelShellColor) {
             int shellColor = nbt.getInt(SHELL_COLOR_TAG);
             entity.setShellColor(shellColor);
-            System.out.println("  Applied top-level shell color: " + shellColor);
         }
 
         // Apply other entity data, but ONLY if we didn't already set colors
@@ -101,24 +92,16 @@ public class DenDenMushiItem extends Item {
                 CompoundTag sanitizedEntityData = entityData.copy();
                 if (hasTopLevelBodyColor) {
                     sanitizedEntityData.remove("BodyColor");
-                    System.out.println("  Removed BodyColor from EntityData to prevent overwrite");
                 }
                 if (hasTopLevelShellColor) {
                     sanitizedEntityData.remove("ShellColor");
-                    System.out.println("  Removed ShellColor from EntityData to prevent overwrite");
                 }
                 entity.readAdditionalSaveData(sanitizedEntityData);
             } else {
                 // No top-level colors, use EntityData as-is
                 entity.readAdditionalSaveData(entityData);
-                System.out.println("  Applied EntityData colors (no top-level override)");
             }
         }
-
-        System.out.println("After applyToEntity:");
-        System.out.println("  Entity body color: #" + Integer.toHexString(entity.getBodyColor()));
-        System.out.println("  Entity shell color: " + entity.getShellColor());
-        System.out.println("=========================");
     }
 
     // Get colors for rendering and tooltips

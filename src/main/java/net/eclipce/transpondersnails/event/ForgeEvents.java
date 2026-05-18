@@ -30,7 +30,6 @@ public class ForgeEvents {
      */
     @SubscribeEvent
     public static void onServerStarting(ServerStartingEvent event) {
-        System.out.println("TransponderSnails: Server starting - ensuring clean state");
 
         // The TransponderCallManager will be initialized by the voice chat plugin
         // when it starts, which happens after this event. The fresh initialization
@@ -43,7 +42,6 @@ public class ForgeEvents {
      */
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
-        System.out.println("TransponderSnails: Server stopping - cleaning up all active calls");
 
         TransponderCallManager callManager = TransponderSnails.getCallManager();
         if (callManager != null) {
@@ -59,8 +57,6 @@ public class ForgeEvents {
 
                 // Clean up the manager itself
                 callManager.shutdown();
-
-                System.out.println("TransponderSnails: All calls ended and cleaned up");
             } catch (Exception e) {
                 System.err.println("TransponderSnails: Error during shutdown cleanup: " + e.getMessage());
                 e.printStackTrace();
@@ -85,11 +81,9 @@ public class ForgeEvents {
                     if (interceptionManager != null) {
                         if (interceptionManager.isSearching(player.getUUID())) {
                             interceptionManager.stopSearching(player.getUUID());
-                            System.out.println("Stopped searching for player " + player.getName().getString() + " (death)");
                         }
                         if (interceptionManager.isIntercepting(player.getUUID())) {
                             interceptionManager.stopInterception(player.getUUID());
-                            System.out.println("Stopped interception for player " + player.getName().getString() + " (death)");
                         }
                     }
 
@@ -120,18 +114,15 @@ public class ForgeEvents {
                     if (interceptionManager != null) {
                         if (interceptionManager.isSearching(player.getUUID())) {
                             interceptionManager.stopSearching(player.getUUID());
-                            System.out.println("Stopped searching for player " + player.getName().getString() + " (logout)");
                         }
                         if (interceptionManager.isIntercepting(player.getUUID())) {
                             interceptionManager.stopInterception(player.getUUID());
-                            System.out.println("Stopped interception for player " + player.getName().getString() + " (logout)");
                         }
                     }
 
                     // Handle call participant logout
                     // The manager will decide if the call should continue for other participants
                     callManager.onPlayerDisconnect(player.getUUID());
-                    System.out.println("Processed disconnect for player " + player.getName().getString());
 
                 } catch (Exception e) {
                     System.err.println("Error handling player logout: " + e.getMessage());

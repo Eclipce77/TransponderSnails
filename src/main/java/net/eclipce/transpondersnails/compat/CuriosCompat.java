@@ -26,9 +26,7 @@ public class CuriosCompat {
         if (curiosLoaded == null) {
             curiosLoaded = ModList.get().isLoaded(CURIOS_MOD_ID);
             if (curiosLoaded) {
-                System.out.println("TransponderSnails: Curios API detected - enabling wrist slot features");
             } else {
-                System.out.println("TransponderSnails: Curios API not found - wrist slot features disabled");
             }
         }
         return curiosLoaded;

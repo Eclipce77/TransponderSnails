@@ -68,12 +68,6 @@ public class BlackTransponderSnailRenderer extends EntityRenderer<BlackTranspond
 
         // Debug output (only every 100 frames to reduce spam)
         if (DEBUG && debugCounter++ % 100 == 0) {
-            System.out.println("=== BLACK SNAIL ENTITY RENDERER DEBUG ===");
-            System.out.println("Entity ID: " + entity.getId());
-            System.out.println("Shell Color: " + shellColor + " (" + DyeColor.byId(shellColor).getName() + ")");
-            System.out.println("Active: " + isActive);
-            System.out.println("Scale: " + totalScale);
-            System.out.println("=========================================");
         }
 
         // Create ItemStack with shell color and open state NBT

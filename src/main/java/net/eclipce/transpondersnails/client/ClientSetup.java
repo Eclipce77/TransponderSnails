@@ -56,8 +56,6 @@ public class ClientSetup {
         // registration the block will be invisible in the world.
         BlockEntityRenderers.register(ModBlockEntities.HORNED_DEN_DEN_MUSHI_BLOCK_ENTITY.get(), HornedDenDenMushiBlockEntityRenderer::new);
 
-        System.out.println("Registered entity renderers");
-
     }
 
     /**

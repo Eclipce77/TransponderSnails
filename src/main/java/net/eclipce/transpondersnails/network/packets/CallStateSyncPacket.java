@@ -77,7 +77,6 @@ public class CallStateSyncPacket {
 
                     if (mc.player != null && mc.player.containerMenu instanceof DialingMenu menu) {
                         menu.updateCallState(callState, callId, otherSnailNumber, statusMessage);
-                        System.out.println("[CALL-STATE-SYNC] Updated call state to: " + callState);
                     }
                 } catch (Exception e) {
                     System.err.println("[CALL-STATE-SYNC] ERROR: " + e.getMessage());

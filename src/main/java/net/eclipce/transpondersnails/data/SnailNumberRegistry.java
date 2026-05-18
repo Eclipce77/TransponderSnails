@@ -45,20 +45,16 @@ public class SnailNumberRegistry extends SavedData {
     @Nullable
     public static SnailNumberRegistry getInstance() {
         if (ServerLifecycleHooks.getCurrentServer() == null) {
-            System.out.println("SnailNumberRegistry: Cannot get instance - server not running");
             return null; // Server not running
         }
 
         if (instance == null) {
-            System.out.println("SnailNumberRegistry: Creating new instance, loading from disk...");
             ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
             instance = overworld.getDataStorage().computeIfAbsent(
                     SnailNumberRegistry::load,
                     SnailNumberRegistry::new,
                     DATA_NAME
             );
-            System.out.println("SnailNumberRegistry: Registry loaded with " +
-                    instance.assignedNumbers.size() + " existing assignments");
         }
 
         return instance;
@@ -74,7 +70,6 @@ public class SnailNumberRegistry extends SavedData {
         // Check if this snail already has a number
         if (snailToNumber.containsKey(snailUUID)) {
             int existingNumber = snailToNumber.get(snailUUID);
-            System.out.println("SnailNumberRegistry: UUID " + snailUUID + " already has number #" + existingNumber);
             return existingNumber;
         }
 
@@ -101,10 +96,7 @@ public class SnailNumberRegistry extends SavedData {
 
         // ⚡ CRITICAL FIX: Save immediately so data persists even if server crashes/is killed
         // This is the key change that fixes gradle task kill persistence issues
-        System.out.println("SnailNumberRegistry: Assigned NEW number #" + newNumber + " to snail " + snailUUID);
-        System.out.println("SnailNumberRegistry: Saving immediately to disk...");
         forceSave();
-        System.out.println("SnailNumberRegistry: Assignment saved! Total: " + assignedNumbers.size() + "/" + TOTAL_POSSIBLE_NUMBERS);
 
         return newNumber;
     }
@@ -168,9 +160,7 @@ public class SnailNumberRegistry extends SavedData {
             setDirty();
 
             // Save immediately after removal
-            System.out.println("SnailNumberRegistry: Removed assignment of number " + number + " from snail " + snailUUID);
             forceSave();
-            System.out.println("SnailNumberRegistry: Removal saved to disk");
 
             return true;
         }
@@ -232,7 +222,6 @@ public class SnailNumberRegistry extends SavedData {
         compound.putInt("total_assigned", assignedNumbers.size());
         compound.putInt("registry_version", 1); // For future compatibility
 
-        System.out.println("SnailNumberRegistry: Saved " + assignedNumbers.size() + " snail number assignments");
         return compound;
     }
 
@@ -245,7 +234,6 @@ public class SnailNumberRegistry extends SavedData {
         // Load assignments
         if (compound.contains("assignments", Tag.TAG_LIST)) {
             ListTag assignmentsList = compound.getList("assignments", Tag.TAG_COMPOUND);
-            System.out.println("SnailNumberRegistry: Found " + assignmentsList.size() + " assignments to load");
 
             for (int i = 0; i < assignmentsList.size(); i++) {
                 CompoundTag assignmentTag = assignmentsList.getCompound(i);
@@ -262,7 +250,6 @@ public class SnailNumberRegistry extends SavedData {
 
                         // Log first few for verification
                         if (i < 5) {
-                            System.out.println("  Loaded: UUID " + snailUUID + " -> #" + number);
                         }
                     } else {
                         System.err.println("SnailNumberRegistry: Loaded invalid snail number " + number + " for UUID " + snailUUID + ", skipping");
@@ -273,10 +260,8 @@ public class SnailNumberRegistry extends SavedData {
                 }
             }
         } else {
-            System.out.println("SnailNumberRegistry: No existing assignments found - starting fresh");
         }
 
-        System.out.println("SnailNumberRegistry: LOADED " + registry.assignedNumbers.size() + " snail number assignments from disk");
         return registry;
     }
 
@@ -284,17 +269,10 @@ public class SnailNumberRegistry extends SavedData {
      * Debug method to print current registry state
      */
     public void debugPrintState() {
-        System.out.println("=== SnailNumberRegistry Debug Info ===");
-        System.out.println("Assigned numbers: " + assignedNumbers.size() + "/" + TOTAL_POSSIBLE_NUMBERS);
-        System.out.println("Available numbers: " + getAvailableCount());
 
         if (assignedNumbers.size() <= 20) { // Only print details if not too many
-            System.out.println("Current assignments:");
-            for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet()) {
-                System.out.println("  " + entry.getKey() + " -> #" + entry.getValue());
-            }
+            for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet());
         }
-        System.out.println("=====================================");
     }
 
     /**
@@ -315,10 +293,7 @@ public class SnailNumberRegistry extends SavedData {
         setDirty();
 
         // Save immediately after clearing
-        System.out.println("SnailNumberRegistry: CLEARED ALL ASSIGNMENTS - " + clearedCount + " numbers freed");
         forceSave();
-        System.out.println("SnailNumberRegistry: Clear operation saved to disk");
-
         return clearedCount;
     }
 
@@ -331,12 +306,10 @@ public class SnailNumberRegistry extends SavedData {
      * @return The restored number, or -1 if restoration failed
      */
     public synchronized int restoreSnailAssignment(@NotNull UUID snailUUID, int preferredNumber) {
-        System.out.println("SnailNumberRegistry: Attempting to restore assignment for UUID " + snailUUID + " with preferred number #" + preferredNumber);
 
         // Check if the UUID is already assigned
         if (snailToNumber.containsKey(snailUUID)) {
             int existingNumber = snailToNumber.get(snailUUID);
-            System.out.println("SnailNumberRegistry: UUID already has assignment #" + existingNumber);
             return existingNumber;
         }
 
@@ -349,13 +322,10 @@ public class SnailNumberRegistry extends SavedData {
                 assignedNumbers.add(preferredNumber);
                 setDirty();
 
-                System.out.println("SnailNumberRegistry: Restored preferred assignment #" + preferredNumber + " to UUID " + snailUUID);
                 forceSave();
-                System.out.println("SnailNumberRegistry: Restoration saved to disk");
 
                 return preferredNumber;
             } else {
-                System.out.println("SnailNumberRegistry: Preferred number #" + preferredNumber + " is no longer available");
             }
         }
 
@@ -367,9 +337,7 @@ public class SnailNumberRegistry extends SavedData {
             assignedNumbers.add(newNumber);
             setDirty();
 
-            System.out.println("SnailNumberRegistry: Restored with new assignment #" + newNumber + " to UUID " + snailUUID);
             forceSave();
-            System.out.println("SnailNumberRegistry: Restoration saved to disk");
 
             return newNumber;
         }
@@ -397,7 +365,6 @@ public class SnailNumberRegistry extends SavedData {
             overworld.getDataStorage().save();
 
             // Success message only if not spamming
-            // System.out.println("SnailNumberRegistry: ✓ Data written to disk");
         } catch (Exception e) {
             System.err.println("SnailNumberRegistry: Error during force save: " + e.getMessage());
             e.printStackTrace();
@@ -414,12 +381,10 @@ public class SnailNumberRegistry extends SavedData {
         try {
             if (ServerLifecycleHooks.getCurrentServer() != null) {
                 ServerLevel overworld = ServerLifecycleHooks.getCurrentServer().overworld();
-                System.out.println("SnailNumberRegistry: DataStorage location: " + overworld.getDataStorage().toString());
 
                 // Force a save and verify
                 setDirty();
                 overworld.getDataStorage().save();
-                System.out.println("SnailNumberRegistry: Force save completed");
             }
         } catch (Exception e) {
             System.err.println("SnailNumberRegistry: Error during save validation: " + e.getMessage());
@@ -432,10 +397,7 @@ public class SnailNumberRegistry extends SavedData {
      */
     public static void resetInstance() {
         if (instance != null) {
-            System.out.println("SnailNumberRegistry: Resetting instance cache (" +
-                    instance.assignedNumbers.size() + " assignments will be reloaded on next start)");
         } else {
-            System.out.println("SnailNumberRegistry: Instance already null, nothing to reset");
         }
         instance = null;
     }

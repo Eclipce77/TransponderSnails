@@ -87,8 +87,6 @@ public class StonecutterEventHandler {
             DenDenMushiItem.setColors(denDenMushi, bodyColor, shellColor);
             DenDenMushiItem.setCaptured(denDenMushi, true);
 
-            System.out.println("StonecutterEventHandler: Transferred colors - Body: #" +
-                    Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
         }
     }
 }

@@ -303,7 +303,6 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
 
     // Helper method for dial buttons
     private void onDialButtonPressed(int digit) {
-        System.out.println("Dialed " + digit); // Debug output
         this.menu.dialDigit(digit);
 
         // Update the text display
@@ -320,7 +319,6 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
             // This shouldn't happen if button is properly disabled, but just in case
             return;
         } else {
-            System.out.println("Call Button Pressed"); // Debug output
             this.menu.initiateCall(); // You'll need to add this method to your DialingMenu
             menu.onCallInitiated();
 
@@ -338,7 +336,6 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
 
     // Helper method for clear button
     private void onClearButtonPressed(int digit) {
-        System.out.println("Number cleared!"); // Debug output
         this.menu.clearNumber(); // You'll need to add this method to your DialingMenu
         menu.onNumberCleared();
 

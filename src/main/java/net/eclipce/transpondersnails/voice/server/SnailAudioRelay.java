@@ -67,7 +67,6 @@ public class SnailAudioRelay {
     private static final long AUDIO_TIMEOUT_MS = 500;
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
-        System.out.println("SnailAudioRelay: Initialized");
         this.voiceChatApi = voiceChatApi;
         this.callManager = callManager;
 

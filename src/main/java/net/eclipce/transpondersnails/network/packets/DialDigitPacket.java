@@ -50,15 +50,12 @@ public class DialDigitPacket {
                                 String currentNumber = dialingMenu.getDialedNumber();
                                 ModPackets.sendToPlayer(new DialedNumberSyncPacket(currentNumber), player);
 
-                                System.out.println("DialDigitPacket: Player " + player.getName().getString() +
-                                        " dialed digit " + digit + ", current number: " + currentNumber);
                             }
                             break;
 
                         case "clear":
                             dialingMenu.clearDialedNumber();
                             ModPackets.sendToPlayer(new DialedNumberSyncPacket(""), player);
-                            System.out.println("DialDigitPacket: Player " + player.getName().getString() + " cleared dialed number");
                             break;
 
                         case "backspace":
@@ -73,8 +70,6 @@ public class DialDigitPacket {
                                     }
                                 }
                                 ModPackets.sendToPlayer(new DialedNumberSyncPacket(newNumber), player);
-                                System.out.println("DialDigitPacket: Player " + player.getName().getString() +
-                                        " backspaced, new number: " + newNumber);
                             }
                             break;
 

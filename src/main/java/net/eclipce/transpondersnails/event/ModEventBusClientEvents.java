@@ -40,7 +40,6 @@ public class ModEventBusClientEvents {
         event.registerEntityRenderer(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
                 BlackTransponderSnailRenderer::new);
 
-        System.out.println("Registered Baby Black Transponder Snail renderer!");
     }
 
     @SubscribeEvent
@@ -144,8 +143,6 @@ public class ModEventBusClientEvents {
                         return 0.0f; // Default to idle
                     });
 
-            System.out.println("TransponderSnails: Registered 3 Baby Black Transponder Snail predicates (open + shell_color + call_state)");
-
             // ===================== BLACK TRANSPONDER SNAIL PROPERTIES =====================
 
             // 1. Open/Close state (0.0 = closed, 1.0 = open)
@@ -173,8 +170,6 @@ public class ModEventBusClientEvents {
                         }
                         return 0.0f; // Default to idle
                     });
-
-            System.out.println("TransponderSnails: Registered 3 Black Transponder Snail predicates (open + shell_color + call_state)");
 
             // ===================== PORTABLE BLACK TRANSPONDER SNAIL PROPERTIES =====================
 
@@ -212,13 +207,6 @@ public class ModEventBusClientEvents {
                         return value;
                     });
 
-            System.out.println("âœ… Registered 4 predicates for Portable Black Transponder Snail:");
-            System.out.println("   - open (0.0 or 1.0)");
-            System.out.println("   - shell_color (0.0 to 15.0)");
-            System.out.println("   - band_color (0.0 to 15.0)");
-            System.out.println("   - call_state (0.0, 0.25, 0.5, 0.75)");
-            System.out.println("=============================================================");
-
             // âœ… CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
         });
     }
@@ -234,8 +222,6 @@ public class ModEventBusClientEvents {
                 event.register(new ResourceLocation(TransponderSnails.MOD_ID, "block/" + state + "_shell_" + color));
             }
         }
-
-        System.out.println("Registered 64 transponder snail model variants for BER");
     }
 
     // Register item color provider in your client setup

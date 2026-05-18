@@ -136,11 +136,6 @@ public class TransponderSnails {
         });
 
         event.enqueueWork(() -> {
-            System.out.println("=== ITEM CLASS CHECK ===");
-            System.out.println("BLACK SNAIL CLASS: " + ModItems.BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
-            System.out.println("BABY BLACK CLASS: " + ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
-            System.out.println("PORTABLE CLASS: " + ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get().getClass().getName());
-            System.out.println("========================");
         });
     }
 
@@ -156,30 +151,22 @@ public class TransponderSnails {
      */
     private void registerEmergencyShutdownHook() {
         emergencyShutdownHook = new Thread(() -> {
-            System.out.println("=================================================");
-            System.out.println("  EMERGENCY SHUTDOWN DETECTED!");
-            System.out.println("TransponderSnails: Attempting emergency save...");
-            System.out.println("=================================================");
 
             try {
                 SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
                 if (registry != null) {
-                    System.out.println("TransponderSnails: Emergency saving registry...");
                     registry.forceSave();
-                    System.out.println("TransponderSnails: Emergency save successful!");
                 } else {
-                    System.out.println("TransponderSnails: No registry to save (server may not have started)");
                 }
             } catch (Exception e) {
                 System.err.println("TransponderSnails: Emergency save failed: " + e.getMessage());
                 e.printStackTrace();
             }
 
-            System.out.println("=================================================");
+
         }, "TransponderSnails-EmergencyShutdown");
 
         Runtime.getRuntime().addShutdownHook(emergencyShutdownHook);
-        System.out.println("TransponderSnails: Emergency shutdown hook registered");
     }
 
     @SubscribeEvent
@@ -189,39 +176,23 @@ public class TransponderSnails {
 
         // Reset server state when server starts
         TransponderSnailBlockEntity.setServerStartingUp();
-        System.out.println("TransponderSnails: Server starting - reset block entity state");
-
-        // The registry will be automatically loaded when first accessed via getInstance()
-        System.out.println("TransponderSnails: SnailNumberRegistry will load on first access");
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
-        System.out.println("============================================================");
-        System.out.println(" TransponderSnails: GRACEFUL SHUTDOWN INITIATED              ");
-        System.out.println("============================================================");
 
         // Set shutdown flag to prevent infinite loops during world save
         TransponderSnailBlockEntity.setServerShuttingDown();
-        System.out.println("TransponderSnails: Prevented block entity loops");
 
         // Force save the registry
         SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
         if (registry != null) {
-            System.out.println("TransponderSnails: Graceful shutdown - saving registry...");
             registry.forceSave();
-            System.out.println("TransponderSnails: Registry saved successfully");
         } else {
-            System.out.println("TransponderSnails: No registry instance to save");
         }
 
         // Reset the instance cache
         SnailNumberRegistry.resetInstance();
-        System.out.println("TransponderSnails: Instance cache reset");
-
-        System.out.println("============================================================");
-        System.out.println(" TransponderSnails: GRACEFUL SHUTDOWN COMPLETE               ");
-        System.out.println("============================================================");
     }
 
     // Register commands
@@ -295,9 +266,6 @@ public class TransponderSnails {
 
         if (item == ModItems.BLACK_TRANSPONDER_SNAIL.get() ||
                 item == ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get()) {
-
-            System.out.println("RIGHT CLICK DETECTED: " + item.getClass().getSimpleName());
-            System.out.println("Event canceled: " + event.isCanceled());
         }
     }
 }

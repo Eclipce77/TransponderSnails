@@ -117,7 +117,6 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
                 }
             }
 
-            System.out.println("Successfully loaded Snail Volume icon");
             return image;
 
         } catch (IOException e) {
@@ -142,8 +141,5 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
                 Thread.currentThread().interrupt();
             }
         }
-
-        // Note: audioRelay cleanup is handled by the TransponderCallManager
-        System.out.println("TransponderSnailsPlugin: Cleanup completed");
     }
 }

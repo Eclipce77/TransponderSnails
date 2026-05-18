@@ -44,7 +44,6 @@ public class DialedNumberSyncPacket {
 
                     if (mc.player != null && mc.player.containerMenu instanceof DialingMenu menu) {
                         menu.setClientDialedNumber(dialedNumber);
-                        System.out.println("[DIALED-NUMBER-SYNC] Synced dialed number: '" + dialedNumber + "'");
                     }
                 } catch (Exception e) {
                     System.err.println("[DIALED-NUMBER-SYNC] ERROR: " + e.getMessage());

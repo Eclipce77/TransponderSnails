@@ -177,14 +177,13 @@ public class DialingMenu extends AbstractContainerMenu {
                 // Already has a number
                 this.ownSnailNumber = existingNumber;
                 this.numberAssigned = true;
-                System.out.println("DialingMenu: Handheld snail already has number #" + existingNumber);
+
             } else {
                 // Need to assign a number
                 UUID snailUUID = SnailNBTHandler.getOrCreateSnailUUID(targetStack, player.getUUID());
                 if (snailUUID != null) {
                     this.ownSnailNumber = SnailNBTHandler.getSnailNumber(targetStack);
                     this.numberAssigned = true;
-                    System.out.println("DialingMenu: Assigned new number #" + this.ownSnailNumber + " to handheld snail");
 
                     // Send congratulations message to player
                     if (player instanceof ServerPlayer serverPlayer) {
@@ -202,7 +201,6 @@ public class DialingMenu extends AbstractContainerMenu {
 
         // Sync to client immediately after initialization
         if (player instanceof ServerPlayer serverPlayer && this.ownSnailNumber != -1) {
-            System.out.println("DialingMenu: Sending sync packet to client - number #" + this.ownSnailNumber);
             ModPackets.sendToPlayer(new SnailNumberSyncPacket(this.ownSnailNumber), serverPlayer);
         }
     }
@@ -312,7 +310,6 @@ public class DialingMenu extends AbstractContainerMenu {
                         UUID registryUUID = registry.getSnailByNumber(this.ownSnailNumber);
                         if (registryUUID == null || !registryUUID.equals(snailUUID)) {
                             // Number is no longer valid - reassign
-                            System.out.println("DialingMenu: Handheld snail number #" + this.ownSnailNumber + " no longer valid, reassigning");
                             initializeSnailNumber(); // This will reassign a new number
                         } else {
                             // Number is still valid - sync to client
@@ -503,7 +500,6 @@ public class DialingMenu extends AbstractContainerMenu {
     public void onCallInitiated() {
         // Update GUI to show calling state
         // You can add visual feedback here (disable dial buttons, show status, etc.)
-        System.out.println("DialingMenu: Call initiated");
     }
 
     /**
@@ -518,7 +514,6 @@ public class DialingMenu extends AbstractContainerMenu {
         } else {
             clearDialedNumber();
         }
-        System.out.println("DialingMenu: Call ended");
     }
 
     /**
@@ -526,7 +521,6 @@ public class DialingMenu extends AbstractContainerMenu {
      */
     public void onNumberCleared() {
         // Update GUI as needed
-        System.out.println("DialingMenu: Number cleared");
     }
 
     // =================== CALL STATE GETTERS ===================
@@ -643,7 +637,6 @@ public class DialingMenu extends AbstractContainerMenu {
 
     // Called from client via packet to set the snail number
     public void setOwnSnailNumber(int number) {
-//        System.out.println("DialingMenu: setOwnSnailNumber called with number #" + number);
         this.ownSnailNumber = number;
         this.numberAssigned = number != -1;
     }
@@ -652,7 +645,6 @@ public class DialingMenu extends AbstractContainerMenu {
     public void setClientDialedNumber(String number) {
         if (player.level().isClientSide) {
             this.clientDialedNumber = number != null ? number : "";
-//            System.out.println("DialingMenu: setClientDialedNumber called with: '" + this.clientDialedNumber + "'");
         }
     }
 

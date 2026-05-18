@@ -27,22 +27,14 @@ public class PortableBlackSnailItemProperties {
             return 0.0f;
         }
 
-        System.out.println("✅ Snail is OPEN!");
 
         if (entity == null) {
             System.err.println("ERROR: Entity is null!");
-            System.out.println("============================");
             return 0.0f;
         }
 
-        System.out.println("Entity: " + entity.getName().getString());
-        System.out.println("Entity UUID: " + entity.getUUID().toString().substring(0, 8));
-
         PortableBlackSnailCallStateManager stateManager = PortableBlackSnailCallStateManager.getInstance();
         float predicateValue = stateManager.getPredicateValue(entity.getUUID());
-
-        System.out.println("Final predicate value: " + predicateValue);
-        System.out.println("============================");
 
         return predicateValue;
     }

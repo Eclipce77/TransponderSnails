@@ -91,7 +91,6 @@ public class TransponderSnailItem extends BlockItem {
                 int callerNumber = callManager.getCallerSnailNumber(snailNumber);
                 nbt.putString(CALL_STATE_TAG, "ringing");
                 nbt.putInt(OTHER_SNAIL_NUMBER_TAG, callerNumber);
-                System.out.println("DEBUG: Updated snail #" + snailNumber + " to RINGING state");
             }
             return;  // Exit early
         }
@@ -118,7 +117,6 @@ public class TransponderSnailItem extends BlockItem {
                             nbt.putString(CALL_STATE_TAG, "connected");
                             nbt.putUUID(ACTIVE_CALL_ID_TAG, callId);
                             nbt.putLong(CALL_START_TIME_TAG, System.currentTimeMillis());
-                            System.out.println("DEBUG: Updated snail #" + snailNumber + " to CONNECTED state");
                         }
                     } else {
                         // ✅ Call exists but is NOT connected (INITIATING, RINGING, ENDING)
@@ -126,15 +124,12 @@ public class TransponderSnailItem extends BlockItem {
                         if (nbt.contains(CALL_STATE_TAG)) {
                             String currentState = nbt.getString(CALL_STATE_TAG);
                             if (!currentState.isEmpty() && !"idle".equals(currentState)) {
-                                System.out.println("DEBUG: Clearing snail #" + snailNumber +
-                                        " call state (session is " + state + ", not CONNECTED)");
                                 clearCallState(nbt);
                             }
                         }
                     }
                 } else {
                     // Session not found but snail is supposedly in call - clear state
-                    System.out.println("DEBUG: Session not found for snail #" + snailNumber + ", clearing state");
                     clearCallState(nbt);
                 }
             } else {
@@ -146,7 +141,6 @@ public class TransponderSnailItem extends BlockItem {
             if (nbt.contains(CALL_STATE_TAG)) {
                 String currentState = nbt.getString(CALL_STATE_TAG);
                 if (!currentState.isEmpty() && !"idle".equals(currentState)) {
-                    System.out.println("DEBUG: Snail #" + snailNumber + " not in call, clearing state");
                     clearCallState(nbt);
                 }
             }
@@ -272,23 +266,17 @@ public class TransponderSnailItem extends BlockItem {
 
         // === FIXED: Check call manager instead of NBT for call state ===
 
-        System.out.println("DEBUG: TransponderSnailItem.use() - Snail #" + snailNumber + ", Crouching: " + isCrouching);
-
         // FIRST: Check if snail is ringing (SOURCE OF TRUTH: call manager)
         if (callManager.isSnailRinging(snailNumber)) {
             UUID callId = callManager.getRingingCallId(snailNumber);
             int callerNumber = callManager.getCallerSnailNumber(snailNumber);
 
-            System.out.println("DEBUG: Snail is RINGING - CallID: " + (callId != null ? callId.toString().substring(0, 8) : "null") + ", Caller: #" + callerNumber);
-
             if (isCrouching) {
                 // Sneak + Right Click: Open GUI even while ringing
-                System.out.println("DEBUG: Opening GUI while ringing (sneaking)");
                 openDialingMenu(serverPlayer, stack);
                 return InteractionResultHolder.success(stack);
             } else {
                 // Right Click: Answer the incoming call
-                System.out.println("DEBUG: Attempting to answer call");
 
                 if (callId != null && callManager.acceptCall(serverPlayer, callId)) {
                     // Update NBT for display purposes
@@ -301,9 +289,7 @@ public class TransponderSnailItem extends BlockItem {
                                     .withStyle(ChatFormatting.GREEN),
                             true
                     );
-                    System.out.println("DEBUG: Call answered successfully");
                 } else {
-                    System.out.println("DEBUG: Failed to answer call");
                     serverPlayer.displayClientMessage(
                             Component.literal("Failed to answer call!")
                                     .withStyle(ChatFormatting.RED),
@@ -316,16 +302,13 @@ public class TransponderSnailItem extends BlockItem {
 
         // SECOND: Check if already in a call (SOURCE OF TRUTH: call manager)
         if (callManager.isSnailInCall(snailNumber)) {
-            System.out.println("DEBUG: Snail is in ACTIVE CALL");
 
             if (isCrouching) {
                 // Crouching in call: Open GUI
-                System.out.println("DEBUG: Opening GUI during call (sneaking)");
                 openDialingMenu(serverPlayer, stack);
                 return InteractionResultHolder.success(stack);
             } else {
                 // Not crouching in call: End call
-                System.out.println("DEBUG: Hanging up call");
                 callManager.endCall(serverPlayer);
                 clearCallState(stack.getOrCreateTag());
                 serverPlayer.displayClientMessage(
@@ -338,7 +321,6 @@ public class TransponderSnailItem extends BlockItem {
         }
 
         // THIRD: Not ringing or in call - open GUI
-        System.out.println("DEBUG: Snail is IDLE - opening GUI");
         openDialingMenu(serverPlayer, stack);
         return InteractionResultHolder.success(stack);
     }

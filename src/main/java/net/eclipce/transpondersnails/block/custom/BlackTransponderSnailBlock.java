@@ -287,15 +287,13 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
             CompoundTag tag = drop.getOrCreateTag();
             tag.putInt("shell_color", snailBE.getShellColor());
             tag.putBoolean("is_open", false); // Always drop closed
-            System.out.println("BlackTransponderSnailBlock: Dropping with shell color from BE: " +
-                    DyeColor.byId(snailBE.getShellColor()).getName());
+                    DyeColor.byId(snailBE.getShellColor()).getName();
         } else {
             // Fallback to block state
             CompoundTag tag = drop.getOrCreateTag();
             tag.putInt("shell_color", state.getValue(SHELL_COLOR));
             tag.putBoolean("is_open", false);
-            System.out.println("BlackTransponderSnailBlock: Dropping with shell color from state: " +
-                    DyeColor.byId(state.getValue(SHELL_COLOR)).getName());
+                    DyeColor.byId(state.getValue(SHELL_COLOR)).getName();
         }
 
         return List.of(drop);

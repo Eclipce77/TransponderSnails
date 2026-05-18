@@ -92,7 +92,7 @@ public class WhiteSnailProtectionManager {
      */
     public void setCallManager(TransponderCallManager callManager) {
         this.callManager = callManager;
-        System.out.println("WhiteSnailProtectionManager: CallManager linked");
+
     }
 
     /**
@@ -148,8 +148,6 @@ public class WhiteSnailProtectionManager {
         protectionCache.put(snailPos, new ProtectionCacheEntry(isProtected, whiteSnailPos));
 
         if (isProtected) {
-            System.out.println("WhiteSnailProtectionManager: Snail at " + snailPos +
-                    " is PROTECTED by White Snail at " + whiteSnailPos);
         }
 
         return isProtected;
@@ -258,8 +256,6 @@ public class WhiteSnailProtectionManager {
         // Update wire connection display
         WhiteTransponderSnailBlock.updateWireConnections(level, whiteSnailPos);
 
-        System.out.println("WhiteSnailProtectionManager: Protection started - White Snail at " +
-                whiteSnailPos + " protecting snail at " + protectedSnailPos);
     }
 
     /**
@@ -294,8 +290,6 @@ public class WhiteSnailProtectionManager {
         // Update visual state
         updateWhiteSnailVisualState(level, whiteSnailPos);
 
-        System.out.println("WhiteSnailProtectionManager: Protection ended - White Snail at " +
-                whiteSnailPos + " no longer protecting snail at " + protectedSnailPos);
     }
 
     /**
@@ -332,8 +326,6 @@ public class WhiteSnailProtectionManager {
         // Update visual state to BLOCKING
         updateWhiteSnailVisualState(level, whiteSnailPos);
 
-        System.out.println("WhiteSnailProtectionManager: White Snail at " + whiteSnailPos +
-                " is BLOCKING interception from " + interceptorId.toString().substring(0, 8));
     }
 
     /**
@@ -360,8 +352,6 @@ public class WhiteSnailProtectionManager {
         // Update visual state
         updateWhiteSnailVisualState(level, whiteSnailPos);
 
-        System.out.println("WhiteSnailProtectionManager: White Snail at " + whiteSnailPos +
-                " no longer blocking interceptor " + interceptorId.toString().substring(0, 8));
     }
 
     /**
@@ -407,8 +397,6 @@ public class WhiteSnailProtectionManager {
             return;
         }
 
-        System.out.println("WhiteSnailProtectionManager: Wire network changed at " + changedPos);
-
         // Invalidate cache around the changed position
         invalidateCacheInRange(changedPos, MAX_WIRE_RANGE);
 
@@ -429,15 +417,11 @@ public class WhiteSnailProtectionManager {
             return;
         }
 
-        System.out.println("WhiteSnailProtectionManager: White Snail " + 
-                (placed ? "placed" : "broken") + " at " + whiteSnailPos);
 
         if (!placed) {
             // White Snail was broken - immediately remove all protections it was providing
             Set<BlockPos> protectedSnails = activeProtections.remove(whiteSnailPos);
             if (protectedSnails != null && !protectedSnails.isEmpty()) {
-                System.out.println("WhiteSnailProtectionManager: White Snail at " + whiteSnailPos +
-                        " was protecting " + protectedSnails.size() + " snails - protection lost!");
                 
                 // Clear visual state (block is gone, but update any cached state)
                 activeBlockings.remove(whiteSnailPos);
@@ -487,8 +471,6 @@ public class WhiteSnailProtectionManager {
                 // Check if protection status changed
                 if (currentlyProtected && !wasProtected) {
                     // Newly protected - wire was connected mid-call
-                    System.out.println("WhiteSnailProtectionManager: Snail at " + snailPos +
-                            " is NOW PROTECTED by White Snail at " + currentWhiteSnail);
                     
                     // Add to tracking
                     activeProtections.computeIfAbsent(currentWhiteSnail, k -> ConcurrentHashMap.newKeySet())
@@ -502,8 +484,6 @@ public class WhiteSnailProtectionManager {
                     
                 } else if (!currentlyProtected && wasProtected) {
                     // No longer protected - wire was disconnected mid-call
-                    System.out.println("WhiteSnailProtectionManager: Snail at " + snailPos +
-                            " LOST PROTECTION from White Snail at " + previousWhiteSnail);
                     
                     // Remove from tracking
                     Set<BlockPos> protections = activeProtections.get(previousWhiteSnail);
@@ -520,9 +500,7 @@ public class WhiteSnailProtectionManager {
                 } else if (currentlyProtected && wasProtected && 
                            !currentWhiteSnail.equals(previousWhiteSnail)) {
                     // Protection changed to a different White Snail (rare but possible)
-                    System.out.println("WhiteSnailProtectionManager: Snail at " + snailPos +
-                            " protection changed from " + previousWhiteSnail + " to " + currentWhiteSnail);
-                    
+
                     // Remove from old
                     Set<BlockPos> oldProtections = activeProtections.get(previousWhiteSnail);
                     if (oldProtections != null) {
@@ -566,8 +544,6 @@ public class WhiteSnailProtectionManager {
         }
         
         if (!toRemove.isEmpty()) {
-            System.out.println("WhiteSnailProtectionManager: Invalidated " + toRemove.size() + 
-                    " cache entries near " + center);
         }
     }
 
@@ -725,7 +701,6 @@ public class WhiteSnailProtectionManager {
      */
     public void clearCache() {
         protectionCache.clear();
-        System.out.println("WhiteSnailProtectionManager: Cache cleared");
     }
 
     /**
@@ -737,7 +712,6 @@ public class WhiteSnailProtectionManager {
         activeBlockings.clear();
         whiteSnailLevels.clear();
         activeCallSnails.clear();
-        System.out.println("WhiteSnailProtectionManager: All state cleared");
     }
 
     /**
@@ -754,7 +728,6 @@ public class WhiteSnailProtectionManager {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        System.out.println("WhiteSnailProtectionManager: Shutdown complete");
     }
 
     // =================== DEBUG INFO ===================

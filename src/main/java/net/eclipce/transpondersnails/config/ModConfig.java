@@ -507,7 +507,6 @@ public class ModConfig {
             cachedParticipantProximityRange = SERVER.participantProximityRange.get();
             cachedNumberPreservationDays    = SERVER.numberPreservationDays.get();
             cachedNumberCleanupInterval     = SERVER.numberCleanupIntervalSeconds.get();
-            System.out.println("TransponderSnails: Server config loaded");
 
             // Load spawn config
             cachedAllowedDimensions = SERVER.spawning.allowedDimensions.get().stream().map(Object::toString).toList();

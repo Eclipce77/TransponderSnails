@@ -28,18 +28,14 @@ public class DenDenMushiSpawnConditions {
                                                      BlockPos pos,
                                                      RandomSource random) {
 
-        System.out.println("=== DEN DEN MUSHI SPAWN ATTEMPT at " + pos + " ===");
-
         // 1. Check if Den Den Mushi spawning is enabled in config
         if (!ModConfig.isSnailSpawnEnabled("den_den_mushi")) {
-            System.out.println("REJECTED: den_den_mushi spawning is disabled in config");
             return false;
         }
 
         // 2. Check spawn rate from config
         double spawnRate = ModConfig.getDenDenMushiSpawnRate();
         if (spawnRate <= 0) {
-            System.out.println("REJECTED: Spawn rate is 0%");
             return false;
         }
 
@@ -47,29 +43,20 @@ public class DenDenMushiSpawnConditions {
         if (spawnRate < 100.0) {
             double roll = random.nextDouble() * 100.0;
             if (roll > spawnRate) {
-                System.out.println("REJECTED: Failed spawn rate check (" + String.format("%.1f", roll) +
-                        " > " + spawnRate + "%)");
                 return false;
             }
-            System.out.println("✓ Passed spawn rate check (" + String.format("%.1f", roll) +
-                    " <= " + spawnRate + "%)");
         }
 
         // 3. Don't spawn in caves (unless structure spawn)
         if (spawnType != MobSpawnType.STRUCTURE && isInCave(level, pos)) {
-            System.out.println("REJECTED: In cave");
             return false;
         }
-        System.out.println("✓ Not in cave");
 
         // 4. Check if position is valid
         if (!hasValidSpawnSpace(level, pos)) {
-            System.out.println("REJECTED: Invalid spawn space");
             return false;
         }
-        System.out.println("✓ Valid spawn space");
 
-        System.out.println("✓✓✓ SPAWN APPROVED ✓✓✓");
         return true;
     }
 

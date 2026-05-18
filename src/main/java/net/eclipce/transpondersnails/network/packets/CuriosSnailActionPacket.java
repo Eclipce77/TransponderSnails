@@ -93,9 +93,6 @@ public class CuriosSnailActionPacket {
         int slot = (hand == InteractionHand.MAIN_HAND) ? player.getInventory().selected : 40;
         player.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, slot, stack));
 
-//        System.out.println("[KEYBIND] Held snail toggled " + (newState ? "OPEN" : "CLOSED")
-//                + " (slot " + slot + ") for " + player.getName().getString());
-
         fireInterception(player, newState);
     }
 
@@ -151,9 +148,6 @@ public class CuriosSnailActionPacket {
                     // Cast is safe - Curios always returns an IItemHandlerModifiable
                     ((net.minecraftforge.items.IItemHandlerModifiable) itemHandler).setStackInSlot(i, stack);
 
-//                    System.out.println("[KEYBIND] Curios snail toggled " + (newState ? "OPEN" : "CLOSED")
-//                            + " (slot: " + entry.getKey() + "[" + i + "])"
-//                            + " for " + player.getName().getString());
 
                     fireInterception(player, newState);
                     return true;

@@ -126,16 +126,12 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-        System.out.println("TransponderSnailBlock.use() called - Hand: " + hand +
-                ", ClientSide: " + level.isClientSide +
-                ", HeldItem: " + player.getItemInHand(hand).getItem());
 
         if (level.isClientSide) {
             return InteractionResult.SUCCESS;
         }
 
         if (hand != InteractionHand.MAIN_HAND) {
-            System.out.println("Returning PASS - not main hand");
             return InteractionResult.PASS;
         }
 
@@ -237,17 +233,11 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
 
-        System.out.println("=== setPlacedBy START ===");
-        System.out.println("Item NBT: " + (stack.hasTag() ? stack.getTag() : "NONE"));
-
         if (!level.isClientSide) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
-                System.out.println("BEFORE loadFromItem - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber);
 
                 snailBE.loadFromItem(stack);
-
-                System.out.println("AFTER loadFromItem - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber);
 
                 CompoundTag nbt = stack.getTag();
                 int shellColor = 0;
@@ -276,10 +266,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
                 }
                 level.sendBlockUpdated(pos, state, newState, Block.UPDATE_ALL_IMMEDIATE);
 
-                System.out.println("FINAL - UUID: " + snailBE.snailUUID + ", Number: " + snailBE.assignedSnailNumber + ", Initialized: " + snailBE.initialized);
             }
         }
-        System.out.println("=== setPlacedBy END ===");
     }
 
     /**
@@ -318,8 +306,6 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             // Update the block state - this will trigger a render update
             level.setBlock(pos, newState, Block.UPDATE_ALL);
 
-            System.out.println("TransponderSnailBlock: Updated visual state at " + pos +
-                    " - Sound: " + hasSound + ", Call: " + inCall);
         }
     }
 
@@ -403,11 +389,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
      * Debug method to print hitbox information for all directions
      */
     public static void debugPrintHitboxes() {
-        System.out.println("=== TransponderSnail Hitbox Debug ===");
         for (Direction dir : Direction.Plane.HORIZONTAL) {
             VoxelShape shape = getShapeForDirection(dir);
-            System.out.println(dir + ": " + shape.bounds());
         }
-        System.out.println("=====================================");
     }
 }

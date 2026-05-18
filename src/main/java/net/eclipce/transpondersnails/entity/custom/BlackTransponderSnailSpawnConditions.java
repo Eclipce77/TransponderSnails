@@ -37,7 +37,6 @@ public class BlackTransponderSnailSpawnConditions {
                                                                BlockPos pos,
                                                                RandomSource random) {
 
-        System.out.println("=== BLACK TRANSPONDER SNAIL SPAWN ATTEMPT at " + pos + " ===");
 
         // 1. Check if this snail type is enabled in config
         String snailId = entityType == net.eclipce.transpondersnails.entity.ModEntities.BLACK_TRANSPONDER_SNAIL.get()
@@ -45,7 +44,6 @@ public class BlackTransponderSnailSpawnConditions {
                 : "baby_black_transponder_snail";
 
         if (!ModConfig.isSnailSpawnEnabled(snailId)) {
-            System.out.println("REJECTED: " + snailId + " spawning is disabled in config");
             return false;
         }
 
@@ -55,7 +53,6 @@ public class BlackTransponderSnailSpawnConditions {
                 : ModConfig.getBabyBlackTransponderSnailSpawnRate();
 
         if (spawnRate <= 0) {
-            System.out.println("REJECTED: Spawn rate is 0%");
             return false;
         }
 
@@ -63,64 +60,45 @@ public class BlackTransponderSnailSpawnConditions {
         if (spawnRate < 100.0) {
             double roll = random.nextDouble() * 100.0;
             if (roll > spawnRate) {
-                System.out.println("REJECTED: Failed spawn rate check (" + String.format("%.1f", roll) +
-                        " > " + spawnRate + "%)");
                 return false;
             }
-            System.out.println("Passed spawn rate check (" + String.format("%.1f", roll) +
-                    " <= " + spawnRate + "%)");
         }
 
         // 3. Must be underwater
         if (!level.getFluidState(pos).is(FluidTags.WATER)) {
-            System.out.println("REJECTED: Not underwater");
             return false;
         }
-        System.out.println("Underwater - OK");
 
         // 4. Check water depth (must be medium to deep)
         int waterDepth = getWaterDepthAbove(level, pos);
         if (waterDepth < MIN_WATER_DEPTH) {
-            System.out.println("REJECTED: Water too shallow (" + waterDepth + " blocks, need " + MIN_WATER_DEPTH + "+)");
             return false;
         }
         if (waterDepth > MAX_WATER_DEPTH) {
-            System.out.println("REJECTED: Water too deep (" + waterDepth + " blocks, max " + MAX_WATER_DEPTH + ")");
             return false;
         }
-        System.out.println("Water depth OK (" + waterDepth + " blocks)");
 
         // 5. Must have solid block below (can't swim, need floor)
         BlockPos below = pos.below();
         if (!level.getBlockState(below).isSolid()) {
-            System.out.println("REJECTED: No solid block below");
             return false;
         }
-        System.out.println("Solid block below - OK");
 
         // 6. Block below should not be bedrock or barriers (reasonable spawning surface)
         if (level.getBlockState(below).is(Blocks.BEDROCK) ||
                 level.getBlockState(below).is(Blocks.BARRIER)) {
-            System.out.println("REJECTED: Invalid spawn surface (bedrock/barrier)");
             return false;
         }
-        System.out.println("Valid spawn surface - OK");
 
         // 7. Check that spawn pos and above are water (not just the pos)
         if (!level.getFluidState(pos.above()).is(FluidTags.WATER)) {
-            System.out.println("REJECTED: No water above spawn position");
             return false;
         }
-        System.out.println("Water above spawn position - OK");
 
         // 8. Not in a tight space (need some room)
         if (isEnclosed(level, pos)) {
-            System.out.println("REJECTED: Too enclosed/cramped");
             return false;
         }
-        System.out.println("Open enough space - OK");
-
-        System.out.println("=== UNDERWATER SPAWN APPROVED ===");
         return true;
     }
 
@@ -150,7 +128,6 @@ public class BlackTransponderSnailSpawnConditions {
                 // WorldGenRegion can throw RuntimeException when accessing blocks
                 // outside the available chunk area during world generation.
                 // Return the depth counted so far rather than crashing.
-                System.out.println("BlackTransponderSnailSpawnConditions: Hit WorldGenRegion boundary during depth check at " + mutablePos + ", returning depth=" + depth);
                 break;
             }
         }

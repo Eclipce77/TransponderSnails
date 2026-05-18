@@ -39,6 +39,5 @@ public class KeyBindings {
      */
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(SNAIL_INTERACT);
-        System.out.println("TransponderSnails: Registered snail interact keybind (default: V)");
     }
 }

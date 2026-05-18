@@ -176,9 +176,7 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
 
                     level.playSound(null, pos, SoundEvents.DYE_USE,
                             SoundSource.BLOCKS, 1.0F, 1.0F);
-                    
-                    System.out.println("WhiteTransponderSnailBlock: Dyed shell to " + color.getName() + 
-                            " at " + pos);
+
 
                     // Consume dye in survival mode
                     if (!player.isCreative()) {
@@ -248,8 +246,6 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
                 level.setBlock(pos, state
                         .setValue(WIRE_LEFT, wireLeft)
                         .setValue(WIRE_RIGHT, wireRight), 3);
-                System.out.println("WhiteTransponderSnailBlock: Updated wire connections at " + pos +
-                        " (left=" + wireLeft + ", right=" + wireRight + ")");
             }
         }
     }
@@ -294,7 +290,6 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
             int currentState = state.getValue(SNAIL_STATE);
             if (currentState != newState) {
                 level.setBlock(pos, state.setValue(SNAIL_STATE, newState), 3);
-                System.out.println("WhiteTransponderSnailBlock: Set " + getStateName(newState) + " state at " + pos);
             }
         }
     }

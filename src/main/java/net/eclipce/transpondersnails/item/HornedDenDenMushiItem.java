@@ -68,9 +68,6 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
         entity.addAdditionalSaveData(entityData);
         nbt.put(ENTITY_DATA_TAG, entityData);
 
-        System.out.println("HornedDenDenMushiItem: created stack from entity");
-        System.out.println("  Shell: " + DyeColor.byId(entity.getShellColor()).getName());
-        System.out.println("  Body:  #" + Integer.toHexString(entity.getBodyColor()).toUpperCase());
 
         return stack;
     }
@@ -183,9 +180,6 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
                     1.0f
             );
         }
-
-        System.out.println("HornedDenDenMushiItem: Placed jammer block at " + target
-                + " (facing=" + facing + ", shell=" + shellColorId + ")");
 
         if (!player.isCreative()) {
             context.getItemInHand().shrink(1);

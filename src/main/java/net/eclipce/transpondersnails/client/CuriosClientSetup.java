@@ -22,7 +22,6 @@ public class CuriosClientSetup {
                 try {
                     // Use helper class to avoid loading Curios classes when not present
                     CuriosRendererHelper.registerRenderers();
-                    System.out.println("TransponderSnails: Successfully registered Curios renderers");
                 } catch (Exception e) {
                     System.err.println("TransponderSnails: Failed to register Curios renderers: " + e.getMessage());
                     e.printStackTrace();

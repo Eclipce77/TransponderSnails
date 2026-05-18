@@ -48,8 +48,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
                     DenDenMushiItem.setColors(result, bodyColor, shellColor);
                     DenDenMushiItem.setCaptured(result, true);
 
-                    System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from Transponder Snail - Body: #" +
-                            Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
                 }
                 // Also check BlockEntityTag (for items that were placed as blocks)
                 else if (inputNbt.contains("BlockEntityTag")) {
@@ -60,9 +58,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
 
                         DenDenMushiItem.setColors(result, bodyColor, shellColor);
                         DenDenMushiItem.setCaptured(result, true);
-
-                        System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from BlockEntityTag - Body: #" +
-                                Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
                     }
                 }
             }
@@ -80,9 +75,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
                     // Transfer colors to Den Den Mushi
                     DenDenMushiItem.setColors(result, bodyColor, shellColor);
                     DenDenMushiItem.setCaptured(result, true);
-
-                    System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from Transponder Snail - Body: #" +
-                            Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
                 }
                 // Also check BlockEntityTag (for items that were placed as blocks)
                 else if (inputNbt.contains("BlockEntityTag")) {
@@ -93,9 +85,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
 
                         DenDenMushiItem.setColors(result, bodyColor, shellColor);
                         DenDenMushiItem.setCaptured(result, true);
-
-                        System.out.println("DenDenMushiStonecutterRecipe: Transferred colors from BlockEntityTag - Body: #" +
-                                Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
                     }
                 }
             }
@@ -121,7 +110,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
                 }
                 if (shellColor >= 0) {
                     result.getOrCreateTag().putInt("ShellColor", shellColor);
-                    System.out.println("DenDenMushiStonecutterRecipe: White TS → White DDM, shell=" + shellColor);
                 }
             }
         }

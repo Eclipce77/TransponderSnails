@@ -602,7 +602,6 @@ public class CallSoundManager {
     }
 
     public void cleanup() {
-        System.out.println("CallSoundManager: Cleaning up " + activeSounds.size() + " active sounds");
 
         for (SoundInstance instance : activeSounds.values()) {
             if (instance.stopTask != null) {
@@ -615,7 +614,6 @@ public class CallSoundManager {
         blockstateCallbacks.clear();
         playersHearingStatic.clear(); // ✨ NEW: Clean up static tracking
         scheduler.shutdown();
-        System.out.println("CallSoundManager: Cleanup complete");
     }
 
     /**

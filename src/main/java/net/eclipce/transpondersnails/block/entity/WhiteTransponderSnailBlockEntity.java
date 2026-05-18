@@ -150,9 +150,7 @@ public class WhiteTransponderSnailBlockEntity extends BlockEntity {
             
             // Also mark the position for lighting/render update
             level.blockEntityChanged(worldPosition);
-            
-            System.out.println("WhiteTransponderSnailBlockEntity: Client color updated from " + 
-                    DyeColor.byId(oldColor).getName() + " to " + getShellColor().getName());
+
         }
     }
     
@@ -180,9 +178,7 @@ public class WhiteTransponderSnailBlockEntity extends BlockEntity {
             
             // Also mark dirty to ensure save
             setChanged();
-            
-            System.out.println("WhiteTransponderSnailBlockEntity: Synced color " + 
-                    getShellColor().getName() + " to clients at " + worldPosition);
+
         }
     }
     

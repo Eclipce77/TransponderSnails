@@ -135,7 +135,6 @@ public class SnailNBTHandler {
                     nbt.putUUID(ACTIVATION_PLAYER_TAG, activatingPlayerUUID);
                 }
 
-                System.out.println("SnailNBTHandler: Created new " + snailType.name().toLowerCase() + " snail with UUID " + newUUID + " and number #" + snailNumber);
                 return newUUID;
             } else {
                 // Failed to assign number - registry might be full
@@ -482,7 +481,6 @@ public class SnailNBTHandler {
 
         // Update cached number to match registry
         updateCachedNumber(stack, registryNumber);
-        System.out.println("SnailNBTHandler: Repaired snail data - updated cached number to " + registryNumber + " for UUID " + snailUUID);
         return true;
     }
 

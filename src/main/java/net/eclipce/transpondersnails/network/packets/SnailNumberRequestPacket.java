@@ -43,12 +43,8 @@ public class SnailNumberRequestPacket {
                     if (snailNumber != -1) {
                         // Send the snail number back to client
                         ModPackets.sendToPlayer(new SnailNumberSyncPacket(snailNumber), player);
-                        System.out.println("SnailNumberRequestPacket: Sent snail number #" + snailNumber +
-                                " to " + player.getName().getString());
                     } else {
                         // No number available yet
-                        System.out.println("SnailNumberRequestPacket: Player " + player.getName().getString() +
-                                " requested snail number but none is available");
 
                         // Send a message to let them know the number is being assigned
                         player.sendSystemMessage(Component.literal("Assigning snail number...")

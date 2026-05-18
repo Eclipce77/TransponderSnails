@@ -60,12 +60,7 @@ public class BlackTransponderSnailBlockEntityRenderer implements BlockEntityRend
 
         // Debug output
         if (DEBUG && debugCounter++ % 100 == 0) {
-            System.out.println("=== BLACK SNAIL BLOCK BER DEBUG ===");
-            System.out.println("Position: " + blockEntity.getBlockPos());
-            System.out.println("Shell Color: " + shellColor + " (" + DyeColor.byId(shellColor).getName() + ")");
-            System.out.println("Open: " + isOpen);
-            System.out.println("Facing: " + facing);
-            System.out.println("===================================");
+
         }
 
         poseStack.pushPose();

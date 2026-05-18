@@ -56,9 +56,6 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
             blockEntityTag.putInt("ShellColor", shellColor);
             blockEntityTag.putBoolean("ColorsInitialized", true);
             nbt.put("BlockEntityTag", blockEntityTag);
-
-            System.out.println("TransponderSnailCraftingRecipe: Transferred colors - Body: #" +
-                    Integer.toHexString(bodyColor) + ", Shell: " + shellColor);
         }
 
         return result;

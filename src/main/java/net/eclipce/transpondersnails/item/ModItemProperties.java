@@ -14,18 +14,12 @@ import net.minecraft.resources.ResourceLocation;
 public class ModItemProperties {
 
     public static void registerItemProperties() {
-        System.out.println("=============================================================");
-        System.out.println("TransponderSnails: Registering item model predicates...");
-        System.out.println("=============================================================");
 
         registerDenDenMushiProperties();
         registerPortableBlackProperties();
         registerBlackTransponderSnailProperties();
         registerBabyBlackTransponderSnailProperties();
 
-        System.out.println("=============================================================");
-        System.out.println("✅ ALL ITEM PREDICATES REGISTERED SUCCESSFULLY!");
-        System.out.println("=============================================================");
     }
 
     /**
@@ -72,7 +66,6 @@ public class ModItemProperties {
                 }
         );
 
-        System.out.println("✅ Registered Den Den Mushi predicates");
     }
 
     /**
@@ -114,7 +107,6 @@ public class ModItemProperties {
                 PortableBlackSnailItemProperties::calculateCallState
         );
 
-        System.out.println("✅ Registered 4 predicates for Portable Black Transponder Snail");
     }
 
     /**
@@ -151,7 +143,6 @@ public class ModItemProperties {
                 BlackSnailItemProperties::calculateCallState
         );
 
-        System.out.println("✅ Registered Adult Black Transponder Snail predicates (open + shell_color + call_state)");
     }
 
     /**
@@ -186,6 +177,5 @@ public class ModItemProperties {
                 BabyBlackSnailItemProperties::calculateCallState
         );
 
-        System.out.println("✅ Registered Baby Black Transponder Snail predicates (open + shell_color + call_state)");
     }
 }

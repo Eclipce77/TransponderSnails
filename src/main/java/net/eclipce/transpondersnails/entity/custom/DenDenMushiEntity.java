@@ -134,13 +134,6 @@ public class DenDenMushiEntity extends Animal {
             baby.setBodyColor(babyBodyColor);
             baby.setShellColor(babyShellColor);
 
-            System.out.println("BREEDING: Created baby with inherited colors");
-            System.out.println("  Parent 1 - Body: #" + Integer.toHexString(this.getBodyColor()).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(this.getShellColor()).getName());
-            System.out.println("  Parent 2 - Body: #" + Integer.toHexString(otherDenDen.getBodyColor()).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(otherDenDen.getShellColor()).getName());
-            System.out.println("  Baby - Body: #" + Integer.toHexString(babyBodyColor).toUpperCase() +
-                    ", Shell: " + DyeColor.byId(babyShellColor).getName());
         }
 
         return baby;
@@ -170,7 +163,6 @@ public class DenDenMushiEntity extends Animal {
         this.entityData.define(BODY_COLOR, 0xF5E6A3); // Default pastel yellow
         this.entityData.define(SHELL_COLOR, 0); // Default white
 
-        System.out.println("defineSynchedData called on " + (level().isClientSide() ? "CLIENT" : "SERVER"));
     }
 
     // Generate colors only during spawn finalization to ensure proper sync
@@ -187,9 +179,6 @@ public class DenDenMushiEntity extends Animal {
             this.setBodyColor(bodyColor);
             this.setShellColor(shellColor);
 
-            System.out.println("SERVER: Finalized spawn with shell=" + shellColor +
-                    " (" + DyeColor.byId(shellColor).getName() +
-                    "), body=#" + Integer.toHexString(bodyColor));
         }
 
         return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData, nbt);
@@ -201,9 +190,6 @@ public class DenDenMushiEntity extends Animal {
         super.onSyncedDataUpdated(key);
 
         if (key.equals(SHELL_COLOR)) {
-            System.out.println("SYNC: Shell color updated to " + this.getShellColor() +
-                    " (" + DyeColor.byId(this.getShellColor()).getName() +
-                    ") on " + (level().isClientSide() ? "CLIENT" : "SERVER"));
         }
     }
 
@@ -266,44 +252,27 @@ public class DenDenMushiEntity extends Animal {
     public void setShellColor(int color) {
         int clampedColor = Math.max(0, Math.min(15, color));
         this.entityData.set(SHELL_COLOR, clampedColor);
-        System.out.println("Shell color set to: " + clampedColor +
-                " (" + DyeColor.byId(clampedColor).getName() + ") on " +
-                (level().isClientSide() ? "CLIENT" : "SERVER"));
     }
 
     // Enhanced mobInteract with comprehensive debugging
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
-        System.out.println("mobInteract called! Side: " + (level().isClientSide() ? "CLIENT" : "SERVER") +
-                ", Hand: " + hand + ", Item: " + player.getItemInHand(hand));
 
         ItemStack itemstack = player.getItemInHand(hand);
 
         // Check for pickup first (empty hand)
         if (itemstack.isEmpty()) {
-            System.out.println("Empty hand detected - attempting pickup");
 
             if (!this.level().isClientSide) {
-                System.out.println("=== ENTITY PICKUP DEBUG ===");
-                System.out.println("Entity Shell Color (getter): " + this.getShellColor() +
-                        " (" + DyeColor.byId(this.getShellColor()).getName() + ")");
-                System.out.println("Entity Shell Color (raw data): " + this.entityData.get(SHELL_COLOR));
-                System.out.println("Entity Body Color: #" + Integer.toHexString(this.getBodyColor()).toUpperCase());
-
-                System.out.println("Entity is baby: " + this.isBaby());
 
                 // Create item with this entity's data - use BabyDenDenMushiItem for babies
                 ItemStack denDenMushiItem;
                 if (this.isBaby()) {
                     denDenMushiItem = BabyDenDenMushiItem.createFromEntity(this);
-                    System.out.println("Created BABY item shell color: " + BabyDenDenMushiItem.getShellColor(denDenMushiItem));
-                    System.out.println("Created BABY item body color: #" +
-                            Integer.toHexString(BabyDenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+
                 } else {
                     denDenMushiItem = DenDenMushiItem.createFromEntity(this);
-                    System.out.println("Created ADULT item shell color: " + DenDenMushiItem.getShellColor(denDenMushiItem));
-                    System.out.println("Created ADULT item body color: #" +
-                            Integer.toHexString(DenDenMushiItem.getBodyColor(denDenMushiItem)).toUpperCase());
+
                 }
 
                 // Give item to player
@@ -316,13 +285,9 @@ public class DenDenMushiEntity extends Animal {
                         SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F,
                         ((this.random.nextFloat() - this.random.nextFloat()) * 0.7F + 1.0F) * 2.0F);
 
-                System.out.println("Entity removed from world");
-                System.out.println("========================");
-
                 // Remove entity
                 this.discard();
             } else {
-                System.out.println("Client-side pickup - no processing needed");
             }
             return InteractionResult.sidedSuccess(this.level().isClientSide);
         }
@@ -332,9 +297,6 @@ public class DenDenMushiEntity extends Animal {
             if (!this.level().isClientSide) {
                 DyeColor dyeColor = dyeItem.getDyeColor();
                 if (dyeColor.getId() != this.getShellColor()) {
-                    System.out.println("Dyeing entity from " +
-                            DyeColor.byId(this.getShellColor()).getName() +
-                            " to " + dyeColor.getName());
                     this.setShellColor(dyeColor.getId());
                     if (!player.isCreative()) {
                         itemstack.shrink(1);

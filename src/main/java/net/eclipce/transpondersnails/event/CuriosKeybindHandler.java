@@ -46,7 +46,6 @@ public class CuriosKeybindHandler {
         while (KeyBindings.SNAIL_INTERACT.consumeClick()) {
             if (hasSnailEquipped(mc.player)) {
                 ModPackets.sendToServer(new CuriosSnailActionPacket());
-//                System.out.println("[KEYBIND] Snail interact pressed → packet sent to server");
             }
             // If no snail is equipped anywhere, silently ignore the keypress
         }

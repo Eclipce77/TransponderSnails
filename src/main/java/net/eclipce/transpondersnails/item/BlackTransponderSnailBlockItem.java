@@ -55,8 +55,6 @@ public class BlackTransponderSnailBlockItem extends BlockItem {
                 BlockState state = level.getBlockState(pos);
                 level.setBlock(pos, state.setValue(BlackTransponderSnailBlock.SHELL_COLOR, shellColor), 3);
 
-                System.out.println("BlackTransponderSnailBlockItem: Placed with shell color " +
-                        DyeColor.byId(shellColor).getName());
             }
         }
 

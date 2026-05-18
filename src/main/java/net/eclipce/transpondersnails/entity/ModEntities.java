@@ -85,7 +85,6 @@ public class ModEntities {
      */
     @SubscribeEvent
     public static void registerSpawnPlacements(SpawnPlacementRegisterEvent event) {
-        System.out.println("TransponderSnails: Registering spawn placements");
 
         // Den Den Mushi - spawns on surface (land or shallow water)
         event.register(
@@ -95,7 +94,6 @@ public class ModEntities {
                 DenDenMushiSpawnConditions::checkDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("  ✓ Den Den Mushi spawn placement registered");
 
         // White Den Den Mushi - spawns on surface (same as regular)
         event.register(
@@ -105,7 +103,6 @@ public class ModEntities {
                 WhiteDenDenMushiSpawnConditions::checkWhiteDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("  ✓ White Den Den Mushi spawn placement registered");
 
         // Horned Den Den Mushi
         event.register(
@@ -114,7 +111,6 @@ public class ModEntities {
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 HornedDenDenMushiSpawnConditions::checkHornedDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE);
-        System.out.println("  ✓ Horned Den Den Mushi spawn placement registered");
 
         // Black Transponder Snail - spawns underwater
         event.register(
@@ -124,7 +120,6 @@ public class ModEntities {
                 BlackTransponderSnailSpawnConditions::checkBlackTransponderSnailSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("  ✓ Black Transponder Snail spawn placement registered");
 
         // Baby Black Transponder Snail - spawns underwater
         event.register(
@@ -134,6 +129,5 @@ public class ModEntities {
                 BlackTransponderSnailSpawnConditions::checkBabyBlackTransponderSnailSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("  ✓ Baby Black Transponder Snail spawn placement registered");
     }
 }

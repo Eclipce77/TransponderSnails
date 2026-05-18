@@ -49,8 +49,6 @@ public class StaticAudioGenerator {
 
         // Pre-generate static frames
         preGenerateStaticFrames();
-
-        System.out.println("StaticAudioGenerator: Initialized with " + CACHE_SIZE + " cached frames");
     }
 
     /**

@@ -14,7 +14,6 @@ public class ModEntitySpawnPlacements {
 
     @SubscribeEvent
     public static void registerSpawnPlacements(SpawnPlacementRegisterEvent event) {
-        System.out.println("=== REGISTERING SPAWN PLACEMENTS ===");
 
         event.register(
                 ModEntities.DEN_DEN_MUSHI.get(),
@@ -23,7 +22,6 @@ public class ModEntitySpawnPlacements {
                 DenDenMushiSpawnConditions::checkDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("=== DEN DEN MUSHI SPAWN PLACEMENT REGISTERED ===");
 
         event.register(
                 ModEntities.HORNED_DEN_DEN_MUSHI.get(),
@@ -32,7 +30,6 @@ public class ModEntitySpawnPlacements {
                 HornedDenDenMushiSpawnConditions::checkHornedDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
-        System.out.println("=== HORNED DEN DEN MUSHI SPAWN PLACEMENT REGISTERED ===");
     }
 
 }

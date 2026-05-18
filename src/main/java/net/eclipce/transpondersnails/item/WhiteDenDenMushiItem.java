@@ -48,8 +48,6 @@ public class WhiteDenDenMushiItem extends Item {
         entity.addAdditionalSaveData(entityData);
         nbt.put(ENTITY_DATA_TAG, entityData);
 
-        System.out.println("Created White Den Den Mushi item with shell color: " +
-                DyeColor.byId(entityShellColor).getName() + " (ID: " + entityShellColor + ")");
 
         return stack;
     }
@@ -74,8 +72,6 @@ public class WhiteDenDenMushiItem extends Item {
         if (nbt != null && nbt.contains(SHELL_COLOR_TAG)) {
             int storedColor = nbt.getInt(SHELL_COLOR_TAG);
             entity.setShellColor(storedColor);
-            System.out.println("Applied stored shell color to entity: " +
-                    DyeColor.byId(storedColor).getName() + " (ID: " + storedColor + ")");
         }
 
         // Apply other entity data if present

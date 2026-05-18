@@ -163,10 +163,7 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
 
         if (rodPosChanged || rodCountChanged) {
             if (antennaValid) {
-                System.out.println("BlackTransponderSnailBlockEntity: Antenna connected at " + worldPosition +
-                        " - " + lightningRodCount + " rods, range: " + calculatedRange + " blocks");
             } else if (oldRodPos != null) {
-                System.out.println("BlackTransponderSnailBlockEntity: Antenna disconnected at " + worldPosition);
             }
 
             // Mark dirty and sync to client IMMEDIATELY

@@ -87,8 +87,6 @@ public class BlackTransponderSnailEntity extends Animal {
         if (!level.isClientSide()) {
             int shellColor = generateRandomShellColor();
             this.setShellColor(shellColor);
-            System.out.println("SERVER: Black Transponder Snail spawned with shell color: " +
-                    DyeColor.byId(shellColor).getName());
         }
         return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData, nbt);
     }
@@ -223,9 +221,6 @@ public class BlackTransponderSnailEntity extends Animal {
         // Check for pickup (empty hand)
         if (itemStack.isEmpty()) {
             if (!this.level().isClientSide) {
-                System.out.println("=== BLACK TRANSPONDER SNAIL PICKUP DEBUG ===");
-                System.out.println("Entity Shell Color: " + this.getShellColor() +
-                        " (" + DyeColor.byId(this.getShellColor()).getName() + ")");
 
                 // Create item with this entity's shell color
                 ItemStack snailItem = BlackTransponderSnailItem.createFromEntity(this);
@@ -239,9 +234,6 @@ public class BlackTransponderSnailEntity extends Animal {
                 this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
                         SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.3F, 0.8F);
 
-                System.out.println("Entity removed from world");
-                System.out.println("=============================================");
-
                 // Remove entity
                 this.discard();
             }
@@ -253,9 +245,6 @@ public class BlackTransponderSnailEntity extends Animal {
             if (!this.level().isClientSide) {
                 DyeColor dyeColor = dyeItem.getDyeColor();
                 if (dyeColor.getId() != this.getShellColor()) {
-                    System.out.println("Dyeing Black Transponder Snail from " +
-                            DyeColor.byId(this.getShellColor()).getName() +
-                            " to " + dyeColor.getName());
                     this.setShellColor(dyeColor.getId());
                     if (!player.isCreative()) {
                         itemStack.shrink(1);

@@ -11,8 +11,6 @@ public class SpawnDebugEvents {
     @SubscribeEvent
     public static void onWorldLoad(LevelEvent.Load event) {
         if (!event.getLevel().isClientSide()) {
-            System.out.println("=== SPAWN DEBUG: World loaded ===");
-            System.out.println("Check if biome modifier loaded in logs above");
         }
     }
 }
