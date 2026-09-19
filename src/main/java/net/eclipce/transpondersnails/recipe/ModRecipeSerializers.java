@@ -27,6 +27,10 @@ public class ModRecipeSerializers {
             RECIPE_SERIALIZERS.register("shell_dye",
                     ShellDyeRecipeSerializer::new);
 
+    public static final RegistryObject<RecipeSerializer<UntrimmedShapedRecipe>> UNTRIMMED_SHAPED =
+            RECIPE_SERIALIZERS.register("untrimmed_shaped",
+                    UntrimmedShapedRecipe.Serializer::new);
+
     public static void register(IEventBus eventBus) {
         RECIPE_SERIALIZERS.register(eventBus);
     }

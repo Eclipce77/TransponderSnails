@@ -76,14 +76,19 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
             // Use the standard ShapedRecipe parser
             ShapedRecipe baseRecipe = RecipeSerializer.SHAPED_RECIPE.fromJson(recipeId, json);
 
+            // Vanilla trims blank rows/columns off the pattern. Restore them so the recipe keeps the
+            // exact layout written in the JSON (a true 3x3 with empty cells). JEI, the recipe book and
+            // the crafting table then all use that layout. See UntrimmedPattern.
+            UntrimmedPattern.Result pattern = UntrimmedPattern.restore(json, baseRecipe);
+
             // Create our custom recipe using the parsed data
             return new TransponderSnailCraftingRecipe(
                     recipeId,
                     baseRecipe.getGroup(),
                     baseRecipe.category(),
-                    baseRecipe.getWidth(),
-                    baseRecipe.getHeight(),
-                    baseRecipe.getIngredients(),
+                    pattern.width(),
+                    pattern.height(),
+                    pattern.ingredients(),
                     baseRecipe.getResultItem(null)
             );
         }

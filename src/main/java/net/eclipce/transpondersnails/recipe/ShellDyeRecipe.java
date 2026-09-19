@@ -90,7 +90,7 @@ public class ShellDyeRecipe extends CustomRecipe {
     /**
      * Check if an item is a valid snail that can have its shell dyed
      */
-    private boolean isValidSnail(ItemStack stack) {
+    public boolean isValidSnail(ItemStack stack) {
         Item item = stack.getItem();
         return item instanceof DenDenMushiItem
                 || item instanceof BabyDenDenMushiItem

@@ -168,6 +168,9 @@ minecraft {
             name = "Illusive Soulworks maven"
             url = "https://maven.theillusivec4.top/"
         }
+
+        maven { name = "Jared's maven"; url = "https://maven.blamejared.com/" }
+        maven { name = "ModMaven"; url = "https://modmaven.dev" }
     }
 
     dependencies {
@@ -207,6 +210,10 @@ minecraft {
 
         // For datagen, don't include voicechat, only your main mod classes
         datagenImplementation sourceSets.main.output
+
+        compileOnly(fg.deobf("mezz.jei:jei-1.20.1-common-api:15.20.0.129"))
+        compileOnly(fg.deobf("mezz.jei:jei-1.20.1-forge-api:15.20.0.129"))
+        runtimeOnly(fg.deobf("mezz.jei:jei-1.20.1-forge:15.20.0.129"))
     }
 
     tasks.withType(JavaExec).configureEach {
