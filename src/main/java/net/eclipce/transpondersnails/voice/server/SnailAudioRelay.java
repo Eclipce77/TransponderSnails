@@ -2,7 +2,6 @@ package net.eclipce.transpondersnails.voice.server;
 
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
-import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import de.maxhenkel.voicechat.api.opus.OpusDecoder;
 import de.maxhenkel.voicechat.api.opus.OpusEncoder;
@@ -14,6 +13,7 @@ import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import javax.annotation.Nullable;
@@ -65,6 +65,10 @@ public class SnailAudioRelay {
             });
     private final Map<BlockPos, BlockstateActivity> blockstateActivity = new ConcurrentHashMap<>();
     private static final long AUDIO_TIMEOUT_MS = 500;
+
+    // Below this gain the audio is decoded, scaled and re-encoded. At or above it the speaker is
+    // effectively at full volume and the original Opus bytes are passed through untouched.
+    private static final float ATTENUATION_THRESHOLD = 0.98f;
 
     public SnailAudioRelay(VoicechatServerApi voiceChatApi, TransponderCallManager callManager) {
         this.voiceChatApi = voiceChatApi;
@@ -123,24 +127,51 @@ public class SnailAudioRelay {
                     return;
                 }
 
-                // Find transmitting snail (may be block or handheld)
-                TransponderSnailBlockEntity nearbySnail = findNearestSnailInCall(speaker, callSession);
+                CallSession.CallParticipant speakerParticipant = callSession.getParticipantByPlayer(speaker.getUUID());
+                if (speakerParticipant == null) return;
 
-                // Cache the session info (nearbySnail can be null for handheld)
-                sessionCache = new CallSessionCache(callSession, nearbySnail);
+                // Placed snail participants speak into THEIR OWN snail block.
+                // Handheld participants have no block (the snail travels with them).
+                TransponderSnailBlockEntity ownSnail = speakerParticipant.isBlock()
+                        ? callManager.getRegisteredSnailBlock(speakerParticipant.getSnailNumber())
+                        : null;
+
+                sessionCache = new CallSessionCache(callSession, speakerParticipant.isHandheld(), ownSnail);
                 playerSessionCache.put(speaker.getUUID(), sessionCache);
+            }
+
+            CallSession callSession = sessionCache.callSession;
+            TransponderSnailBlockEntity speakerSnail = sessionCache.speakerSnail;
+
+            // =================== DISTANCE GATE (PLACED SNAILS) ===================
+            // A placed snail only picks up its speaker while they are near it, and quieter the
+            // further away they are (same linear falloff Simple Voice Chat uses for proximity chat).
+            // This is checked on EVERY packet against the live player position, so walking away
+            // silences the speaker immediately and walking back resumes it immediately.
+            // Handheld snails travel with their holder, so they are never distance-limited.
+            float gain = 1.0f;
+            if (!sessionCache.speakerIsHandheld) {
+                if (speakerSnail == null || speakerSnail.isRemoved()) {
+                    playerSessionCache.remove(speaker.getUUID()); // force a fresh lookup next packet
+                    return;
+                }
+
+                gain = getSpeakingGain(speaker, speakerSnail);
+                if (gain <= 0.0f) return; // Out of range - nothing goes onto the line
             }
 
             // TIER 2: Get Opus data - trust Voice Chat's VAD completely
             byte[] opusData = event.getPacket().getOpusEncodedData();
             if (opusData == null || opusData.length == 0) return;
 
-            // Forward to all target snails using cached session
-            CallSession callSession = sessionCache.callSession;
+            // Filter / attenuate ONCE per packet and share the result with every recipient.
+            // (Previously the decode -> filter -> encode step ran once per recipient on the same frame,
+            // which advanced the speaker's codec and filter state several times per frame.)
+            byte[] audio = processAudio(opusData, speaker.getUUID(), gain);
+            if (audio == null) return;
 
-            // Get transmitting position (may be null for handheld)
-            BlockPos transmittingPos = sessionCache.transmittingSnail != null ?
-                    sessionCache.transmittingSnail.getBlockPos() : null;
+            // Get transmitting position (null for handheld)
+            BlockPos transmittingPos = speakerSnail != null ? speakerSnail.getBlockPos() : null;
 
             // =================== FORWARD TO BLOCK SNAILS ===================
             // PERFORMANCE: use cached set from CallSessionCache (avoids new HashSet<> per packet)
@@ -148,7 +179,7 @@ public class SnailAudioRelay {
             for (BlockPos targetPos : targetPositions) {
                 // Skip if this is the transmitting block snail
                 if (transmittingPos == null || !targetPos.equals(transmittingPos)) {
-                    forwardOpusToSnail(targetPos, opusData, callSession, speaker.getUUID());
+                    forwardToSnail(targetPos, audio, callSession);
                     updateAudioActivity(targetPos);
                 }
             }
@@ -159,36 +190,36 @@ public class SnailAudioRelay {
             for (UUID handheldPlayerId : handheldParticipants) {
                 // Don't echo to self
                 if (!handheldPlayerId.equals(speaker.getUUID())) {
-                    forwardOpusToHandheld(handheldPlayerId, opusData, callSession, speaker.getUUID());
+                    forwardToHandheld(handheldPlayerId, audio, callSession);
                 }
             }
 
-            // =================== ✨ FORWARD TO INTERCEPTORS (WITH WHITE SNAIL PROTECTION) ===================
+            // =================== FORWARD TO INTERCEPTORS (WITH WHITE SNAIL PROTECTION) ===================
             if (interceptionManager != null) {
                 Set<UUID> interceptors = interceptionManager.getInterceptorsForCall(callSession.getCallId());
 
                 if (!interceptors.isEmpty()) {
-                    // ✨ Check if the SPEAKER is protected by a White Snail
+                    // Check if the SPEAKER is protected by a White Snail
                     boolean speakerIsProtected = isSpeakerProtected(speaker, callSession, sessionCache);
 
                     for (UUID interceptorId : interceptors) {
                         if (speakerIsProtected) {
-                            // ✨ WHITE SNAIL PROTECTION: Speaker is protected
+                            // WHITE SNAIL PROTECTION: Speaker is protected
                             // Static is already playing via CallSoundManager
                             // DON'T forward audio, DON'T mark activity
                             // Let updateCallStates() keep Black Snail in CALL state (intercepting but no audio)
 
                             // Do nothing - interceptor only hears static, no visual feedback for blocked audio
                         } else {
-                            // ✨ Speaker is NOT protected - forward actual audio
+                            // Speaker is NOT protected - forward actual audio
                             // Static continues playing in background via CallSoundManager
                             AudioChannel interceptorChannel = interceptionManager.getInterceptorChannel(interceptorId);
                             if (interceptorChannel != null) {
-                                forwardOpusToInterceptor(interceptorChannel, opusData, speaker.getUUID());
+                                forwardToInterceptor(interceptorChannel, audio);
                             }
 
                             // PERFORMANCE: markAudioActivityAndSync only sends a packet
-                            // on the CALL→ACTIVE transition, not every ~50Hz audio frame.
+                            // on the CALL->ACTIVE transition, not every ~50Hz audio frame.
                             ServerPlayer interceptorPlayer = callManager.getPlayerById(interceptorId);
                             if (interceptorPlayer != null) {
                                 interceptionManager.markAudioActivityAndSync(interceptorId, interceptorPlayer);
@@ -225,10 +256,10 @@ public class SnailAudioRelay {
         }
 
         // Check if the speaker's snail block is protected
-        if (speakerParticipant.isBlock() && sessionCache.transmittingSnail != null) {
+        if (speakerParticipant.isBlock() && sessionCache.speakerSnail != null) {
             return WhiteSnailProtectionManager.getInstance().isParticipantProtected(
-                    sessionCache.transmittingSnail.getLevel(),
-                    sessionCache.transmittingSnail.getBlockPos()
+                    sessionCache.speakerSnail.getLevel(),
+                    sessionCache.speakerSnail.getBlockPos()
             );
         }
 
@@ -263,92 +294,97 @@ public class SnailAudioRelay {
     // =================== AUDIO PROCESSING METHODS ===================
 
     /**
-     * Process audio through phone filter (if enabled)
+     * Process audio through the phone filter (if enabled) and apply distance attenuation (if any).
      * Uses per-speaker filters AND codecs to avoid cross-contamination artifacts
      *
-     * ✅ CRITICAL: Each speaker gets their own Opus decoder/encoder to prevent
+     * CRITICAL: Each speaker gets their own Opus decoder/encoder to prevent
      * state corruption when multiple people talk simultaneously
+     *
+     * When neither the filter nor attenuation applies, the original Opus bytes are passed through
+     * untouched (no decode/re-encode), exactly as before.
      *
      * @param opusData The Opus-encoded audio data
      * @param speakerId The UUID of the player speaking
-     * @return Filtered Opus audio data
+     * @param gain Volume multiplier 0..1 (1 = full volume, no attenuation)
+     * @return Processed Opus audio data, or null if attenuation was required but could not be applied
+     *         (the audio is dropped rather than sent at full volume)
      */
-    private byte[] processAudioWithFilter(byte[] opusData, UUID speakerId) {
-        if (!ModConfig.isPhoneFilterEnabled()) {
+    @Nullable
+    private byte[] processAudio(byte[] opusData, UUID speakerId, float gain) {
+        boolean filterEnabled = ModConfig.isPhoneFilterEnabled();
+        boolean attenuate = gain < ATTENUATION_THRESHOLD;
+
+        if (!filterEnabled && !attenuate) {
             return opusData;
         }
 
         try {
-            // ✅ Get or create decoder for THIS speaker (prevents state corruption)
+            // Get or create decoder for THIS speaker (prevents state corruption)
             OpusDecoder decoder = speakerDecoders.computeIfAbsent(speakerId,
-                    id -> {
-                        OpusDecoder newDecoder = voiceChatApi.createDecoder();
-                        id.toString().substring(0, 8);
-                        return newDecoder;
-                    });
+                    id -> voiceChatApi.createDecoder());
 
-            // ✅ Get or create encoder for THIS speaker (prevents state corruption)
+            // Get or create encoder for THIS speaker (prevents state corruption)
             OpusEncoder encoder = speakerEncoders.computeIfAbsent(speakerId,
-                    id -> {
-                        OpusEncoder newEncoder = voiceChatApi.createEncoder();
-                        id.toString().substring(0, 8);
-                        return newEncoder;
-                    });
+                    id -> voiceChatApi.createEncoder());
 
             // Decode using speaker's dedicated decoder
             short[] pcmSamples = decoder.decode(opusData);
 
             if (pcmSamples == null || pcmSamples.length == 0) {
-                return opusData;
+                return attenuate ? null : opusData;
             }
-
-            // Get or create filter for this speaker
-            PhoneAudioFilter filter = speakerFilters.computeIfAbsent(speakerId,
-                    id -> {
-                        PhoneAudioFilter newFilter = new PhoneAudioFilter();
-                        id.toString().substring(0, 8);
-                        return newFilter;
-                    });
 
             // Track activity for cleanup
-            lastFilterActivity.put(speakerId, System.currentTimeMillis());
-            lastCodecActivity.put(speakerId, System.currentTimeMillis());
+            long now = System.currentTimeMillis();
+            lastCodecActivity.put(speakerId, now);
 
-            // Process through speaker's dedicated filter
-            short[] filteredSamples = filter.process(pcmSamples);
+            if (filterEnabled) {
+                // Get or create filter for this speaker
+                PhoneAudioFilter filter = speakerFilters.computeIfAbsent(speakerId,
+                        id -> new PhoneAudioFilter());
+                lastFilterActivity.put(speakerId, now);
 
-            // Encode using speaker's dedicated encoder
-            byte[] filteredOpus = encoder.encode(filteredSamples);
-
-            if (filteredOpus == null || filteredOpus.length == 0) {
-                return opusData;
+                // Process through speaker's dedicated filter (in place)
+                pcmSamples = filter.process(pcmSamples);
             }
 
-            return filteredOpus;
+            // Distance attenuation goes AFTER the filter (the filter's gain compensation is fixed,
+            // but this keeps the two stages independent)
+            if (attenuate) {
+                for (int i = 0; i < pcmSamples.length; i++) {
+                    pcmSamples[i] = (short) Math.round(pcmSamples[i] * gain);
+                }
+            }
+
+            // Encode using speaker's dedicated encoder
+            byte[] processedOpus = encoder.encode(pcmSamples);
+
+            if (processedOpus == null || processedOpus.length == 0) {
+                return attenuate ? null : opusData;
+            }
+
+            return processedOpus;
 
         } catch (Exception e) {
-            System.err.println("SnailAudioRelay: Error applying phone filter for speaker " +
+            System.err.println("SnailAudioRelay: Error processing audio for speaker " +
                     speakerId.toString().substring(0, 8) + ": " + e.getMessage());
             e.printStackTrace();
-            return opusData;
+            return attenuate ? null : opusData;
         }
     }
 
     /**
-     * Forward Opus bytes directly to block snail audio channel
+     * Forward already-processed Opus bytes to a block snail audio channel
      *
      * @param targetPos Position of the target snail
-     * @param opusData Original Opus audio data
+     * @param audio Processed Opus audio data (shared between all recipients)
      * @param callSession The call session
-     * @param speakerId UUID of the player speaking
      */
-    private void forwardOpusToSnail(BlockPos targetPos, byte[] opusData, CallSession callSession, UUID speakerId) {
+    private void forwardToSnail(BlockPos targetPos, byte[] audio, CallSession callSession) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
-
-            LocationalAudioChannel channel = (LocationalAudioChannel) callSession.getProximityChannel(targetPos);
+            AudioChannel channel = callSession.getProximityChannel(targetPos);
             if (channel != null) {
-                channel.send(processedAudio);
+                channel.send(audio);
             }
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to " + targetPos + ": " + e.getMessage());
@@ -356,20 +392,17 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Forward Opus bytes to handheld snail participant
+     * Forward already-processed Opus bytes to a handheld snail participant
      *
      * @param playerId UUID of the receiving player
-     * @param opusData Original Opus audio data
+     * @param audio Processed Opus audio data (shared between all recipients)
      * @param callSession The call session
-     * @param speakerId UUID of the player speaking
      */
-    private void forwardOpusToHandheld(UUID playerId, byte[] opusData, CallSession callSession, UUID speakerId) {
+    private void forwardToHandheld(UUID playerId, byte[] audio, CallSession callSession) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
-
             AudioChannel channel = callSession.getHandheldChannel(playerId);
             if (channel != null) {
-                channel.send(processedAudio);
+                channel.send(audio);
             } else {
                 System.err.println("SnailAudioRelay: No handheld channel found for player " +
                         playerId.toString().substring(0, 8));
@@ -381,19 +414,14 @@ public class SnailAudioRelay {
     }
 
     /**
-     * Forward audio to an interceptor (when NOT protected)
-     */
-    /**
-     * Forward Opus bytes to interceptor channel
+     * Forward already-processed Opus bytes to an interceptor channel (when NOT protected)
      *
      * @param interceptorChannel The interceptor's audio channel
-     * @param opusData Original Opus audio data
-     * @param speakerId UUID of the player speaking
+     * @param audio Processed Opus audio data (shared between all recipients)
      */
-    private void forwardOpusToInterceptor(AudioChannel interceptorChannel, byte[] opusData, UUID speakerId) {
+    private void forwardToInterceptor(AudioChannel interceptorChannel, byte[] audio) {
         try {
-            byte[] processedAudio = processAudioWithFilter(opusData, speakerId);
-            interceptorChannel.send(processedAudio);
+            interceptorChannel.send(audio);
         } catch (Exception e) {
             System.err.println("SnailAudioRelay: Failed to forward opus to interceptor: " + e.getMessage());
         }
@@ -462,38 +490,33 @@ public class SnailAudioRelay {
     // =================== UTILITY METHODS ===================
 
     /**
-     * Find nearest snail in call
+     * How loudly a speaker is heard through their placed snail, based on how far they stand from it.
+     * Uses the same linear falloff Simple Voice Chat uses for proximity chat
+     * (volume = 1 - distance / maxDistance), with the placed-snail range from the config
+     * (locational_snail_range) as the maximum distance - the same range the snail's speaker uses
+     * when the other party is heard.
+     *
+     * @return 1.0 right next to the snail, falling to 0.0 at the configured range
+     *         (0.0 also when in another dimension or the range is not positive)
      */
-    @Nullable
-    private TransponderSnailBlockEntity findNearestSnailInCall(ServerPlayer player, CallSession callSession) {
-        TransponderSnailBlockEntity closestSnail = null;
-        double closestDistance = Double.MAX_VALUE;
-        double maxRangeSq = VoiceChatConstants.getSnailInteractionRange() *
-                VoiceChatConstants.getSnailInteractionRange();
-
-        for (Integer snailNumber : callSession.getParticipantSnailNumbers()) {
-            TransponderSnailBlockEntity snail = callManager.getRegisteredSnailBlock(snailNumber);
-            if (snail == null) continue;
-
-            double distance = player.distanceToSqr(
-                    snail.getBlockPos().getX() + 0.5,
-                    snail.getBlockPos().getY() + 0.5,
-                    snail.getBlockPos().getZ() + 0.5);
-
-            if (distance <= maxRangeSq && distance < closestDistance) {
-                closestDistance = distance;
-                closestSnail = snail;
-            }
+    private float getSpeakingGain(ServerPlayer speaker, TransponderSnailBlockEntity snail) {
+        Level snailLevel = snail.getLevel();
+        if (snailLevel == null || speaker.level() != snailLevel) {
+            return 0.0f;
         }
 
-        if (closestSnail == null) {
-            CallSession.CallParticipant participant = callSession.getParticipantByPlayer(player.getUUID());
-            if (participant != null && participant.isHandheld()) {
-                participant.getSnailNumber();
-            }
+        double range = VoiceChatConstants.getLocationalSnailRange();
+        if (range <= 0.0) {
+            return 0.0f;
         }
 
-        return closestSnail;
+        BlockPos pos = snail.getBlockPos();
+        double distance = Math.sqrt(speaker.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
+        if (distance >= range) {
+            return 0.0f;
+        }
+
+        return (float) (1.0 - distance / range);
     }
 
     /**
@@ -667,7 +690,9 @@ public class SnailAudioRelay {
      */
     private static class CallSessionCache {
         final CallSession callSession;
-        final TransponderSnailBlockEntity transmittingSnail;
+        final boolean speakerIsHandheld;
+        // The speaker's OWN placed snail block (null for handheld participants)
+        final TransponderSnailBlockEntity speakerSnail;
         final long timestamp;
 
         // PERFORMANCE: Cache sets that would otherwise be allocated fresh on every
@@ -677,9 +702,11 @@ public class SnailAudioRelay {
         final java.util.Set<net.minecraft.core.BlockPos> cachedBlockPositions;
         final java.util.Set<java.util.UUID> cachedHandheldParticipants;
 
-        CallSessionCache(CallSession callSession, @Nullable TransponderSnailBlockEntity transmittingSnail) {
+        CallSessionCache(CallSession callSession, boolean speakerIsHandheld,
+                         @Nullable TransponderSnailBlockEntity speakerSnail) {
             this.callSession = callSession;
-            this.transmittingSnail = transmittingSnail;
+            this.speakerIsHandheld = speakerIsHandheld;
+            this.speakerSnail = speakerSnail;
             this.timestamp = System.currentTimeMillis();
             this.cachedBlockPositions = callSession.getInvolvedBlockPositions();
             this.cachedHandheldParticipants = callSession.getHandheldParticipantIds();

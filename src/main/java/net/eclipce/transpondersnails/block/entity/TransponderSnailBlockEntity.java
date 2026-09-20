@@ -823,6 +823,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         if (!level.isClientSide && !isUnloading) {
 
+            // Calls only exist in memory - never resurrect call state that was saved to disk
+            resetPersistedCallState();
+
             // Prevent processing the same position multiple times
             if (processedPositions.contains(worldPosition)) {
                 return;
@@ -853,6 +856,48 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 // Re-register with call manager if we have valid data
                 registerWithCallManager();
             }
+        }
+    }
+
+    /**
+     * Calls only live in memory inside TransponderCallManager, but this block entity saves its call
+     * state to disk (saveAdditional) and restores it on load. A snail that was saved while in a call -
+     * server stop, chunk unload, or saved after a call ended without the snail being told - would come
+     * back "connected" or "ringing" with no call behind it and stay that way forever. (Right-click just
+     * reports "busy" / "Failed to answer call!".)
+     *
+     * Runs on the server when the block entity loads. saveAdditional/load are left untouched because
+     * getUpdateTag() reuses them to sync this state to clients.
+     */
+    private void resetPersistedCallState() {
+        boolean stale = activeCallId != null
+                || isRinging
+                || currentCallState != CallStateSyncPacket.CallState.IDLE
+                || hasAmbientSound
+                || inActiveCall
+                || audioReady;
+        if (!stale) {
+            return;
+        }
+
+        this.activeCallId = null;
+        this.isRinging = false;
+        this.ringStartTime = 0;
+        this.currentCallState = CallStateSyncPacket.CallState.IDLE;
+        this.hasAmbientSound = false;
+        this.inActiveCall = false;
+        this.audioReady = false;
+        this.currentCallSession = null;
+        setChanged();
+
+        // The saved blockstate may still show the "call"/"sound" model - refresh it next tick
+        // (never change blocks from inside onLoad)
+        if (level instanceof ServerLevel serverLevel) {
+            serverLevel.getServer().execute(() -> {
+                if (!isRemoved() && !isServerShuttingDown) {
+                    updateBlockstateVisuals();
+                }
+            });
         }
     }
 

@@ -35,7 +35,7 @@ public class CallSession {
     private AudioChannel primaryChannel;
     private final Map<BlockPos, AudioChannel> proximityChannels = new ConcurrentHashMap<>();
 
-    // ✨ NEW: Handheld participant audio channels
+    // âœ¨ NEW: Handheld participant audio channels
     private final Map<UUID, AudioChannel> handheldChannels = new ConcurrentHashMap<>();
 
     // Proximity listeners (players near snail blocks who can hear the call)
@@ -221,13 +221,15 @@ public class CallSession {
         return new HashMap<>(proximityChannels);
     }
 
-    // ✨ NEW: Handheld channels
+    // âœ¨ NEW: Handheld channels
     public void addHandheldChannel(UUID playerId, AudioChannel channel) {
         handheldChannels.put(playerId, channel);
+        System.out.println("CallSession: Added handheld channel for player " + playerId.toString().substring(0, 8));
     }
 
     public void removeHandheldChannel(UUID playerId) {
         handheldChannels.remove(playerId);
+        System.out.println("CallSession: Removed handheld channel for player " + playerId.toString().substring(0, 8));
     }
 
     @Nullable
@@ -243,7 +245,19 @@ public class CallSession {
         return handheldChannels.containsKey(playerId);
     }
 
-    // ✨ NEW: Get all audio channels (block + handheld)
+    /**
+     * Drops every audio channel this session holds.
+     * The getters above return COPIES of the channel maps, so calling clear() on them
+     * never emptied the session. Call this when the call ends so that anything still
+     * holding a reference to this session can no longer forward audio through it.
+     */
+    public void clearAudioChannels() {
+        primaryChannel = null;
+        proximityChannels.clear();
+        handheldChannels.clear();
+    }
+
+    // âœ¨ NEW: Get all audio channels (block + handheld)
     public Collection<AudioChannel> getAllAudioChannels() {
         List<AudioChannel> allChannels = new ArrayList<>();
         allChannels.addAll(proximityChannels.values());
@@ -293,7 +307,7 @@ public class CallSession {
         return positions;
     }
 
-    // ✨ NEW: Get all handheld participant player IDs
+    // âœ¨ NEW: Get all handheld participant player IDs
     public Set<UUID> getHandheldParticipantIds() {
         Set<UUID> handheldPlayers = new HashSet<>();
         for (CallParticipant participant : snailParticipants.values()) {
