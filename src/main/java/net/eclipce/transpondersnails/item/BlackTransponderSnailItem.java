@@ -301,29 +301,31 @@ public class BlackTransponderSnailItem extends BlockItem implements ICurioItem {
     public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
 
-        if (isOpen(stack)) {
-            tooltip.add(Component.literal("Status: Open - Intercepting")
-                    .withStyle(ChatFormatting.GREEN));
-        } else {
-            tooltip.add(Component.literal("Status: Closed")
-                    .withStyle(ChatFormatting.GRAY));
-        }
+//        if (isOpen(stack)) {
+//            tooltip.add(Component.literal("Status: Open - Intercepting")
+//                    .withStyle(ChatFormatting.GREEN));
+//        } else {
+//            tooltip.add(Component.literal("Status: Closed")
+//                    .withStyle(ChatFormatting.GRAY));
+//        }
+//
+//        DyeColor shellColor = getShellColor(stack);
+//        tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
+//                .withStyle(ChatFormatting.DARK_GRAY));
 
-        DyeColor shellColor = getShellColor(stack);
-        tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
-                .withStyle(ChatFormatting.DARK_GRAY));
+//        tooltip.add(Component.literal("Placed Range: Base + Lightning Rods")
+//                .withStyle(ChatFormatting.BLUE));
 
-        double range = net.eclipce.transpondersnails.config.ModConfig.getAdultBlackSnailDefaultRange();
-        tooltip.add(Component.literal("Handheld Range: " + (int)range + " blocks")
+          if (flag.isAdvanced()) {
+              double range = net.eclipce.transpondersnails.config.ModConfig.getAdultBlackSnailDefaultRange();
+                tooltip.add(Component.literal("Handheld Range: " + (int) range + " blocks")
                 .withStyle(ChatFormatting.BLUE));
+          }
 
-        tooltip.add(Component.literal("Placed Range: Base + Lightning Rods")
-                .withStyle(ChatFormatting.BLUE));
-
-        tooltip.add(Component.literal("Crouch + Right-Click: Open/Close")
+        tooltip.add(Component.literal("Right-Click: Open/Close")
                 .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
 
-        tooltip.add(Component.literal("Right-Click: Place as Block")
+        tooltip.add(Component.literal("Crouch + Right-Click: Place as Block")
                 .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
     }
 

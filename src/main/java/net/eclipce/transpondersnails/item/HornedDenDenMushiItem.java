@@ -231,7 +231,7 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
                                 List<Component> tooltip, TooltipFlag flag) {
         if (isCaptured(stack)) {
             tooltip.add(Component.literal("Captured Horned Den Den Mushi")
-                    .withStyle(ChatFormatting.GRAY));
+                    .withStyle(ChatFormatting.DARK_GRAY));
 
             if (flag.isAdvanced()) {
                 int bodyColor    = getBodyColor(stack);
@@ -252,8 +252,6 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
                     .withStyle(ChatFormatting.GREEN));
         }
 
-        tooltip.add(Component.literal("Right-click to place")
-                .withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.literal("Sneak + Right-click to activate as jammer")
                 .withStyle(ChatFormatting.DARK_AQUA));
     }

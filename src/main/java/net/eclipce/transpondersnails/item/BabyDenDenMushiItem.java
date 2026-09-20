@@ -210,8 +210,8 @@ public class BabyDenDenMushiItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
         if (isCaptured(stack)) {
-            tooltip.add(Component.literal("Baby Den Den Mushi")
-                    .withStyle(ChatFormatting.GOLD)); // Gold to distinguish from adult
+            tooltip.add(Component.literal("Captured Baby Den Den Mushi")
+                    .withStyle(ChatFormatting.DARK_GRAY));
 
             if (flag.isAdvanced()) {
                 // Show body color as hex
@@ -230,9 +230,9 @@ public class BabyDenDenMushiItem extends Item {
             }
         } else {
             tooltip.add(Component.literal("Wild Baby Den Den Mushi")
-                    .withStyle(ChatFormatting.GREEN));
+                    .withStyle(ChatFormatting.DARK_GRAY));
             tooltip.add(Component.literal("Right-click to place")
-                    .withStyle(ChatFormatting.GRAY));
+                    .withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 

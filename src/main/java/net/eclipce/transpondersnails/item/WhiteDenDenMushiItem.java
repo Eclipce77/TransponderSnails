@@ -148,9 +148,6 @@ public class WhiteDenDenMushiItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
-        tooltip.add(Component.literal("White Den Den Mushi")
-                .withStyle(ChatFormatting.GRAY));
-
         if (hasStoredColor(stack)) {
             int shellColorId = getShellColor(stack);
             DyeColor shellColor = DyeColor.byId(shellColorId);
@@ -159,19 +156,16 @@ public class WhiteDenDenMushiItem extends Item {
             String displayName = colorName.substring(0, 1).toUpperCase() + colorName.substring(1);
             displayName = displayName.replace('_', ' ');
 
-            tooltip.add(Component.literal("Shell: " + displayName)
-                    .withStyle(ChatFormatting.AQUA));
+
 
             if (flag.isAdvanced()) {
+                tooltip.add(Component.literal("Shell: " + displayName)
+                        .withStyle(ChatFormatting.DARK_GRAY));
                 tooltip.add(Component.literal("Color ID: " + shellColorId)
                         .withStyle(ChatFormatting.DARK_GRAY));
             }
         } else {
-            tooltip.add(Component.literal("Shell: Random")
-                    .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
-        }
 
-        tooltip.add(Component.literal("Right-click to place")
-                .withStyle(ChatFormatting.GRAY));
+        }
     }
 }

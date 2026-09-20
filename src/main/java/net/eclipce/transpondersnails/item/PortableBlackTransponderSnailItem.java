@@ -1,5 +1,6 @@
 package net.eclipce.transpondersnails.item;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -345,19 +346,21 @@ public class PortableBlackTransponderSnailItem extends Item implements ICurioIte
     public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
 
-        if (isOpen(stack)) {
-            tooltip.add(Component.literal("Status: Open").withStyle(net.minecraft.ChatFormatting.GREEN));
-        } else {
-            tooltip.add(Component.literal("Status: Closed").withStyle(net.minecraft.ChatFormatting.GRAY));
+        if (flag.isAdvanced()) {
+            if (isOpen(stack)) {
+                tooltip.add(Component.literal("Status: Open").withStyle(ChatFormatting.GREEN));
+            } else {
+                tooltip.add(Component.literal("Status: Closed").withStyle(net.minecraft.ChatFormatting.GRAY));
+            }
+
+            DyeColor shellColor = getShellColor(stack);
+            DyeColor bandColor = getBandColor(stack);
+
+            tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.literal("Band: " + capitalize(bandColor.getName()))
+                    .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
         }
-
-        DyeColor shellColor = getShellColor(stack);
-        DyeColor bandColor = getBandColor(stack);
-
-        tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
-                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
-        tooltip.add(Component.literal("Band: " + capitalize(bandColor.getName()))
-                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
 
         tooltip.add(Component.literal("Right-Click to Open/Close")
                 .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));

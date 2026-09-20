@@ -505,7 +505,7 @@ public class SnailNBTHandler {
         if (snailNumber != -1) {
             // Show the snail number
             Component numberTooltip = Component.literal("#: " + snailNumber)
-                    .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD);
+                    .withStyle(ChatFormatting.AQUA);
             tooltip.add(numberTooltip);
 
             // In advanced tooltip mode, show additional info

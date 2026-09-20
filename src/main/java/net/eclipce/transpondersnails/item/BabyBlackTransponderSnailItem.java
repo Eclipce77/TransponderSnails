@@ -233,19 +233,21 @@ public class BabyBlackTransponderSnailItem extends Item implements ICurioItem {
     public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
         super.appendHoverText(stack, level, tooltip, flag);
 
-        if (isOpen(stack)) {
-            tooltip.add(Component.literal("Status: Open - Intercepting Calls").withStyle(net.minecraft.ChatFormatting.GREEN));
-        } else {
-            tooltip.add(Component.literal("Status: Closed").withStyle(net.minecraft.ChatFormatting.GRAY));
-        }
+//        if (isOpen(stack)) {
+//            tooltip.add(Component.literal("Status: Open - Intercepting Calls").withStyle(net.minecraft.ChatFormatting.GREEN));
+//        } else {
+//            tooltip.add(Component.literal("Status: Closed").withStyle(net.minecraft.ChatFormatting.GRAY));
+//        }
+//
+//        DyeColor shellColor = getShellColor(stack);
+//        tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
+//                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
 
-        DyeColor shellColor = getShellColor(stack);
-        tooltip.add(Component.literal("Shell: " + capitalize(shellColor.getName()))
-                .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
-
+        if (flag.isAdvanced()) {
         double range = net.eclipce.transpondersnails.config.ModConfig.getBabyBlackSnailRange();
         tooltip.add(Component.literal("Interception Range: " + (int)range + " blocks")
                 .withStyle(net.minecraft.ChatFormatting.BLUE));
+        }
 
         tooltip.add(Component.literal("Right-Click to Open/Close")
                 .withStyle(net.minecraft.ChatFormatting.DARK_GRAY, net.minecraft.ChatFormatting.ITALIC));

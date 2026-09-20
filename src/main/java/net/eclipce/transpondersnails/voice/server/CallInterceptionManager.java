@@ -1092,9 +1092,7 @@ public class CallInterceptionManager {
                     // ✅ Check if no calls found (targetCallId == null)
                     if (session.getTargetCallId() == null) {
                         // NO CALLS FOUND - show gray message
-                        String noCallsMessage = rangeIndicator.isEmpty()
-                                ? "✗ No calls in range"
-                                : "✗ No calls in range [" + rangeIndicator + "]";
+                        String noCallsMessage = "✗ No calls in range";
 
                         player.displayClientMessage(
                                 Component.literal(noCallsMessage)
@@ -1103,9 +1101,7 @@ public class CallInterceptionManager {
                         );
                     } else {
                         // CALL FOUND - show searching message
-                        String searchMessage = rangeIndicator.isEmpty()
-                                ? "⟳ Searching for call..."
-                                : "⟳ Searching for call... [" + rangeIndicator + "]";
+                        String searchMessage = "⟳ Searching for call...";
 
                         player.displayClientMessage(
                                 Component.literal(searchMessage)
@@ -1124,9 +1120,7 @@ public class CallInterceptionManager {
 
                 if (player != null) {
                     String rangeIndicator = getRangeIndicatorForSession(session);
-                    String connectedMessage = rangeIndicator.isEmpty()
-                            ? "✓ Connected to call"
-                            : "✓ Connected to call [" + rangeIndicator + "]";
+                    String connectedMessage = "✓ Connected to call";
 
                     player.displayClientMessage(
                             Component.literal(connectedMessage)

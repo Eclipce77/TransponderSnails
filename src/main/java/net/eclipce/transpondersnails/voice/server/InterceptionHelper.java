@@ -73,9 +73,7 @@ public class InterceptionHelper {
 
         // Show "Searching..." message immediately with indicator (action bar - will be refreshed)
         String rangeIndicator = getRangeIndicator(lightningRodCount);
-        String searchMessage = rangeIndicator.isEmpty()
-                ? "⟳ Searching for call..."
-                : "⟳ Searching for call... [" + rangeIndicator + "]";
+        String searchMessage = "⟳ Searching for call...";
 
         player.displayClientMessage(
                 Component.literal(searchMessage)

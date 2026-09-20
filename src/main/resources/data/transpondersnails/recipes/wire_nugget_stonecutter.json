@@ -2,7 +2,7 @@
   "type": "minecraft:stonecutting",
   "count": 1,
   "ingredient": {
-    "item": "minecraft:copper_nugget"
+    "item": "transpondersnails:copper_nugget"
   },
   "result": "transpondersnails:wire"
 }
