@@ -5,6 +5,7 @@ import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.data.CallLogRegistry;
 import net.eclipce.transpondersnails.data.SnailNBTHandler;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.item.TransponderSnailItem;
@@ -123,7 +124,7 @@ public class TransponderCallManager {
         registeredSnailBlocks.remove(snailNumber);
         stopRingingAtSnail(snailNumber);
         if (!isInTransition(snailNumber)) {
-            endCallBySnailNumber(snailNumber);
+            endCallBySnailNumber(snailNumber, CallLogRegistry.EndReason.SNAIL_GONE);
         }
         System.out.println("TransponderCallManager: Unregistered snail block #" + snailNumber);
     }
@@ -244,11 +245,13 @@ public class TransponderCallManager {
                         Component.literal("Snail #" + targetSnailNumber + " does not exist!"),
                         true
                 );
+                logCallImmediate(CallLogRegistry.Outcome.NO_SUCH_NUMBER, caller, callerSnailNumber, targetSnailNumber);
                 return false;
             }
 
             if (isSnailInCall(targetSnailNumber)) {
                 handleTargetBusy(caller, callerSnailNumber, targetSnailNumber);
+                logCallImmediate(CallLogRegistry.Outcome.BUSY, caller, callerSnailNumber, targetSnailNumber);
                 return false;
             }
 
@@ -270,6 +273,7 @@ public class TransponderCallManager {
                 System.out.println("DEBUG initiateCall: Target participant type: " + targetParticipant.getType());
             } catch (IllegalStateException e) {
                 System.err.println("DEBUG initiateCall: Could not find target snail #" + targetSnailNumber);
+                logCallImmediate(CallLogRegistry.Outcome.UNREACHABLE, caller, callerSnailNumber, targetSnailNumber);
                 caller.displayClientMessage(
                         Component.literal("Snail #" + targetSnailNumber + " is not available!")
                                 .withStyle(ChatFormatting.RED),
@@ -298,6 +302,7 @@ public class TransponderCallManager {
             boolean ringingStarted = startRinging(callSession, callerSnailNumber, targetSnailNumber);
             if (!ringingStarted) {
                 System.err.println("DEBUG initiateCall: Failed to start ringing");
+                logCallImmediate(CallLogRegistry.Outcome.UNREACHABLE, caller, callerSnailNumber, targetSnailNumber);
 
                 // Cleanup
                 activeCalls.remove(callId);
@@ -314,6 +319,7 @@ public class TransponderCallManager {
             }
 
             System.out.println("DEBUG initiateCall: âœ… Call initiated successfully");
+            logCallPlaced(callId, callerSnailNumber, caller, targetSnailNumber);
             return true;
 
         } catch (Exception e) {
@@ -699,6 +705,7 @@ public class TransponderCallManager {
 
             // Connect the call
             connectCall(callSession, player);
+            logCallConnected(callSession.getCallId(), player);
             System.out.println("DEBUG acceptCall: Call connected");
 
             // FIX #3: Update handheld item NBT immediately for state sync
@@ -725,7 +732,7 @@ public class TransponderCallManager {
 
         stopRingingForCall(callSession);
         notifyCallRejected(callSession);
-        endCall(callId);
+        endCall(callId, CallLogRegistry.EndReason.REJECTED, -1);
         return true;
     }
 
@@ -977,8 +984,24 @@ public class TransponderCallManager {
     // =================== CALL TERMINATION ===================
 
     public void endCall(UUID callId) {
+        endCall(callId, CallLogRegistry.EndReason.UNKNOWN, -1, System.currentTimeMillis());
+    }
+
+    /**
+     * Ends a call and records why in the call log.
+     *
+     * @param reason        Why the call ended
+     * @param endedBySnail  The snail number of whoever ended it, or -1 if not applicable / unknown
+     */
+    public void endCall(UUID callId, CallLogRegistry.EndReason reason, int endedBySnail) {
+        endCall(callId, reason, endedBySnail, System.currentTimeMillis());
+    }
+
+    private void endCall(UUID callId, CallLogRegistry.EndReason reason, int endedBySnail, long endedAtMs) {
         CallSession callSession = activeCalls.remove(callId);
         if (callSession == null) return;
+
+        logCallEnded(callId, reason, endedBySnail, endedAtMs);
 
         System.out.println("TransponderCallManager: Ending call " + callId.toString().substring(0, 8));
 
@@ -1029,6 +1052,10 @@ public class TransponderCallManager {
      * Location: Find the existing endCall(ServerPlayer player) method and replace it entirely
      */
     public void endCall(ServerPlayer player) {
+        endCallForPlayer(player, CallLogRegistry.EndReason.HANG_UP);
+    }
+
+    private void endCallForPlayer(ServerPlayer player, CallLogRegistry.EndReason reason) {
         System.out.println("DEBUG endCall(player): Attempting to end call for " + player.getName().getString());
         System.out.println("DEBUG endCall(player): Player UUID: " + player.getUUID().toString().substring(0, 8));
 
@@ -1086,8 +1113,13 @@ public class TransponderCallManager {
 
             playHangUpSoundForPlayer(player, callSession);
 
+            // The call is torn down 800ms from now; log it as ending NOW, by this player's snail
+            CallSession.CallParticipant hangUpParticipant = callSession.getParticipantByPlayer(player.getUUID());
+            final int endedBySnail = hangUpParticipant != null ? hangUpParticipant.getSnailNumber() : -1;
+            final long endedAtMs = System.currentTimeMillis();
+
             scheduler.schedule(() -> {
-                endCall(finalCallId);
+                endCall(finalCallId, reason, endedBySnail, endedAtMs);
             }, 800, TimeUnit.MILLISECONDS);
 
             System.out.println("DEBUG endCall(player): âœ… Scheduled call termination");
@@ -1098,9 +1130,13 @@ public class TransponderCallManager {
     }
 
     public void endCallBySnailNumber(int snailNumber) {
+        endCallBySnailNumber(snailNumber, CallLogRegistry.EndReason.UNKNOWN);
+    }
+
+    public void endCallBySnailNumber(int snailNumber, CallLogRegistry.EndReason reason) {
         UUID callId = snailToCallId.get(snailNumber);
         if (callId != null) {
-            endCall(callId);
+            endCall(callId, reason, snailNumber);
         }
     }
 
@@ -1440,7 +1476,7 @@ public class TransponderCallManager {
 
     private void handleCallTimeout(CallSession callSession) {
         stopRingingForCall(callSession);
-        endCall(callSession.getCallId());
+        endCall(callSession.getCallId(), CallLogRegistry.EndReason.RING_TIMEOUT, -1);
     }
 
     private void notifyCallRejected(CallSession callSession) {
@@ -1574,7 +1610,7 @@ public class TransponderCallManager {
             }
         }
         for (UUID callId : toRemove) {
-            endCall(callId);
+            endCall(callId, CallLogRegistry.EndReason.INACTIVITY, -1);
         }
 
         // Clean up stale player-to-call mappings
@@ -1627,7 +1663,7 @@ public class TransponderCallManager {
         if (isInCall(playerId)) {
             ServerPlayer player = getPlayerById(playerId);
             if (player != null) {
-                endCall(player);
+                endCallForPlayer(player, CallLogRegistry.EndReason.DISCONNECT);
             }
         }
     }
@@ -1873,7 +1909,7 @@ public class TransponderCallManager {
                     if (participant.isBlock() && isSnailBlockGone(participant.getSnailNumber())) {
                         System.out.println("TransponderCallManager: Snail block #" + participant.getSnailNumber() +
                                 " no longer exists - ending call " + session.getCallId().toString().substring(0, 8));
-                        endCall(session.getCallId());
+                        endCall(session.getCallId(), CallLogRegistry.EndReason.SNAIL_GONE, participant.getSnailNumber());
                         break;
                     }
                 }
@@ -1950,6 +1986,192 @@ public class TransponderCallManager {
         return level.getBlockEntity(pos) != registered;
     }
 
+    // =================== CALL LOG + ADMIN SUPPORT ===================
+    // Used by CallLogRegistry (call history) and the /snailnumber command.
+
+    /** Where a snail currently is (see locateSnail). holderId/holderName are null for placed snails. */
+    public record SnailLocation(boolean placed, String dimension, int x, int y, int z,
+                                UUID holderId, String holderName) { }
+
+    /** What a number removal changed in the live world (see applyRevocation). */
+    public record RevocationReport(int callsEnded, List<String> placedReset, List<String> heldReset, int itemsReset) { }
+
+    @Nullable
+    private UUID snailUuidOf(int snailNumber) {
+        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+        return registry != null ? registry.getSnailByNumber(snailNumber) : null;
+    }
+
+    /**
+     * Describes one side of a call for the call log: placed or handheld, who is using it, and where.
+     * Read-only - unlike createParticipantForSnail this never registers anything.
+     */
+    private CallLogRegistry.Party describeSnailParty(int snailNumber, @Nullable ServerPlayer player) {
+        UUID snailUuid = snailUuidOf(snailNumber);
+
+        TransponderSnailBlockEntity block = getRegisteredSnailBlock(snailNumber);
+        UUID handheldOwner = getHandheldSnailOwner(snailNumber);
+        boolean playerHoldsIt = player != null && handheldOwner != null && handheldOwner.equals(player.getUUID());
+
+        if (block != null && !playerHoldsIt) {
+            Level blockLevel = block.getLevel();
+            BlockPos pos = block.getBlockPos();
+            return new CallLogRegistry.Party("BLOCK", snailUuid,
+                    player != null ? player.getUUID() : null,
+                    player != null ? player.getName().getString() : null,
+                    blockLevel != null ? blockLevel.dimension().location().toString() : null,
+                    pos.getX(), pos.getY(), pos.getZ());
+        }
+
+        ServerPlayer holder = player != null ? player
+                : (handheldOwner != null ? getPlayerById(handheldOwner) : null);
+        if (holder != null) {
+            BlockPos pos = holder.blockPosition();
+            return new CallLogRegistry.Party("HANDHELD", snailUuid, holder.getUUID(),
+                    holder.getName().getString(), holder.level().dimension().location().toString(),
+                    pos.getX(), pos.getY(), pos.getZ());
+        }
+
+        return new CallLogRegistry.Party("UNKNOWN", snailUuid, null, null, null, 0, 0, 0);
+    }
+
+    private void logCallPlaced(UUID callId, int callerSnailNumber, ServerPlayer caller, int targetSnailNumber) {
+        try {
+            CallLogRegistry log = CallLogRegistry.get();
+            if (log == null) return;
+            log.recordPlaced(callId, callerSnailNumber, describeSnailParty(callerSnailNumber, caller),
+                    targetSnailNumber, describeSnailParty(targetSnailNumber, null));
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Could not log placed call: " + e);
+        }
+    }
+
+    /** A call attempt that never started ringing (busy, unreachable, unassigned number). */
+    private void logCallImmediate(CallLogRegistry.Outcome outcome, ServerPlayer caller,
+                                  int callerSnailNumber, int targetSnailNumber) {
+        try {
+            CallLogRegistry log = CallLogRegistry.get();
+            if (log == null) return;
+            log.recordImmediate(outcome, callerSnailNumber, describeSnailParty(callerSnailNumber, caller),
+                    targetSnailNumber, describeSnailParty(targetSnailNumber, null));
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Could not log call attempt: " + e);
+        }
+    }
+
+    private void logCallConnected(UUID callId, ServerPlayer answering) {
+        try {
+            CallLogRegistry log = CallLogRegistry.get();
+            if (log == null) return;
+            BlockPos pos = answering.blockPosition();
+            log.recordConnected(callId, answering.getUUID(), answering.getName().getString(),
+                    answering.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ());
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Could not log connected call: " + e);
+        }
+    }
+
+    private void logCallEnded(UUID callId, CallLogRegistry.EndReason reason, int endedBySnail, long endedAtMs) {
+        try {
+            CallLogRegistry log = CallLogRegistry.get();
+            if (log == null) return;
+            log.recordEnded(callId, reason, endedBySnail, endedAtMs);
+        } catch (Exception e) {
+            System.err.println("TransponderCallManager: Could not log ended call: " + e);
+        }
+    }
+
+    /**
+     * Where a snail is right now: the placed block if it is loaded and registered, otherwise the online
+     * player carrying it (inventory or cursor). Null if it is in neither - an unloaded chunk, a container,
+     * an offline player's inventory, or on the ground. Read-only. Server thread only.
+     */
+    @Nullable
+    public SnailLocation locateSnail(int snailNumber) {
+        TransponderSnailBlockEntity block = registeredSnailBlocks.get(snailNumber);
+        if (block != null && !block.isRemoved() && block.getLevel() != null) {
+            BlockPos pos = block.getBlockPos();
+            return new SnailLocation(true, block.getLevel().dimension().location().toString(),
+                    pos.getX(), pos.getY(), pos.getZ(), null, null);
+        }
+
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            return null;
+        }
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (playerHoldsSnailItem(player, snailNumber)) {
+                BlockPos pos = player.blockPosition();
+                return new SnailLocation(false, player.level().dimension().location().toString(),
+                        pos.getX(), pos.getY(), pos.getZ(), player.getUUID(), player.getName().getString());
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Applies an admin removal (SnailNumberRegistry.revokeSnail / revokeAllSnails) to everything that is
+     * currently live: ends calls on those numbers, resets loaded placed snails, forgets handheld snails
+     * and wipes the snail items in online players' inventories. Snails in unloaded chunks, containers or
+     * offline inventories are wiped when they next load or are used (their UUID is in the registry's
+     * revoked set). Call this AFTER the registry has revoked the numbers. Server thread only.
+     *
+     * @param numbers The snail numbers that were removed
+     */
+    public RevocationReport applyRevocation(Collection<Integer> numbers) {
+        int callsEnded = 0;
+        List<String> placedReset = new ArrayList<>();
+        List<String> heldReset = new ArrayList<>();
+
+        for (int number : new HashSet<>(numbers)) {
+            UUID callId = snailToCallId.get(number);
+            if (callId != null && activeCalls.containsKey(callId)) {
+                endCall(callId, CallLogRegistry.EndReason.NUMBER_REMOVED, number);
+                callsEnded++;
+            }
+            stopRingingAtSnail(number);
+
+            TransponderSnailBlockEntity block = registeredSnailBlocks.get(number);
+            if (block != null) {
+                Level blockLevel = block.getLevel();
+                BlockPos pos = block.getBlockPos();
+                placedReset.add("#" + number + " at " +
+                        (blockLevel != null ? blockLevel.dimension().location().toString() : "unknown dimension") +
+                        " " + pos.getX() + " " + pos.getY() + " " + pos.getZ());
+                block.revokeSnailIdentity();
+                registeredSnailBlocks.remove(number);
+            }
+
+            UUID owner = handheldSnailOwners.get(number);
+            if (owner != null) {
+                ServerPlayer ownerPlayer = getPlayerById(owner);
+                heldReset.add("#" + number + " held by " +
+                        (ownerPlayer != null ? ownerPlayer.getName().getString() : owner.toString()));
+                unregisterHandheldSnail(number);
+            }
+        }
+
+        // The registry already holds the revoked UUIDs, so one sweep over the online players covers them all
+        int itemsReset = 0;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                    if (SnailNBTHandler.stripIfRevoked(player.getInventory().getItem(i))) {
+                        itemsReset++;
+                    }
+                }
+                if (SnailNBTHandler.stripIfRevoked(player.containerMenu.getCarried())) {
+                    itemsReset++;
+                }
+            }
+        }
+
+        return new RevocationReport(callsEnded, placedReset, heldReset, itemsReset);
+    }
+
     // =================== CLEANUP ===================
 
     public void cleanup() {
@@ -1960,7 +2182,7 @@ public class TransponderCallManager {
 
         for (UUID callId : new HashSet<>(activeCalls.keySet())) {
             try {
-                endCall(callId);
+                endCall(callId, CallLogRegistry.EndReason.SERVER_STOP, -1);
             } catch (Exception e) {
                 System.err.println("Error ending call during cleanup: " + e.getMessage());
             }

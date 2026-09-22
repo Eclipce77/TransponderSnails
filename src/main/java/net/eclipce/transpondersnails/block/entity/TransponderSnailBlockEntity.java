@@ -961,6 +961,15 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             return;
         }
 
+        // An admin removed this snail's number while its chunk was unloaded. Do NOT restore it below
+        // (that would silently hand it a fresh random number) - wipe it so it registers on next use.
+        if (snailUUID != null && registry.isRevoked(snailUUID)) {
+            System.out.println("TransponderSnailBlockEntity: Snail " + snailUUID + " at " + worldPosition +
+                    " was removed by an admin - resetting it");
+            revokeSnailIdentity();
+            return;
+        }
+
         boolean restored = false;
 
         // If we have both UUID and number, validate they match in registry
@@ -1023,6 +1032,12 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         // If we need validation, do it now
         if (needsValidation) {
             performDeferredValidation();
+        }
+
+        // A snail whose number was removed by an admin must start over with a brand new identity
+        SnailNumberRegistry revocationCheck = SnailNumberRegistry.getInstance();
+        if (revocationCheck != null && snailUUID != null && revocationCheck.isRevoked(snailUUID)) {
+            revokeSnailIdentity();
         }
 
         // Check if our current number is still valid in the registry
@@ -1154,6 +1169,36 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      */
     public boolean hasAssignedNumber() {
         return initialized && assignedSnailNumber != -1 && snailUUID != null;
+    }
+
+    /**
+     * Wipes this placed snail's identity after an admin removed its number (/snailnumber remove).
+     * The snail leaves the call manager (ending any call it is in) and forgets its UUID and number, so the
+     * next player to right-click it registers a brand new one. Colors are kept.
+     * Must be called on the server thread.
+     */
+    public void revokeSnailIdentity() {
+        // First: this needs the current number, and it ends any call the snail is part of.
+        // Only if the call manager really holds THIS block under that number: after a removal the number
+        // can be handed to a different snail, and that snail must not be unregistered by mistake.
+        if (isCallManagerAvailable() && assignedSnailNumber != -1) {
+            TransponderCallManager callManager = getCallManager();
+            if (callManager.getRegisteredSnailBlock(assignedSnailNumber) == this) {
+                callManager.unregisterSnailBlock(assignedSnailNumber);
+            }
+        }
+
+        this.snailUUID = null;
+        this.assignedSnailNumber = -1;
+        this.initialized = false;
+        this.needsValidation = false;
+        setChanged();
+
+        // Tell nearby clients (the number is part of the update tag)
+        if (level != null && !level.isClientSide) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
+        }
     }
 
     // =================== ITEM STACK METHODS ===================

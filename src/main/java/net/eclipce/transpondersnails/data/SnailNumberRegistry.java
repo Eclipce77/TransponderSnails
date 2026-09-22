@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.data;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -10,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -29,6 +31,12 @@ public class SnailNumberRegistry extends SavedData {
     private final Map<UUID, Integer> snailToNumber = new HashMap<>(); // UUID -> Snail Number
     private final Map<Integer, UUID> numberToSnail = new HashMap<>(); // Snail Number -> UUID (reverse lookup)
     private final Set<Integer> assignedNumbers = new HashSet<>(); // Quick lookup for assigned numbers
+
+    // UUIDs of snails whose number an admin removed (/snailnumber remove). Such a snail must never come
+    // back to life with its old identity: items and block entities check this before trusting their
+    // cached data, and drop the identity so the snail registers a brand new number on its next use.
+    // Concurrent set because item code can read it from the client thread in single-player.
+    private final Set<UUID> revokedSnails = ConcurrentHashMap.newKeySet();
 
     // Cached instance for quick access
     private static SnailNumberRegistry instance = null;
@@ -67,6 +75,12 @@ public class SnailNumberRegistry extends SavedData {
      * @return The assigned snail number, or -1 if assignment failed
      */
     public synchronized int assignNumberToSnail(@NotNull UUID snailUUID) {
+        // A revoked snail may not be re-registered under its old identity - callers must wipe it first
+        if (revokedSnails.contains(snailUUID)) {
+            System.err.println("SnailNumberRegistry: Refusing to assign a number to revoked snail " + snailUUID);
+            return -1;
+        }
+
         // Check if this snail already has a number
         if (snailToNumber.containsKey(snailUUID)) {
             int existingNumber = snailToNumber.get(snailUUID);
@@ -168,6 +182,69 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
+     * Gets every assignment, sorted by number. The returned map is a copy.
+     * @return snail number -> snail UUID
+     */
+    public synchronized Map<Integer, UUID> getAllAssignments() {
+        return new TreeMap<>(numberToSnail);
+    }
+
+    /**
+     * Removes a snail's number AND revokes its identity: the number becomes free again, and the snail
+     * (item or placed block) is forced to register a new number the next time it is used.
+     * Saves immediately.
+     *
+     * @param snailUUID The UUID of the snail
+     * @return The number that was removed, or -1 if the UUID had no number
+     */
+    public synchronized int revokeSnail(@NotNull UUID snailUUID) {
+        Integer number = snailToNumber.remove(snailUUID);
+        if (number == null) {
+            return -1;
+        }
+
+        numberToSnail.remove(number);
+        assignedNumbers.remove(number);
+        revokedSnails.add(snailUUID);
+
+        setDirty();
+        forceSave();
+        return number;
+    }
+
+    /**
+     * Removes EVERY number and revokes every snail identity (see revokeSnail). Saves immediately.
+     *
+     * @return The assignments that were removed (snail number -> snail UUID), sorted by number
+     */
+    public synchronized Map<Integer, UUID> revokeAllSnails() {
+        Map<Integer, UUID> removed = new TreeMap<>(numberToSnail);
+
+        revokedSnails.addAll(snailToNumber.keySet());
+        snailToNumber.clear();
+        numberToSnail.clear();
+        assignedNumbers.clear();
+
+        setDirty();
+        forceSave();
+        return removed;
+    }
+
+    /**
+     * @return True if an admin removed this snail's number, so its old identity must not be used again
+     */
+    public boolean isRevoked(@NotNull UUID snailUUID) {
+        return revokedSnails.contains(snailUUID);
+    }
+
+    /**
+     * @return How many snail identities have been revoked
+     */
+    public int getRevokedCount() {
+        return revokedSnails.size();
+    }
+
+    /**
      * Generates a unique snail number that isn't already assigned
      * @return A unique number between MIN_SNAIL_NUMBER and MAX_SNAIL_NUMBER, or -1 if none available
      */
@@ -218,9 +295,16 @@ public class SnailNumberRegistry extends SavedData {
         }
         compound.put("assignments", assignmentsList);
 
+        // Revoked snail identities (see revokeSnail) - these must survive restarts
+        ListTag revokedList = new ListTag();
+        for (UUID revoked : revokedSnails) {
+            revokedList.add(NbtUtils.createUUID(revoked));
+        }
+        compound.put("revoked", revokedList);
+
         // Save statistics for debugging
         compound.putInt("total_assigned", assignedNumbers.size());
-        compound.putInt("registry_version", 1); // For future compatibility
+        compound.putInt("registry_version", 2); // For future compatibility (2 = adds "revoked")
 
         return compound;
     }
@@ -260,6 +344,18 @@ public class SnailNumberRegistry extends SavedData {
                 }
             }
         } else {
+        }
+
+        // Load revoked snail identities (absent in registries saved before this feature)
+        if (compound.contains("revoked", Tag.TAG_LIST)) {
+            ListTag revokedList = compound.getList("revoked", Tag.TAG_INT_ARRAY);
+            for (int i = 0; i < revokedList.size(); i++) {
+                try {
+                    registry.revokedSnails.add(NbtUtils.loadUUID(revokedList.get(i)));
+                } catch (IllegalArgumentException e) {
+                    System.err.println("SnailNumberRegistry: Failed to load revoked entry at index " + i + ": " + e.getMessage());
+                }
+            }
         }
 
         return registry;
@@ -306,6 +402,10 @@ public class SnailNumberRegistry extends SavedData {
      * @return The restored number, or -1 if restoration failed
      */
     public synchronized int restoreSnailAssignment(@NotNull UUID snailUUID, int preferredNumber) {
+        if (revokedSnails.contains(snailUUID)) {
+            System.err.println("SnailNumberRegistry: Refusing to restore revoked snail " + snailUUID);
+            return -1;
+        }
 
         // Check if the UUID is already assigned
         if (snailToNumber.containsKey(snailUUID)) {

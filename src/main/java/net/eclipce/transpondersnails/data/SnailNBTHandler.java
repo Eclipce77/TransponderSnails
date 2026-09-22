@@ -200,6 +200,12 @@ public class SnailNBTHandler {
             return -1;
         }
 
+        // Snails whose number an admin removed (/snailnumber remove) lose their identity here, so the
+        // stale cached number below can never be used again and the snail registers a new one on next use
+        if (stripIfRevoked(stack)) {
+            return -1;
+        }
+
         CompoundTag nbt = stack.getOrCreateTag();
 
         // Check cached number first (top level)
@@ -382,6 +388,55 @@ public class SnailNBTHandler {
         if (sourceNbt.contains(SNAIL_TYPE_TAG)) {
             targetNbt.putString(SNAIL_TYPE_TAG, sourceNbt.getString(SNAIL_TYPE_TAG));
         }
+    }
+
+    /**
+     * If this snail's identity was revoked by an admin (/snailnumber remove), wipes its snail data so it
+     * becomes a blank snail that registers a brand new number the next time it is used.
+     *
+     * Wipes the top-level identity tags, the identity inside BlockEntityTag (items that were placed and
+     * then broken carry a copy there, and placing them again would restore it), and any stale call state.
+     * Body and shell colors are left alone.
+     *
+     * @param stack Any ItemStack (empty and non-snail stacks are ignored)
+     * @return True if the stack carried a revoked identity and was wiped
+     */
+    public static boolean stripIfRevoked(@NotNull ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        UUID snailUUID = getSnailUUID(stack);
+        if (snailUUID == null) {
+            return false;
+        }
+
+        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+        if (registry == null || !registry.isRevoked(snailUUID)) {
+            return false;
+        }
+
+        prepareBlankSnail(stack);
+
+        CompoundTag nbt = stack.getTag();
+        if (nbt != null) {
+            if (nbt.contains("BlockEntityTag")) {
+                CompoundTag blockEntityTag = nbt.getCompound("BlockEntityTag");
+                blockEntityTag.remove("SnailUUID");
+                blockEntityTag.remove("AssignedNumber");
+                blockEntityTag.remove("Initialized");
+            }
+
+            // Call state belongs to the old identity
+            nbt.remove("call_state");
+            nbt.remove("active_call_id");
+            nbt.remove("other_snail_number");
+            nbt.remove("call_start_time");
+            nbt.remove("has_active_audio");
+        }
+
+        System.out.println("SnailNBTHandler: Wiped revoked snail identity " + snailUUID);
+        return true;
     }
 
     /**
