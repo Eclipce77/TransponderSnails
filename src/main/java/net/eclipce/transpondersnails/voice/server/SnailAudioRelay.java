@@ -191,6 +191,7 @@ public class SnailAudioRelay {
                 // Don't echo to self
                 if (!handheldPlayerId.equals(speaker.getUUID())) {
                     forwardToHandheld(handheldPlayerId, audio, callSession);
+                    markHandheldAudioActivity(handheldPlayerId, callSession);
                 }
             }
 
@@ -443,6 +444,32 @@ public class SnailAudioRelay {
         } else {
             activity.lastActivityTime = now;
         }
+    }
+
+    /**
+     * Handheld counterpart to updateAudioActivity(BlockPos).
+     *
+     * Placed snails get their "active"/mouth-open model from this class calling
+     * updateAudioActivity(targetPos) on every packet forwarded to a receiving block, which
+     * flows into TransponderSnailBlockEntity.onSoundStateChanged() directly.
+     *
+     * Handheld snails have no block entity - TransponderSnailItem instead polls
+     * TransponderCallManager.hasActiveAudio(snailNumber) every tick (see its inventoryTick()),
+     * which is driven entirely by lastAudioActivityTime / markAudioActivity(int). Nothing on the
+     * normal call-audio path was ever calling that for handheld recipients (only the Black Snail
+     * interception path used it), so hasActiveAudio() could never return true for a held snail and
+     * the "active" item model - and its mouth - never showed, even though forwardToHandheld() was
+     * delivering the audio itself just fine.
+     *
+     * Only the receiving participant is marked (mirrors the block loop, which also skips the
+     * transmitting position), and the caller already excludes the speaker from this loop.
+     */
+    private void markHandheldAudioActivity(UUID playerId, CallSession callSession) {
+        CallSession.CallParticipant participant = callSession.getParticipantByPlayer(playerId);
+        if (participant == null) {
+            return;
+        }
+        callManager.markAudioActivity(participant.getSnailNumber());
     }
 
     /**

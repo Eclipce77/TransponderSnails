@@ -47,6 +47,29 @@ public class TransponderSnailItem extends BlockItem {
         super(block, properties);
     }
 
+    /**
+     * Vanilla's default here reacts to ANY NBT difference between the old and new stack (not just
+     * item-type changes), which is what the block variant never has to deal with - its "mouth" swap
+     * is a plain blockstate change with no equip-animation concept at all.
+     *
+     * This item's own NBT churns constantly while a call is active: call_state transitions and,
+     * especially, has_active_audio flipping on/off every time speech starts/stops. Left at the
+     * default, every one of those writes reads to the renderer as "a different item was just
+     * equipped" and replays the full re-equip bob/model reset - which is the "refreshing" behavior.
+     *
+     * A snail is still "the same held item" as far as the player is concerned as long as it's the
+     * same registered snail number, no matter what our own state tags are doing. So compare by
+     * that identity instead of raw NBT: a real slot change, or actually swapping to a different
+     * physical snail, still animates; our internal bookkeeping never does.
+     */
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
+        if (slotChanged || oldStack.getItem() != newStack.getItem()) {
+            return true;
+        }
+        return SnailNBTHandler.getSnailNumber(oldStack) != SnailNBTHandler.getSnailNumber(newStack);
+    }
+
     @Override
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
         super.inventoryTick(stack, level, entity, slotId, isSelected);
