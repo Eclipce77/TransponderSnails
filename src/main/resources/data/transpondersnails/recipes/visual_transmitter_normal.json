@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " L ",
+    "ICI",
+    "ICW"
+  ],
+  "key": {
+    "L": {
+      "item": "minecraft:lighting_rod"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "W": {
+      "item": "transpondersnails:wire"
+    },
+    "C": {
+      "item":  "transpondersnails:copper_nugget"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:visual_transmitter"
+  }
+}

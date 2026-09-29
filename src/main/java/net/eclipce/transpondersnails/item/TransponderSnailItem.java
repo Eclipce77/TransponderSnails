@@ -244,6 +244,13 @@ public class TransponderSnailItem extends BlockItem {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
 
+        if (isNumberlessSnail(stack)) {
+            // Visual/Amplified Transponder Snail: no Snail Number, no calling system, no dialing
+            // GUI. Let the interaction fall through instead of assigning an identity or opening
+            // DialingMenu - useOn() (placement) is unaffected since it never reaches this method.
+            return InteractionResultHolder.pass(stack);
+        }
+
         if (level.isClientSide) {
             return InteractionResultHolder.success(stack);
         }
@@ -367,6 +374,16 @@ public class TransponderSnailItem extends BlockItem {
         }
     }
 
+    /**
+     * The Visual and Amplified Transponder Snail have no Snail Number and take no part in the
+     * calling system - see TransponderSnailBlockEntity.hasSnailNumber for the placed-block side
+     * of this same restriction.
+     */
+    private static boolean isNumberlessSnail(ItemStack stack) {
+        return stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()
+                || stack.getItem() == ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get();
+    }
+
     private void openDialingMenu(ServerPlayer player, ItemStack stack) {
         NetworkHooks.openScreen(player, new TransponderSnailMenuProvider(stack), buf -> {
             buf.writeBoolean(true); // isHandheld flag
@@ -410,7 +427,7 @@ public class TransponderSnailItem extends BlockItem {
             }
         }
 
-        if (flag.isAdvanced()) {
+        if (flag.isAdvanced() && !isNumberlessSnail(stack)) {
             tooltip.add(Component.literal("Right-click: Open dialer").withStyle(ChatFormatting.DARK_GRAY));
             tooltip.add(Component.literal("Sneak + Right-click: GUI in call").withStyle(ChatFormatting.DARK_GRAY));
         }

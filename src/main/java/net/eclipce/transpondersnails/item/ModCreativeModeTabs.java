@@ -3,9 +3,11 @@ package net.eclipce.transpondersnails.item;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
@@ -16,11 +18,14 @@ public class ModCreativeModeTabs {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, TransponderSnails.MOD_ID);
 
     public static final RegistryObject<CreativeModeTab> TRANSPONDERSNAILS_TAB = CREATIVE_MODE_TABS.register( "transpondersnails_tab",
-            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.TRANSPONDER_SNAIL.get()))
+            () -> CreativeModeTab.builder()
+                    .icon(ModCreativeModeTabs::createTabIcon)
                     .title(Component.translatable("creativetab.transpondersnails"))
                     .displayItems((pParameters, pOutput) -> {
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
+                        pOutput.accept(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());
@@ -28,11 +33,31 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModItems.ROTARY_DIAL.get());
                         pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
                         pOutput.accept(ModItems.TRANSMITTER.get());
+                        pOutput.accept(ModItems.VISUAL_TRANSMITTER.get());
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModItems.HORNED_DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModItems.WHITE_DEN_DEN_MUSHI_SPAWN_EGG.get());
                     })
                     .build());
+
+    private static ItemStack createTabIcon() {
+        ItemStack stack = new ItemStack(ModBlocks.TRANSPONDER_SNAIL.get());
+        CompoundTag nbt = stack.getOrCreateTag();
+
+        int shellColorId = DyeColor.PURPLE.getId(); // shell: DyeColor ID (0-15), read by the model predicate
+        int bodyColor = 0xFFD4D4;                // body: raw RGB hex, read by the ItemColor handler
+
+        nbt.putInt("shell_color", shellColorId);
+        nbt.putInt("body_color", bodyColor);
+
+        // Mirror the BlockEntityTag layout used elsewhere for consistency
+        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+        beTag.putInt("ShellColor", shellColorId);
+        beTag.putInt("BodyColor", bodyColor);
+        nbt.put("BlockEntityTag", beTag);
+
+        return stack;
+    }
 
     public static void register(IEventBus eventBus) {
         CREATIVE_MODE_TABS.register(eventBus);

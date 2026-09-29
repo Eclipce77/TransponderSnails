@@ -70,13 +70,26 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
         SHAPES.put(Direction.WEST, SHAPE_WEST);
     }
 
+    // Whether this snail variant has a shell that can be dyed. The Amplified Transponder Snail
+    // has no compatible shell, so it is registered with hasShell = false (see ModBlocks).
+    private final boolean hasShell;
+
     public TransponderSnailBlock(Properties pProperties) {
+        this(pProperties, true);
+    }
+
+    public TransponderSnailBlock(Properties pProperties, boolean hasShell) {
         super(pProperties);
+        this.hasShell = hasShell;
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(HAS_SOUND, false)
                 .setValue(IN_CALL, false)
                 .setValue(SHELL_COLOR, 0));
+    }
+
+    public boolean hasShell() {
+        return hasShell;
     }
 
     /**
@@ -140,8 +153,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
         if (blockEntity instanceof TransponderSnailBlockEntity snailEntity && player instanceof ServerPlayer serverPlayer) {
 
-            // Check for dye interaction FIRST
-            if (itemStack.getItem() instanceof DyeItem dyeItem) {
+            // Check for dye interaction FIRST (only for variants that have a dyeable shell)
+            if (this.hasShell && itemStack.getItem() instanceof DyeItem dyeItem) {
                 DyeColor dyeColor = dyeItem.getDyeColor();
                 int newShellColor = dyeColor.getId();
                 int currentShellColor = state.getValue(SHELL_COLOR);

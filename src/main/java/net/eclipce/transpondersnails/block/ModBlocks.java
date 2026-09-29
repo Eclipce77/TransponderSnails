@@ -34,6 +34,14 @@ public class ModBlocks {
     public static final RegistryObject<Block> TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("transponder_snail_transmitter",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
+    public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = BLOCKS.register("visual_transponder_snail",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
+    // hasShell = false: the Amplified Transponder Snail has no compatible shell to dye
+    public static final RegistryObject<Block> AMPLIFIED_TRANSPONDER_SNAIL = BLOCKS.register("amplified_transponder_snail",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK), false));
+
+
     public static final RegistryObject<Block> WHITE_TRANSPONDER_SNAIL = BLOCKS.register("white_transponder_snail",
             () -> new WhiteTransponderSnailBlock(BlockBehaviour.Properties.of()
                     .strength(0.5F)
@@ -65,7 +73,7 @@ public class ModBlocks {
      *
      * - No block item is registered here — the existing HornedDenDenMushiItem
      *   places this block on sneak+right-click.
-     * - noOcclusion() so the BER is not culled by neighbouring blocks.
+     * - noOcclusion() so the BER is not culled by neighboring blocks.
      * - strength(0.5F) so it can be broken easily (same as TransponderSnailBlock).
      * - pushReaction(DESTROY) so pistons don't move it (they break it and drop the item).
      */

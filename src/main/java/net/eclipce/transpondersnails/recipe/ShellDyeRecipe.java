@@ -92,6 +92,12 @@ public class ShellDyeRecipe extends CustomRecipe {
      */
     public boolean isValidSnail(ItemStack stack) {
         Item item = stack.getItem();
+
+        // Amplified Transponder Snail has no compatible shell to dye
+        if (item == ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()) {
+            return false;
+        }
+
         return item instanceof DenDenMushiItem
                 || item instanceof BabyDenDenMushiItem
                 || item instanceof BlackTransponderSnailItem

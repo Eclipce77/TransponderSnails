@@ -1,0 +1,26 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    " WM",
+    "DN ",
+    "   "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:den_den_mushi"
+    },
+    "W": {
+      "item": "transpondersnails:wire"
+    },
+    "M": {
+      "item": "transpondersnails:microphone_capsule"
+    },
+    "N": {
+      "item": "minecraft:nautilus_shell"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:amplified_transponder_snail"
+  }
+}

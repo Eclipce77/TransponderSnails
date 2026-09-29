@@ -11,7 +11,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
-import net.minecraft.world.item.crafting.SingleItemRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
@@ -20,11 +19,20 @@ import org.jetbrains.annotations.NotNull;
  * Custom stonecutter recipe that converts Transponder Snail back to Den Den Mushi
  * while preserving colors
  */
-public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
+public class DenDenMushiStonecutterRecipe extends StonecutterRecipe {
 
     public DenDenMushiStonecutterRecipe(ResourceLocation id, String group, Ingredient ingredient, ItemStack result) {
-        super(ModRecipeTypes.DEN_DEN_MUSHI_STONECUTTING.get(), ModRecipeSerializers.DEN_DEN_MUSHI_STONECUTTING.get(),
-                id, group, ingredient, result);
+        // StonecutterRecipe's own constructor always stores RecipeSerializer.STONECUTTER
+        // internally, but getSerializer() below overrides what's actually returned/used for
+        // JSON parsing and network sync - this is still needed so JEI's stonecutting category,
+        // which casts every RecipeType.STONECUTTING recipe straight to StonecutterRecipe, can
+        // handle this one without a ClassCastException.
+        super(id, group, ingredient, result);
+    }
+
+    @Override
+    public boolean matches(@NotNull Container container, @NotNull Level level) {
+        return !level.isClientSide && this.ingredient.test(container.getItem(0));
     }
 
     @Override
@@ -90,6 +98,63 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
             }
         }
 
+        // Visual Transponder Snail → Den Den Mushi (body + shell color, same as TRANSPONDER_SNAIL)
+        if (!input.isEmpty() && input.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()) {
+            CompoundTag inputNbt = input.getTag();
+
+            if (inputNbt != null) {
+                // Check for colors in top-level NBT
+                if (inputNbt.contains("body_color") && inputNbt.contains("shell_color")) {
+                    int bodyColor = inputNbt.getInt("body_color");
+                    int shellColor = inputNbt.getInt("shell_color");
+
+                    DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                    DenDenMushiItem.setCaptured(result, true);
+                }
+                // Also check BlockEntityTag (for items that were placed as blocks)
+                else if (inputNbt.contains("BlockEntityTag")) {
+                    CompoundTag blockEntityTag = inputNbt.getCompound("BlockEntityTag");
+                    if (blockEntityTag.contains("BodyColor") && blockEntityTag.contains("ShellColor")) {
+                        int bodyColor = blockEntityTag.getInt("BodyColor");
+                        int shellColor = blockEntityTag.getInt("ShellColor");
+
+                        DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                        DenDenMushiItem.setCaptured(result, true);
+                    }
+                }
+            }
+        }
+
+        // Amplified Transponder Snail → Den Den Mushi. The Amplified block only ever *renders*
+        // body color (it has no compatible shell), but TransponderSnailCraftingRecipe always
+        // writes body_color and shell_color together from the source Den Den Mushi, so the same
+        // both-present check applies here - this just hands back the original mushi's full colors.
+        if (!input.isEmpty() && input.getItem() == ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()) {
+            CompoundTag inputNbt = input.getTag();
+
+            if (inputNbt != null) {
+                // Check for colors in top-level NBT
+                if (inputNbt.contains("body_color") && inputNbt.contains("shell_color")) {
+                    int bodyColor = inputNbt.getInt("body_color");
+                    int shellColor = inputNbt.getInt("shell_color");
+
+                    DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                    DenDenMushiItem.setCaptured(result, true);
+                }
+                // Also check BlockEntityTag (for items that were placed as blocks)
+                else if (inputNbt.contains("BlockEntityTag")) {
+                    CompoundTag blockEntityTag = inputNbt.getCompound("BlockEntityTag");
+                    if (blockEntityTag.contains("BodyColor") && blockEntityTag.contains("ShellColor")) {
+                        int bodyColor = blockEntityTag.getInt("BodyColor");
+                        int shellColor = blockEntityTag.getInt("ShellColor");
+
+                        DenDenMushiItem.setColors(result, bodyColor, shellColor);
+                        DenDenMushiItem.setCaptured(result, true);
+                    }
+                }
+            }
+        }
+
         // White Transponder Snail → White Den Den Mushi (shell color only — no body color)
         if (!input.isEmpty() && input.getItem() == net.eclipce.transpondersnails.item.ModItems.WHITE_TRANSPONDER_SNAIL.get()) {
             // Override result to be WHITE_DEN_DEN_MUSHI
@@ -115,13 +180,6 @@ public class DenDenMushiStonecutterRecipe extends SingleItemRecipe {
         }
 
         return result;
-    }
-
-    @Override
-    public boolean matches(@NotNull Container container, @NotNull Level level) {
-        // Check if input is a Transponder Snail
-        ItemStack input = container.getItem(0);
-        return this.ingredient.test(input);
     }
 
     @Override

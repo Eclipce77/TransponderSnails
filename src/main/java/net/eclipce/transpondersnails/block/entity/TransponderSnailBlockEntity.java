@@ -87,9 +87,25 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     private static final ResourceLocation UV_MASK_TEXTURE =
             new ResourceLocation("transpondersnails:block/transpondersnail/snail/transponder_snail_uv_mask");
 
+    // Whether this snail participates in the Snail Number / calling system at all. False for the
+    // Visual and Amplified Transponder Snail - they are never assigned a number, never register
+    // with the call manager, and never open the dialing GUI.
+    private final boolean hasSnailNumber;
+
     public TransponderSnailBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), pPos, pBlockState);
 
+        Block block = pBlockState.getBlock();
+        this.hasSnailNumber = block != ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
+                && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get();
+    }
+
+    /**
+     * Whether this snail block participates in the Snail Number / calling system.
+     * False for the Visual and Amplified Transponder Snail, which are not dialable.
+     */
+    public boolean hasSnailNumber() {
+        return hasSnailNumber;
     }
 
     @Override
@@ -100,6 +116,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory pInventory, Player pPlayer) {
+        if (!hasSnailNumber) {
+            // Visual/Amplified Transponder Snails have no number and cannot be dialed
+            return null;
+        }
+
         // Ensure snail has a number when GUI opens
         if (!pPlayer.level().isClientSide) {
             ensureSnailNumberAssigned(pPlayer);
@@ -360,6 +381,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * @return The interaction result
      */
     public InteractionResult onPlayerInteraction(ServerPlayer player, boolean isSneaking) {
+        if (!hasSnailNumber) {
+            // No Snail Number, no calling system - nothing to do here
+            return InteractionResult.PASS;
+        }
+
         if (!isCallManagerAvailable()) {
             player.displayClientMessage(
                     Component.literal("Voice chat system not available!")
@@ -947,7 +973,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Enhanced deferred validation that prevents infinite loops
      */
     private void performDeferredValidation() {
-        if (!needsValidation || level.isClientSide || isUnloading || isServerShuttingDown || validationCompleted) {
+        if (!hasSnailNumber || !needsValidation || level.isClientSide || isUnloading || isServerShuttingDown || validationCompleted) {
             return;
         }
 
@@ -1028,6 +1054,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Ensures this placed snail has a number assigned.
      */
     public void ensureSnailNumberAssigned(Player player) {
+        if (!hasSnailNumber) {
+            return;
+        }
 
         // If we need validation, do it now
         if (needsValidation) {
@@ -1233,39 +1262,49 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             callManager.endCallBySnailNumber(assignedSnailNumber);
         }
 
+        CompoundTag nbt = stack.getOrCreateTag();
+        CompoundTag blockEntityTag = nbt.contains("BlockEntityTag")
+                ? nbt.getCompound("BlockEntityTag")
+                : new CompoundTag();
+        boolean writeBlockEntityTag = false;
+
         if (hasAssignedNumber()) {
-            CompoundTag nbt = stack.getOrCreateTag();
             nbt.putUUID("snail_uuid", snailUUID);
             nbt.putInt("cached_snail_number", assignedSnailNumber);
             nbt.putLong("activation_time", System.currentTimeMillis());
             nbt.putString("snail_type", "BLOCK");
 
-            CompoundTag blockEntityTag = new CompoundTag();
             blockEntityTag.putUUID("SnailUUID", snailUUID);
             blockEntityTag.putInt("AssignedNumber", assignedSnailNumber);
             blockEntityTag.putBoolean("Initialized", initialized);
+            writeBlockEntityTag = true;
+        }
 
+        // Colors are preserved independently of the Snail Number system, so the Visual and
+        // Amplified Transponder Snail (which never have a number) still keep their colors when
+        // broken and picked back up.
+        if (colorsInitialized) {
             // Declare shellColorToSave outside the if block
             int shellColorToSave = shellColor;
 
-            // Save colors to both item NBT and BlockEntityTag
-            if (colorsInitialized) {
-                // Get shell color from blockstate (authoritative source for rendering)
-                if (level != null) {
-                    BlockState state = level.getBlockState(worldPosition);
-                    if (state.getBlock() instanceof TransponderSnailBlock) {
-                        shellColorToSave = state.getValue(TransponderSnailBlock.SHELL_COLOR);
-                    }
+            // Get shell color from blockstate (authoritative source for rendering)
+            if (level != null) {
+                BlockState state = level.getBlockState(worldPosition);
+                if (state.getBlock() instanceof TransponderSnailBlock) {
+                    shellColorToSave = state.getValue(TransponderSnailBlock.SHELL_COLOR);
                 }
-
-                nbt.putInt("body_color", bodyColor);
-                nbt.putInt("shell_color", shellColorToSave);
-
-                blockEntityTag.putInt("BodyColor", bodyColor);
-                blockEntityTag.putInt("ShellColor", shellColorToSave);
-                blockEntityTag.putBoolean("ColorsInitialized", colorsInitialized);
             }
 
+            nbt.putInt("body_color", bodyColor);
+            nbt.putInt("shell_color", shellColorToSave);
+
+            blockEntityTag.putInt("BodyColor", bodyColor);
+            blockEntityTag.putInt("ShellColor", shellColorToSave);
+            blockEntityTag.putBoolean("ColorsInitialized", colorsInitialized);
+            writeBlockEntityTag = true;
+        }
+
+        if (writeBlockEntityTag) {
             nbt.put("BlockEntityTag", blockEntityTag);
         }
     }
@@ -1277,24 +1316,28 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (stack.hasTag()) {
             CompoundTag nbt = stack.getTag();
 
-            if (nbt.contains("BlockEntityTag")) {
-                CompoundTag blockEntityTag = nbt.getCompound("BlockEntityTag");
-                if (blockEntityTag.hasUUID("SnailUUID")) {
-                    this.snailUUID = blockEntityTag.getUUID("SnailUUID");
-                    this.assignedSnailNumber = blockEntityTag.getInt("AssignedNumber");
-                    this.initialized = blockEntityTag.getBoolean("Initialized");
+            // Visual/Amplified Transponder Snails never restore a Snail Number identity, even if
+            // an item happens to carry legacy identity NBT (e.g. dropped before this block type
+            // stopped using the numbering system).
+            if (hasSnailNumber) {
+                if (nbt.contains("BlockEntityTag")) {
+                    CompoundTag blockEntityTag = nbt.getCompound("BlockEntityTag");
+                    if (blockEntityTag.hasUUID("SnailUUID")) {
+                        this.snailUUID = blockEntityTag.getUUID("SnailUUID");
+                        this.assignedSnailNumber = blockEntityTag.getInt("AssignedNumber");
+                        this.initialized = blockEntityTag.getBoolean("Initialized");
+                        this.needsValidation = true; // CHANGE THIS TO FALSE
+                        setChanged();
+                    }
+                }
+
+                if (nbt.hasUUID("snail_uuid")) {
+                    this.snailUUID = nbt.getUUID("snail_uuid");
+                    this.assignedSnailNumber = nbt.getInt("cached_snail_number");
+                    this.initialized = true;
                     this.needsValidation = true; // CHANGE THIS TO FALSE
                     setChanged();
-                    return;
                 }
-            }
-
-            if (nbt.hasUUID("snail_uuid")) {
-                this.snailUUID = nbt.getUUID("snail_uuid");
-                this.assignedSnailNumber = nbt.getInt("cached_snail_number");
-                this.initialized = true;
-                this.needsValidation = true; // CHANGE THIS TO FALSE
-                setChanged();
             }
 
             if (nbt.contains("body_color")) {
@@ -1574,8 +1617,14 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.assignedSnailNumber = tag.getInt("AssignedNumber");
         this.initialized = tag.getBoolean("Initialized");
 
-
-        if (!isServerShuttingDown && !validationCompleted && snailUUID != null && (assignedSnailNumber != -1 || initialized)) {
+        if (!hasSnailNumber) {
+            // Visual/Amplified Transponder Snails never keep a Snail Number, even if legacy save
+            // data has one (e.g. saved before this block type stopped using the system).
+            this.snailUUID = null;
+            this.assignedSnailNumber = -1;
+            this.initialized = false;
+            this.needsValidation = false;
+        } else if (!isServerShuttingDown && !validationCompleted && snailUUID != null && (assignedSnailNumber != -1 || initialized)) {
             this.needsValidation = true;
         }
 

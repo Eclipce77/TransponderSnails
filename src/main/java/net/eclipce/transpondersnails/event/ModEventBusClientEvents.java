@@ -9,6 +9,8 @@ import net.eclipce.transpondersnails.block.entity.WhiteTransponderSnailBlockEnti
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.*;
 import net.eclipce.transpondersnails.item.*;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -207,7 +209,33 @@ public class ModEventBusClientEvents {
                         return value;
                     });
 
+            // Visual Transponder Snail — shell_color drives the item model's "overrides" (a real
+            // texture swap, same scale/convention as Black Transponder Snail's shell_color: id/100).
+            ItemProperties.register(ModItems.VISUAL_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        CompoundTag nbt = stack.getTag();
+                        if (nbt != null) {
+                            if (nbt.contains("shell_color")) {
+                                return nbt.getInt("shell_color") / 100.0f;
+                            }
+                            if (nbt.contains("BlockEntityTag")) {
+                                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                                if (beTag.contains("ShellColor")) {
+                                    return beTag.getInt("ShellColor") / 100.0f;
+                                }
+                            }
+                        }
+                        return 0.0f; // Default white
+                    });
+
             // âœ… CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
+
+            // Amplified's model has transparent regions that render as solid black without this -
+            // the default render type (solid) ignores texture alpha entirely. Visual gets it too
+            // for consistency since it shares the same kind of geometry.
+            ItemBlockRenderTypes.setRenderLayer(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get(), RenderType.cutout());
+            ItemBlockRenderTypes.setRenderLayer(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(), RenderType.cutout());
         });
     }
 
@@ -331,6 +359,46 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModItems.WHITE_TRANSPONDER_SNAIL.get());
+        // Visual Transponder Snail item — body (tintIndex 0) inherited from the Den Den Mushi
+        // used to craft it. Shell color no longer goes through this handler - it's a real
+        // texture swap now (see the item model's "overrides" + the shell_color predicate
+        // registered below), same as how the plain Transponder Snail's shell works.
+        event.register((stack, tintIndex) -> {
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null) {
+                    if (nbt.contains("body_color")) {
+                        return nbt.getInt("body_color");
+                    }
+                    if (nbt.contains("BlockEntityTag")) {
+                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                        if (beTag.contains("BodyColor")) {
+                            return beTag.getInt("BodyColor");
+                        }
+                    }
+                }
+            }
+            return -1;
+        }, ModItems.VISUAL_TRANSPONDER_SNAIL.get());
+
+        // Amplified Transponder Snail item — body color only (tintIndex 0); no compatible shell
+        event.register((stack, tintIndex) -> {
+            if (tintIndex == 0) {
+                CompoundTag nbt = stack.getTag();
+                if (nbt != null) {
+                    if (nbt.contains("body_color")) {
+                        return nbt.getInt("body_color");
+                    }
+                    if (nbt.contains("BlockEntityTag")) {
+                        CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                        if (beTag.contains("BodyColor")) {
+                            return beTag.getInt("BodyColor");
+                        }
+                    }
+                }
+            }
+            return -1;
+        }, ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get());
     }
 
     @SubscribeEvent
@@ -386,5 +454,31 @@ public class ModEventBusClientEvents {
             }
             return -1;
         }, ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
+
+        // Visual Transponder Snail block — body color only (tintIndex 0). Shell color is no
+        // longer tinted: it's picked by which "facing=X,shell_color=Y" blockstate variant is
+        // active, each pointing at a pre-baked visual_transponder_snail_shell_{color} model -
+        // same texture-swap approach the plain Transponder Snail uses, so the dial/transmitter/
+        // wire art baked into that shared texture never gets tinted along with the shell.
+        event.register((state, level, pos, tintIndex) -> {
+            if (tintIndex == 0 && level != null && pos != null) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof TransponderSnailBlockEntity snailBE) {
+                    return snailBE.getBodyColor();
+                }
+            }
+            return -1;
+        }, ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+
+        // Amplified Transponder Snail block — body color only (tintIndex 0); no compatible shell
+        event.register((state, level, pos, tintIndex) -> {
+            if (tintIndex == 0 && level != null && pos != null) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof TransponderSnailBlockEntity snailBE) {
+                    return snailBE.getBodyColor();
+                }
+            }
+            return -1;
+        }, ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
     }
 }
