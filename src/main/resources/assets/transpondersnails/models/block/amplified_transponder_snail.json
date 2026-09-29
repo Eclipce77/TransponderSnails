@@ -5,6 +5,7 @@
 		64,
 		64
 	],
+	"ambientocclusion": true,
 	"textures": {
 		"snail": "transpondersnails:block/transpondersnail/snail/transponder_snail",
 		"shell": "transpondersnails:item/3d_nautilus_shell",

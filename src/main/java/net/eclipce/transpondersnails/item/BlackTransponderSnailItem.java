@@ -322,10 +322,7 @@ public class BlackTransponderSnailItem extends BlockItem implements ICurioItem {
                 .withStyle(ChatFormatting.BLUE));
           }
 
-        tooltip.add(Component.literal("Right-Click: Open/Close")
-                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
-
-        tooltip.add(Component.literal("Crouch + Right-Click: Place as Block")
+        tooltip.add(Component.literal("Right-Click to Open/Close")
                 .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
     }
 

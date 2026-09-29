@@ -5,6 +5,7 @@ import de.maxhenkel.voicechat.api.events.EventRegistration;
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.voice.server.AmplifiedSnailManager;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.eclipce.transpondersnails.voice.server.SnailAudioRelay;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -67,6 +68,9 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
         // Set the call manager in the main mod class
         TransponderSnails.setCallManager(callManager);
 
+        // Amplified Transponder Snail (megaphone) system
+        AmplifiedSnailManager.initialize(api);
+
         // Start cleanup scheduler for audio relay
         scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(() -> {
@@ -84,6 +88,19 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
                 audioRelay.onMicrophonePacket(event);
             } catch (Exception e) {
                 System.err.println("TransponderSnailsPlugin: Error in microphone packet handler: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        // Amplified Transponder Snail runs AFTER the call relay: it may cancel the event
+        // (to replace a handheld megaphone user's normal proximity voice), and the relay must
+        // still have seen the packet first.
+        AmplifiedSnailManager amplified = AmplifiedSnailManager.get();
+        if (amplified != null) {
+            try {
+                amplified.onMicrophonePacket(event);
+            } catch (Exception e) {
+                System.err.println("TransponderSnailsPlugin: Error in amplified snail handler: " + e.getMessage());
                 e.printStackTrace();
             }
         }

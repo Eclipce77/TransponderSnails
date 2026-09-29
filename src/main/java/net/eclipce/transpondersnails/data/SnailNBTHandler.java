@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.data;
 
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -552,6 +553,10 @@ public class SnailNBTHandler {
                                        @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
 
         if (stack.isEmpty()) {
+            return;
+        }
+
+        if (stack.is((ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()))) {
             return;
         }
 

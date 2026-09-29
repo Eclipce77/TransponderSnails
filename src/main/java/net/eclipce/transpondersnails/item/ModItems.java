@@ -82,7 +82,7 @@ public class ModItems {
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> AMPLIFIED_TRANSPONDER_SNAIL = ITEMS.register("amplified_transponder_snail",
-            () -> new TransponderSnailItem(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get(),
+            () -> new AmplifiedTransponderSnailItem(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get(),
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL = ITEMS.register("black_transponder_snail",

@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.block.custom.AmplifiedTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.HornedDenDenMushiBlock;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
@@ -37,9 +38,10 @@ public class ModBlocks {
     public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = BLOCKS.register("visual_transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
-    // hasShell = false: the Amplified Transponder Snail has no compatible shell to dye
+    // Megaphone snail. AmplifiedTransponderSnailBlock passes hasShell = false to TransponderSnailBlock
+    // (no compatible shell to dye) and adds its own AMPLIFIER_STATE property.
     public static final RegistryObject<Block> AMPLIFIED_TRANSPONDER_SNAIL = BLOCKS.register("amplified_transponder_snail",
-            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK), false));
+            () -> new AmplifiedTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
 
     public static final RegistryObject<Block> WHITE_TRANSPONDER_SNAIL = BLOCKS.register("white_transponder_snail",

@@ -40,8 +40,7 @@
 						4.25,
 						9.5
 					],
-					"texture": "#snail",
-					"tintindex": 0
+					"texture": "#snail"
 				},
 				"east": {
 					"uv": [
@@ -123,8 +122,7 @@
 						12.25,
 						11.25
 					],
-					"texture": "#snail",
-					"tintindex": 0
+					"texture": "#snail"
 				},
 				"east": {
 					"uv": [

@@ -1,3 +1,36 @@
 {
-	"parent": "transpondersnails:block/amplified_transponder_snail"
+  "parent": "transpondersnails:block/amplified_transponder_snail",
+  "overrides": [
+    {
+      "predicate": {
+        "transpondersnails:amplifier_state": 0.25
+      },
+      "model": "transpondersnails:block/amplified_transponder_snail_sound"
+    },
+    {
+      "predicate": {
+        "transpondersnails:amplifier_state": 0.5
+      },
+      "model": "transpondersnails:block/amplified_transponder_snail_call"
+    },
+    {
+      "predicate": {
+        "transpondersnails:amplifier_state": 0.75
+      },
+      "model": "transpondersnails:block/amplified_transponder_snail_active"
+    },
+    {
+      "predicate": {
+        "transpondersnails:amplifier_using": 1
+      },
+      "model": "transpondersnails:item/amplified_transponder_snail_using_call"
+    },
+    {
+      "predicate": {
+        "transpondersnails:amplifier_state": 0.75,
+        "transpondersnails:amplifier_using": 1
+      },
+      "model": "transpondersnails:item/amplified_transponder_snail_using_active"
+    }
+  ]
 }
