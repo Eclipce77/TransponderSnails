@@ -3,6 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
 }
 
 version = mod_version
@@ -33,6 +34,8 @@ minecraft {
     // Use non-default mappings at your own risk. They may not always work.
     // Simply re-run your setup task after changing the mappings to update your workspace.
     mappings channel: mapping_channel, version: mapping_version
+
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
     // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
     // In most cases, it is not necessary to enable.
@@ -89,11 +92,15 @@ minecraft {
 
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            args '-mixin.config=transpondersnails.mixins.json'
         }
 
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
+
+            args '-mixin.config=transpondersnails.mixins.json'
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.
@@ -181,6 +188,8 @@ minecraft {
         // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
         minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
+        annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
         // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
         // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
         // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
@@ -214,6 +223,10 @@ minecraft {
         compileOnly(fg.deobf("mezz.jei:jei-1.20.1-common-api:15.20.0.129"))
         compileOnly(fg.deobf("mezz.jei:jei-1.20.1-forge-api:15.20.0.129"))
         runtimeOnly(fg.deobf("mezz.jei:jei-1.20.1-forge:15.20.0.129"))
+    }
+
+    mixin {
+        add sourceSets.main, "transpondersnails.refmap.json"
     }
 
     tasks.withType(JavaExec).configureEach {
@@ -257,7 +270,8 @@ minecraft {
                     'Implementation-Title'    : project.name,
                     'Implementation-Version'  : project.jar.archiveVersion,
                     'Implementation-Vendor'   : mod_authors,
-                    'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+                    'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                    "MixinConfigs": "transpondersnails.mixins.json"
             ])
         }
 

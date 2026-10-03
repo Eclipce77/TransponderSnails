@@ -12,10 +12,17 @@ public class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, TransponderSnails.MOD_ID);
 
+    // TransponderSnailBlockEntity's constructor ALWAYS uses this type, so every block that creates that block entity
+    // must be listed as valid here. Vanilla treats a block entity whose type is not valid for its block as invalid
+    // (e.g. block entity renderers are silently skipped). The Visual and Amplified Transponder Snail and the transmitter
+    // snail were missing from this list.
     public static final RegistryObject<BlockEntityType<TransponderSnailBlockEntity>> TRANSPONDER_SNAIL_BE =
             BLOCK_ENTITIES.register("transponder_snail_be", () ->
                     BlockEntityType.Builder.of(TransponderSnailBlockEntity::new,
-                            ModBlocks.TRANSPONDER_SNAIL.get()).build(null));
+                            ModBlocks.TRANSPONDER_SNAIL.get(),
+                            ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get(),
+                            ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(),
+                            ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get()).build(null));
 
     public static final RegistryObject<BlockEntityType<TransponderSnailBlockEntity>> TRANSPONDER_SNAIL_TRANSMITTER_BE =
             BLOCK_ENTITIES.register("transponder_snail_transmitter_be", () ->

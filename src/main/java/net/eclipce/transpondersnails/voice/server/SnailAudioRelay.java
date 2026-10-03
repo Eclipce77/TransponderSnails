@@ -10,6 +10,7 @@ import net.eclipce.transpondersnails.config.ModConfig;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.audio.PhoneAudioFilter;
+import net.eclipce.transpondersnails.visual.server.VisualCallManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -110,6 +111,13 @@ public class SnailAudioRelay {
             ServerPlayer speaker = ServerLifecycleHooks.getCurrentServer()
                     .getPlayerList().getPlayer(vcSpeaker.getUuid());
             if (speaker == null) return;
+
+            // Visual Transponder Snail video calls have no snail numbers - they are routed by proximity.
+            // Returns true when the speaker stands near a snail of a visual call (packet consumed).
+            VisualCallManager visualCalls = VisualCallManager.get();
+            if (visualCalls != null && visualCalls.handleMicrophonePacket(this, speaker, event)) {
+                return;
+            }
 
             // TIER 2: Use cached call session instead of looking up every packet
             CallSessionCache sessionCache = playerSessionCache.get(speaker.getUUID());
@@ -372,6 +380,17 @@ public class SnailAudioRelay {
             e.printStackTrace();
             return attenuate ? null : opusData;
         }
+    }
+
+    /**
+     * Same phone filter / distance attenuation / per-speaker codec handling as normal calls, exposed for the
+     * Visual Transponder Snail video calls.
+     *
+     * @return processed Opus data, or null if the audio must be dropped
+     */
+    @Nullable
+    public byte[] processForVisualCall(byte[] opusData, UUID speakerId, float gain) {
+        return processAudio(opusData, speakerId, gain);
     }
 
     /**

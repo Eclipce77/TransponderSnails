@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.eclipce.transpondersnails.visual.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "transpondersnails.refmap.json",
+  "mixins": [],
+  "client": [
+    "LevelRendererAccessor",
+    "ViewAreaAccessor",
+    "LevelRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

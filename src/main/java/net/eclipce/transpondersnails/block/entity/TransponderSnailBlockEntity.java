@@ -7,6 +7,10 @@ import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.eclipce.transpondersnails.voice.server.CallSoundManager;
 import net.eclipce.transpondersnails.voice.server.CallSession;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
+import net.eclipce.transpondersnails.visual.VisualCallConstants;
+import net.eclipce.transpondersnails.visual.VisualCallState;
+import net.eclipce.transpondersnails.visual.server.VisualCallManager;
+import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
@@ -34,6 +38,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -92,12 +97,22 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     // with the call manager, and never open the dialing GUI.
     private final boolean hasSnailNumber;
 
+    // ---- Visual Transponder Snail (video calls) ----
+    // True only for the placed Visual Transponder Snail. It has no snail number: VisualCallManager pairs it with the
+    // nearest idle Visual Snail within range. The call state is NOT persisted (calls only exist in memory).
+    private final boolean isVisualSnail;
+    private volatile VisualCallState visualCallState = VisualCallState.IDLE;
+    private volatile boolean visualAudioActive = false;
+    // Side length (in blocks) of the square the video is projected as. Persisted and synced to clients.
+    private int screenSize = VisualCallConstants.SCREEN_DEFAULT_SIZE;
+
     public TransponderSnailBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), pPos, pBlockState);
 
         Block block = pBlockState.getBlock();
         this.hasSnailNumber = block != ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
                 && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get();
+        this.isVisualSnail = block == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get();
     }
 
     /**
@@ -106,6 +121,139 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      */
     public boolean hasSnailNumber() {
         return hasSnailNumber;
+    }
+
+    // =================== VISUAL TRANSPONDER SNAIL (VIDEO CALLS) ===================
+
+    /** True for the placed Visual Transponder Snail (video calls, no snail number). */
+    public boolean isVisualSnail() {
+        return isVisualSnail;
+    }
+
+    public int getScreenSize() {
+        return screenSize;
+    }
+
+    /**
+     * Cycles the projected screen size (1..max) and syncs it to clients.
+     *
+     * @return the new size
+     */
+    public int cycleScreenSize() {
+        int next = screenSize + 1;
+        if (next > VisualCallConstants.SCREEN_MAX_SIZE) {
+            next = VisualCallConstants.SCREEN_MIN_SIZE;
+        }
+        this.screenSize = next;
+        setChanged();
+        if (level != null && !level.isClientSide()) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
+        }
+        return next;
+    }
+
+    public VisualCallState getVisualCallState() {
+        return visualCallState;
+    }
+
+    /** Called by VisualCallManager (server thread). Refreshes the idle / sound / call / active model. */
+    public void setVisualCallState(VisualCallState state) {
+        if (!isVisualSnail) {
+            return;
+        }
+        this.visualCallState = state;
+        if (state == VisualCallState.IDLE) {
+            this.visualAudioActive = false;
+        }
+        updateBlockstateVisuals();
+    }
+
+    /** Called by VisualCallManager (server thread): audio is currently being played at this snail. */
+    public void setVisualAudioActive(boolean active) {
+        if (!isVisualSnail || this.visualAudioActive == active) {
+            return;
+        }
+        this.visualAudioActive = active;
+        updateBlockstateVisuals();
+    }
+
+    /**
+     * Same four models as the numbered snails:
+     * idle = "transponder_snail", sound = "transponder_snail_sound", call = "transponder_snail_call",
+     * active = "transponder_snail_active". hasAmbientSound is still driven by CallSoundManager (ring tone,
+     * connected / disconnected / busy sounds), exactly as for numbered snails.
+     */
+    private String determineVisualModel() {
+        switch (visualCallState) {
+            case RINGING_IN:
+                return "transponder_snail_sound";
+            case CONNECTING:
+                return "transponder_snail_call";
+            case CONNECTED:
+                return (visualAudioActive || hasAmbientSound) ? "transponder_snail_active" : "transponder_snail_call";
+            case CALLING_OUT:
+                return "transponder_snail";
+            case IDLE:
+            default:
+                return hasAmbientSound ? "transponder_snail_sound" : "transponder_snail";
+        }
+    }
+
+    /**
+     * Right click / sneak + right click on a Visual Transponder Snail.
+     * Sneak + right click while idle cycles the projected screen size; everything else goes to VisualCallManager.
+     */
+    private InteractionResult handleVisualInteraction(ServerPlayer player, boolean isSneaking) {
+        VisualCallManager manager = VisualCallManager.get();
+        if (manager == null) {
+            player.displayClientMessage(
+                    Component.literal("Voice chat system not available!")
+                            .withStyle(net.minecraft.ChatFormatting.RED),
+                    true
+            );
+            return InteractionResult.FAIL;
+        }
+
+        if (isSneaking && visualCallState == VisualCallState.IDLE) {
+            int size = cycleScreenSize();
+            player.displayClientMessage(
+                    Component.literal("Screen size: " + size + "x" + size)
+                            .withStyle(net.minecraft.ChatFormatting.AQUA),
+                    true
+            );
+            return InteractionResult.SUCCESS;
+        }
+
+        return manager.onInteract(player, this, isSneaking);
+    }
+
+    /** Registers this placed Visual Snail so it can be found as a call partner (server side, on load). */
+    private void registerVisualSnail() {
+        VisualSnailRegistry.register(this);
+
+        // The saved blockstate may still show a call / sound model from before the world was saved
+        // (never change blocks from inside onLoad - do it next tick)
+        if (level instanceof ServerLevel serverLevel) {
+            serverLevel.getServer().execute(() -> {
+                if (!isRemoved() && !isServerShuttingDown) {
+                    updateBlockstateVisuals();
+                }
+            });
+        }
+    }
+
+    /**
+     * The projected screen is drawn on a wall up to SCREEN_MAX_WALL_DISTANCE blocks in front of the snail, so the
+     * renderer must not be culled just because the snail block itself is off screen.
+     */
+    @Override
+    public AABB getRenderBoundingBox() {
+        if (!isVisualSnail) {
+            return super.getRenderBoundingBox();
+        }
+        double reach = VisualCallConstants.SCREEN_MAX_WALL_DISTANCE + VisualCallConstants.SCREEN_MAX_SIZE;
+        return new AABB(worldPosition).inflate(reach);
     }
 
     @Override
@@ -164,6 +312,11 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Determines which model should be used based on CallSession state
      */
     private String determineModelFromCallSession() {
+        // Visual Transponder Snails are driven by VisualCallManager, not by a CallSession
+        if (isVisualSnail) {
+            return determineVisualModel();
+        }
+
         // If no active call session, check for ambient sounds (like disconnect sound)
         if (currentCallSession == null) {
             if (hasAmbientSound) {
@@ -381,6 +534,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * @return The interaction result
      */
     public InteractionResult onPlayerInteraction(ServerPlayer player, boolean isSneaking) {
+        if (isVisualSnail) {
+            return handleVisualInteraction(player, isSneaking);
+        }
+
         if (!hasSnailNumber) {
             // No Snail Number, no calling system - nothing to do here
             return InteractionResult.PASS;
@@ -852,6 +1009,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             // Calls only exist in memory - never resurrect call state that was saved to disk
             resetPersistedCallState();
 
+            if (isVisualSnail) {
+                registerVisualSnail();
+            }
+
             // Prevent processing the same position multiple times
             if (processedPositions.contains(worldPosition)) {
                 return;
@@ -940,6 +1101,15 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         processedPositions.remove(worldPosition);
 
         if (!level.isClientSide) {
+
+            if (isVisualSnail) {
+                // Leave the pairing pool and end any video call this snail is part of
+                VisualSnailRegistry.unregister(this);
+                VisualCallManager visualCalls = VisualCallManager.peek();
+                if (visualCalls != null) {
+                    visualCalls.onSnailRemoved(this);
+                }
+            }
 
             // Unregister from call manager
             unregisterFromCallManager();
@@ -1580,6 +1750,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         tag.putInt("BodyColor", bodyColor);
         tag.putInt("ShellColor", shellColor);
         tag.putBoolean("ColorsInitialized", colorsInitialized);
+        tag.putInt("VisualScreenSize", screenSize);
     }
 
     @Override
@@ -1647,5 +1818,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.hasAmbientSound = tag.getBoolean("HasAmbientSound");
         this.inActiveCall = tag.getBoolean("InActiveCall");
         this.audioReady = tag.getBoolean("AudioReady"); // Add this line
+
+        if (tag.contains("VisualScreenSize")) {
+            this.screenSize = Math.max(VisualCallConstants.SCREEN_MIN_SIZE,
+                    Math.min(VisualCallConstants.SCREEN_MAX_SIZE, tag.getInt("VisualScreenSize")));
+        }
     }
 }

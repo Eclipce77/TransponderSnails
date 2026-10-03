@@ -1706,6 +1706,14 @@ public class TransponderCallManager {
         return soundManager;
     }
 
+    /**
+     * Simple Voice Chat server API. Used by the Visual Transponder Snail video calls
+     * (net.eclipce.transpondersnails.visual.server.VisualCallManager) to create its audio channels.
+     */
+    public VoicechatServerApi getVoiceChatApi() {
+        return voiceChatApi;
+    }
+
     public void setAudioRelay(SnailAudioRelay audioRelay) {
         this.audioRelay = audioRelay;
         // âœ¨ INTERCEPTION: Link interception manager to audio relay
