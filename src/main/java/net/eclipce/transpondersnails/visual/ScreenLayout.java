@@ -27,6 +27,16 @@ public final class ScreenLayout {
     }
 
     /**
+     * Eye position for a camera that films what is BEHIND the snail, local to the block: same eye height, but at the
+     * very back of the block (just behind the model, which ends 14/16 from the front), so the camera does not sit
+     * inside the snail's body and sees nothing of it.
+     */
+    public static double[] eyeOffsetBehind(int fx, int fz) {
+        final double back = 0.45; // block centre -> 0.95 behind the front edge of the block
+        return new double[]{0.5 - fx * back, 7.0 / 16.0, 0.5 - fz * back};
+    }
+
+    /**
      * Finds the first solid block in front of the snail.
      *
      * @param maxRange       furthest distance (in blocks) to look
@@ -78,6 +88,23 @@ public final class ScreenLayout {
         int step = fx != 0 ? fx : fz;
         double plane = step > 0 ? 1.0 + distance : -distance;
         // the viewer looks TOWARDS the snail, i.e. against its facing
+        return computeAt(-fx, -fz, size, plane);
+    }
+
+    /**
+     * A screen floating in the air BEHIND the snail. The picture still faces the way the snail faces (towards the room in
+     * front of it); it is centred on the snail's column and grows upwards from its block row.
+     *
+     * @param fx,fz    the snail's FACING step
+     * @param distance blocks between the snail block's BACK face and the screen (may be slightly negative to lay the
+     *                 screen just inside the block, flat against a wall behind it)
+     */
+    public static Quad computeBehind(int fx, int fz, int size, double distance) {
+        if ((fx == 0) == (fz == 0)) throw new IllegalArgumentException("facing must be a horizontal axis step");
+        int step = fx != 0 ? fx : fz;
+        // the block's back face is at local 0 when the snail faces +axis, at 1 when it faces -axis
+        double plane = step > 0 ? -distance : 1.0 + distance;
+        // the viewer (in front of the snail) looks TOWARDS the snail, i.e. against its facing
         return computeAt(-fx, -fz, size, plane);
     }
 

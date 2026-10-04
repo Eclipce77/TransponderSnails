@@ -14,7 +14,6 @@ import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
-import net.eclipce.transpondersnails.data.SnailNBTHandler;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.network.packets.SnailNumberSyncPacket;

@@ -6,7 +6,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -25,6 +24,7 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModBlocks.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());

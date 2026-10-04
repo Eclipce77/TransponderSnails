@@ -6,7 +6,7 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "transpondersnails:visual_transponder_snail",
+          "name": "transpondersnails:visual_transmitter_transponder_snail",
           "functions": [
             {
               "function": "minecraft:copy_nbt",

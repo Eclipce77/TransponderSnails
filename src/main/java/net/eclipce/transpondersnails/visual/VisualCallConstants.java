@@ -16,17 +16,50 @@ public final class VisualCallConstants {
     public static final int SCREEN_MIN_SIZE = 1;
     public static final int SCREEN_MAX_SIZE = 6;
     public static final int SCREEN_DEFAULT_SIZE = 2;
-    /** The screen floats in the air this many blocks in front of the snail's front face (no wall needed). */
+    /**
+     * true  = the screen floats BEHIND the snail (like a monitor with a webcam in front of it): the picture faces the way
+     *         the snail faces, so people standing in front of the snail see it past the snail.
+     * false = the screen floats in front of the snail.
+     * If a solid block touches the snail on that side (snail against a wall) the screen lies flat on that block's face.
+     */
+    public static final boolean SCREEN_BEHIND_SNAIL = true;
+    /** The screen floats in the air this many blocks from the snail block (no wall needed). */
     public static final double SCREEN_FLOAT_DISTANCE = 1.0;
+    /**
+     * The screen sits this much CLOSER to the snail than SCREEN_FLOAT_DISTANCE says. At exactly a whole number of blocks
+     * the screen's plane would be the same plane as the face of a block placed behind it (a backdrop) and the two would
+     * z-fight, giving a flickering hatch pattern. Keep this above ~0.01 and do not make it a whole number of blocks off.
+     */
+    public static final double SCREEN_SURFACE_OFFSET = 0.03;
     /** Screens further away than this (blocks) are neither drawn nor fed. */
     public static final double SCREEN_RENDER_DISTANCE = 64.0;
     /** Legacy: only used for the block entity's render bounding box in TransponderSnailBlockEntity. */
     public static final int SCREEN_MAX_WALL_DISTANCE = 12;
     /** Colour multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
-     *  monitor tint keeps the screen distinguishable from the wall it is drawn on. */
-    public static final int FEED_TINT_R = 255;
+     *  monitor tint keeps the screen distinguishable from the world around it. */
+    public static final int FEED_TINT_R = 215;
     public static final int FEED_TINT_G = 255;
-    public static final int FEED_TINT_B = 255;
+    public static final int FEED_TINT_B = 235;
+
+    // ---------------- Camera ----------------
+    /**
+     * false = the snail films what is IN FRONT of it, from its eyes (snail eye level).
+     * true  = the snail films what is behind it (camera at the back of the block, still at eye height).
+     */
+    public static final boolean FEED_LOOKS_BEHIND = false;
+
+    // ---------------- Projector look ----------------
+    /** Opacity of the projected picture (0-1). Below 1 the world behind the screen (blocks, textures) shows through
+     *  and tints the picture, like light on a surface. */
+    public static final float FEED_OPACITY = 0.8F;
+    /** The picture fades in over this long after the call is answered (a projector warming up, only faster). */
+    public static final long FEED_FADE_IN_MS = 800L;
+    /** The picture is drawn at least this bright (Minecraft light level 0-15) even in a dark room, like a projector;
+     *  in a brighter spot it is drawn at that spot's brightness. */
+    public static final int PROJECTOR_IMAGE_LIGHT = 14;
+    /** Light level (0-15) the snail BLOCK itself gives off while it is in a call. Only used by the optional
+     *  ModBlocks patch; 0 = no light. */
+    public static final int PROJECTOR_EMIT_LIGHT = 8;
 
     // ---------------- Video feed (client rendering) ----------------
     /** Square resolution of the offscreen render target. */

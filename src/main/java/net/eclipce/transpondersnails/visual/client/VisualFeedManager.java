@@ -84,7 +84,8 @@ public final class VisualFeedManager {
         private boolean failedSent = false;
         // renderer diagnostics (package-private on purpose: VisualScreenRenderer logs these once per call)
         boolean drawLogged = false;
-        boolean noSignalLogged = false;
+        /** When the first fresh picture of this call arrived (start of the fade-in), or -1 while there is none. */
+        long pictureStartMs = -1L;
 
         private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos) {
             this.callId = callId;
@@ -142,6 +143,10 @@ public final class VisualFeedManager {
 
     static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start) {
         if (start) {
+            ScreenLink already = LINKS.get(screenPos);
+            if (already != null && already.callId.equals(callId)) {
+                return; // duplicate START for the same call
+            }
             LINKS.put(screenPos.immutable(), new ScreenLink(callId, screenPos, cameraPos));
 
             VisualFeed existing = FEEDS.get(cameraPos);
@@ -151,6 +156,9 @@ public final class VisualFeedManager {
             }
             VisualFeed feed = FEEDS.computeIfAbsent(cameraPos.immutable(), VisualFeed::new);
             feed.lastTouchedMs = System.currentTimeMillis();
+            // The render target may still hold the last picture of an earlier call: require fresh frames, so nothing
+            // stale is shown and the fade-in starts with the first real picture of THIS call.
+            feed.okFrames = 0;
         } else {
             ScreenLink link = LINKS.get(screenPos);
             if (link != null && link.callId.equals(callId)) {
@@ -257,7 +265,11 @@ public final class VisualFeedManager {
         }
 
         Direction facing = camState.getValue(TransponderSnailBlock.FACING);
-        double[] eye = ScreenLayout.eyeOffset(facing.getStepX(), facing.getStepZ());
+        // the snail films what is behind it (or in front, see VisualCallConstants.FEED_LOOKS_BEHIND)
+        Direction lookDir = VisualCallConstants.FEED_LOOKS_BEHIND ? facing.getOpposite() : facing;
+        double[] eye = VisualCallConstants.FEED_LOOKS_BEHIND
+                ? ScreenLayout.eyeOffsetBehind(facing.getStepX(), facing.getStepZ())
+                : ScreenLayout.eyeOffset(facing.getStepX(), facing.getStepZ());
         Vec3 eyePos = new Vec3(camPos.getX() + eye[0], camPos.getY() + eye[1], camPos.getZ() + eye[2]);
 
         try {
@@ -301,7 +313,7 @@ public final class VisualFeedManager {
             mc.renderBuffers().bufferSource().endBatch(); // make sure earlier world rendering is flushed
 
             eyeEntity.setPos(eyePos.x, eyePos.y, eyePos.z);
-            eyeEntity.setYRot(facing.toYRot());
+            eyeEntity.setYRot(lookDir.toYRot());
             eyeEntity.setXRot(0.0F);
 
             mc.cameraEntity = eyeEntity; // field, not Minecraft#setCameraEntity: that would touch the entity post effect
@@ -388,6 +400,12 @@ public final class VisualFeedManager {
         }
 
         feed.okFrames++;
+        long nowMs = System.currentTimeMillis();
+        for (ScreenLink link : LINKS.values()) {
+            if (link.cameraPos.equals(feed.cameraPos) && link.pictureStartMs < 0L) {
+                link.pictureStartMs = nowMs; // the fade-in of this screen starts now
+            }
+        }
 
         if (!sodium) {
             try {

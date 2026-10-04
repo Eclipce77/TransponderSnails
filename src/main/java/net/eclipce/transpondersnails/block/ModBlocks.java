@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.block;
 
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.block.custom.AmplifiedTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.HornedDenDenMushiBlock;
@@ -36,7 +37,14 @@ public class ModBlocks {
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
     public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = BLOCKS.register("visual_transponder_snail",
-            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)
+                    .lightLevel(state -> state.getValue(TransponderSnailBlock.IN_CALL) ? VisualCallConstants.PROJECTOR_EMIT_LIGHT : 0)));
+
+    // The Visual snail gives off light while it is in a call, like a projector (VisualCallConstants.PROJECTOR_EMIT_LIGHT,
+    // 0 = no light). IN_CALL is true from the moment the call is answered until it ends.
+    public static final RegistryObject<Block> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = BLOCKS.register("visual_transmitter_transponder_snail",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)
+                    .lightLevel(state -> state.getValue(TransponderSnailBlock.IN_CALL) ? VisualCallConstants.PROJECTOR_EMIT_LIGHT : 0)));
 
     // Megaphone snail. AmplifiedTransponderSnailBlock passes hasShell = false to TransponderSnailBlock
     // (no compatible shell to dye) and adds its own AMPLIFIER_STATE property.

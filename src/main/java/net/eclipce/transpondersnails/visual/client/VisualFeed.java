@@ -2,6 +2,7 @@ package net.eclipce.transpondersnails.visual.client;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.eclipce.transpondersnails.TransponderSnails;
@@ -22,6 +23,19 @@ import java.util.List;
 /** The offscreen view from one Visual Snail's eyes. Keyed by the CAMERA snail's position. */
 @OnlyIn(Dist.CLIENT)
 final class VisualFeed {
+
+    /** Normal alpha blending: the world behind the screen shows through according to the picture's alpha. */
+    private static final RenderStateShard.TransparencyStateShard PROJECTOR_TRANSPARENCY =
+            new RenderStateShard.TransparencyStateShard(
+                    "transpondersnails_projector_transparency",
+                    () -> {
+                        RenderSystem.enableBlend();
+                        RenderSystem.defaultBlendFunc();
+                    },
+                    () -> {
+                        RenderSystem.disableBlend();
+                        RenderSystem.defaultBlendFunc();
+                    });
 
     final BlockPos cameraPos;
 
@@ -68,6 +82,7 @@ final class VisualFeed {
                 RenderType.CompositeState.builder()
                         .setShaderState(new RenderStateShard.ShaderStateShard(GameRenderer::getPositionColorTexShader))
                         .setTextureState(new RenderStateShard.TextureStateShard(textureId, true, false))
+                        .setTransparencyState(PROJECTOR_TRANSPARENCY)
                         .createCompositeState(false));
     }
 
