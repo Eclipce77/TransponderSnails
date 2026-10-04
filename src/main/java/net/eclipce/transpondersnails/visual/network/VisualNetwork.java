@@ -35,5 +35,12 @@ public final class VisualNetwork {
         CHANNEL.registerMessage(id++, VisualFeedStatusPacket.class,
                 VisualFeedStatusPacket::encode, VisualFeedStatusPacket::decode, VisualFeedStatusPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        // projector settings menu
+        CHANNEL.registerMessage(id++, VisualConfigOpenPacket.class,
+                VisualConfigOpenPacket::encode, VisualConfigOpenPacket::decode, VisualConfigOpenPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, VisualConfigUpdatePacket.class,
+                VisualConfigUpdatePacket::encode, VisualConfigUpdatePacket::decode, VisualConfigUpdatePacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

@@ -36,12 +36,12 @@ public class ModBlocks {
     public static final RegistryObject<Block> TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("transponder_snail_transmitter",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
+    // The Visual snail gives off light while it is in a call, like a projector (VisualCallConstants.PROJECTOR_EMIT_LIGHT,
+    // 0 = no light). IN_CALL is true from the moment the call is answered until it ends.
     public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = BLOCKS.register("visual_transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)
                     .lightLevel(state -> state.getValue(TransponderSnailBlock.IN_CALL) ? VisualCallConstants.PROJECTOR_EMIT_LIGHT : 0)));
 
-    // The Visual snail gives off light while it is in a call, like a projector (VisualCallConstants.PROJECTOR_EMIT_LIGHT,
-    // 0 = no light). IN_CALL is true from the moment the call is answered until it ends.
     public static final RegistryObject<Block> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = BLOCKS.register("visual_transmitter_transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)
                     .lightLevel(state -> state.getValue(TransponderSnailBlock.IN_CALL) ? VisualCallConstants.PROJECTOR_EMIT_LIGHT : 0)));
@@ -50,7 +50,6 @@ public class ModBlocks {
     // (no compatible shell to dye) and adds its own AMPLIFIER_STATE property.
     public static final RegistryObject<Block> AMPLIFIED_TRANSPONDER_SNAIL = BLOCKS.register("amplified_transponder_snail",
             () -> new AmplifiedTransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
-
 
     public static final RegistryObject<Block> WHITE_TRANSPONDER_SNAIL = BLOCKS.register("white_transponder_snail",
             () -> new WhiteTransponderSnailBlock(BlockBehaviour.Properties.of()

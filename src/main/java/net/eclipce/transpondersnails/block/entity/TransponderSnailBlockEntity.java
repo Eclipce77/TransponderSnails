@@ -9,7 +9,12 @@ import net.eclipce.transpondersnails.voice.server.CallSession;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualCallState;
+import net.eclipce.transpondersnails.visual.VisualRoles;
+import net.eclipce.transpondersnails.visual.VisualScreenConfig;
+import net.eclipce.transpondersnails.visual.VisualSettings;
+import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.eclipce.transpondersnails.visual.server.VisualCallManager;
+import net.eclipce.transpondersnails.visual.server.VisualProjectorConfig;
 import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
@@ -102,16 +107,25 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     private final boolean isVisualSnail;
     private volatile VisualCallState visualCallState = VisualCallState.IDLE;
     private volatile boolean visualAudioActive = false;
-    // Side length (in blocks) of the square the video is projected as. Persisted and synced to clients.
+    // Projector settings (changed in the settings menu). Persisted and synced to clients.
+    // PREFERRED side length (in blocks) of the square the video is projected as. What is actually shown is this size held inside the
+    // zoom range for the distance to the screen (see ProjectorZoom), so it is only a preference.
     private int screenSize = VisualCallConstants.SCREEN_DEFAULT_SIZE;
+    // Where the screen sits relative to its default place, in blocks (quarter steps), as seen by a viewer standing in front of the
+    // snail: side + = to the viewer's right (max +-3), up + = up (max +-3), back = extra distance further BACK from the snail
+    // (0 .. 3, never towards it; only used while there is no surface behind the snail to project onto - otherwise the depth is automatic).
+    private float screenOffsetSide = 0.0F;
+    private float screenOffsetUp = 0.0F;
+    private float screenOffsetBack = 0.0F;
 
     public TransponderSnailBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), pPos, pBlockState);
 
         Block block = pBlockState.getBlock();
-        this.hasSnailNumber = block != ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
-                && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get();
-        this.isVisualSnail = block == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get();
+        // Both visual snails - the projector (Visual Transponder Snail) and the camera (Visual Transmitter Transponder Snail) -
+        // are recognised by their registry name (see VisualRoles). Neither has a snail number.
+        this.isVisualSnail = VisualRoles.of(block) != null;
+        this.hasSnailNumber = !this.isVisualSnail && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get();
     }
 
     /**
@@ -124,7 +138,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
     // =================== VISUAL TRANSPONDER SNAIL (VIDEO CALLS) ===================
 
-    /** True for the placed Visual Transponder Snail (video calls, no snail number). */
+    /** True for the placed Visual Transponder Snail (projector) and Visual Transmitter Transponder Snail (camera): video calls, no snail number. */
     public boolean isVisualSnail() {
         return isVisualSnail;
     }
@@ -133,23 +147,42 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         return screenSize;
     }
 
+    public float getScreenOffsetSide() {
+        return screenOffsetSide;
+    }
+
+    public float getScreenOffsetUp() {
+        return screenOffsetUp;
+    }
+
+    public float getScreenOffsetBack() {
+        return screenOffsetBack;
+    }
+
     /**
-     * Cycles the projected screen size (1..max) and syncs it to clients.
+     * Applies new projector settings (screen size and offsets). Every value is clamped / snapped here, so it is safe to pass
+     * whatever a client sent. Stores them and syncs them to all clients.
      *
-     * @return the new size
+     * @return true if anything changed
      */
-    public int cycleScreenSize() {
-        int next = screenSize + 1;
-        if (next > VisualCallConstants.SCREEN_MAX_SIZE) {
-            next = VisualCallConstants.SCREEN_MIN_SIZE;
+    public boolean setScreenConfig(int size, float side, float up, float back) {
+        int newSize = VisualScreenConfig.clampSize(size, VisualSettings.maxScreenSize());
+        float newSide = VisualScreenConfig.snapOffset(side);
+        float newUp = VisualScreenConfig.snapOffset(up);
+        float newBack = VisualScreenConfig.snapBack(back); // never negative: the screen cannot be moved towards the snail
+        if (newSize == screenSize && newSide == screenOffsetSide && newUp == screenOffsetUp && newBack == screenOffsetBack) {
+            return false;
         }
-        this.screenSize = next;
+        this.screenSize = newSize;
+        this.screenOffsetSide = newSide;
+        this.screenOffsetUp = newUp;
+        this.screenOffsetBack = newBack;
         setChanged();
         if (level != null && !level.isClientSide()) {
             BlockState state = getBlockState();
             level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_ALL);
         }
-        return next;
+        return true;
     }
 
     public VisualCallState getVisualCallState() {
@@ -204,6 +237,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Sneak + right click while idle cycles the projected screen size; everything else goes to VisualCallManager.
      */
     private InteractionResult handleVisualInteraction(ServerPlayer player, boolean isSneaking) {
+        // Crouch + right click ALWAYS opens the projector settings (screen size and position) - whatever a call is doing, and
+        // without needing the voice chat. Only the projector has a screen; the camera snail has nothing to configure.
+        if (isSneaking && VisualRoles.ofEntity(this) == VisualSnailRole.DUPLEX) {
+            VisualProjectorConfig.open(player, this);
+            return InteractionResult.SUCCESS;
+        }
+
         VisualCallManager manager = VisualCallManager.get();
         if (manager == null) {
             player.displayClientMessage(
@@ -214,17 +254,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             return InteractionResult.FAIL;
         }
 
-        if (isSneaking && visualCallState == VisualCallState.IDLE) {
-            int size = cycleScreenSize();
-            player.displayClientMessage(
-                    Component.literal("Screen size: " + size + "x" + size)
-                            .withStyle(net.minecraft.ChatFormatting.AQUA),
-                    true
-            );
-            return InteractionResult.SUCCESS;
-        }
-
-        return manager.onInteract(player, this, isSneaking);
+        return manager.onInteract(player, this);
     }
 
     /** Registers this placed Visual Snail so it can be found as a call partner (server side, on load). */
@@ -243,7 +273,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     }
 
     /**
-     * The projected screen is drawn on a wall up to SCREEN_MAX_WALL_DISTANCE blocks in front of the snail, so the
+     * The projected screen can be up to PROJECTOR_MAX_THROW blocks from the snail (plus its own size and offsets), so the
      * renderer must not be culled just because the snail block itself is off screen.
      */
     @Override
@@ -251,7 +281,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (!isVisualSnail) {
             return super.getRenderBoundingBox();
         }
-        double reach = VisualCallConstants.SCREEN_MAX_WALL_DISTANCE + VisualCallConstants.SCREEN_MAX_SIZE;
+        double reach = VisualCallConstants.PROJECTOR_MAX_THROW + VisualSettings.maxScreenSize() + VisualCallConstants.SCREEN_OFFSET_MAX + 1.0;
         return new AABB(worldPosition).inflate(reach);
     }
 
@@ -1750,6 +1780,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         tag.putInt("ShellColor", shellColor);
         tag.putBoolean("ColorsInitialized", colorsInitialized);
         tag.putInt("VisualScreenSize", screenSize);
+        tag.putFloat("VisualScreenOffsetSide", screenOffsetSide);
+        tag.putFloat("VisualScreenOffsetUp", screenOffsetUp);
+        tag.putFloat("VisualScreenOffsetBack", screenOffsetBack);
     }
 
     @Override
@@ -1819,8 +1852,18 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.audioReady = tag.getBoolean("AudioReady"); // Add this line
 
         if (tag.contains("VisualScreenSize")) {
-            this.screenSize = Math.max(VisualCallConstants.SCREEN_MIN_SIZE,
-                    Math.min(VisualCallConstants.SCREEN_MAX_SIZE, tag.getInt("VisualScreenSize")));
+            this.screenSize = VisualScreenConfig.clampSize(tag.getInt("VisualScreenSize"), VisualSettings.maxScreenSize());
+        }
+        // clamped / snapped on load too, so a hand-edited or corrupted save cannot push the screen further than the limit
+        this.screenOffsetSide = tag.contains("VisualScreenOffsetSide") ? VisualScreenConfig.snapOffset(tag.getFloat("VisualScreenOffsetSide")) : 0.0F;
+        this.screenOffsetUp = tag.contains("VisualScreenOffsetUp") ? VisualScreenConfig.snapOffset(tag.getFloat("VisualScreenOffsetUp")) : 0.0F;
+        if (tag.contains("VisualScreenOffsetBack")) {
+            this.screenOffsetBack = VisualScreenConfig.snapBack(tag.getFloat("VisualScreenOffsetBack"));
+        } else if (tag.contains("VisualScreenOffsetFront")) {
+            // saved with the earlier menu: "front" was signed (+ = towards the snail, - = further back). Only "back" is allowed now.
+            this.screenOffsetBack = VisualScreenConfig.snapBack(-tag.getFloat("VisualScreenOffsetFront"));
+        } else {
+            this.screenOffsetBack = 0.0F;
         }
     }
 }

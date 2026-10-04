@@ -6,7 +6,9 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.visual.ResolutionPlanner;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
+import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -25,7 +27,7 @@ import java.util.List;
 final class VisualFeed {
 
     /** Normal alpha blending: the world behind the screen shows through according to the picture's alpha. */
-    private static final RenderStateShard.TransparencyStateShard PROJECTOR_TRANSPARENCY =
+    static final RenderStateShard.TransparencyStateShard PROJECTOR_TRANSPARENCY =
             new RenderStateShard.TransparencyStateShard(
                     "transpondersnails_projector_transparency",
                     () -> {
@@ -38,6 +40,29 @@ final class VisualFeed {
                     });
 
     final BlockPos cameraPos;
+
+    // Quality of this feed. Set from the role of the filming snail (a camera snail is sharper and sees further than a
+    // standard video call) by configure(), before the first capture.
+    int resolution = VisualCallConstants.FEED_RESOLUTION;
+    int fps = VisualCallConstants.FEED_FPS;
+    int viewChunks = VisualCallConstants.FEED_VIEW_CHUNKS;
+    int viewVertical = VisualCallConstants.FEED_VIEW_SECTIONS_VERTICAL;
+    /** Role of the filming snail (decides the maximum quality). */
+    VisualSnailRole role = VisualSnailRole.DUPLEX;
+
+    // ---- adaptive quality bookkeeping (client only) ----
+    /** Resolution tier the screens showing this feed would like right now (0 = no screen has reported yet). */
+    int lodResolution = 0;
+    /** Distance (blocks) from the viewer to the nearest screen showing this feed. */
+    double lodDistance = Double.MAX_VALUE;
+    private long lodFrame = -1L;
+    private int lodResolutionAcc = 0;
+    private double lodDistanceAcc = Double.MAX_VALUE;
+    /** Decides when this feed may change resolution (hysteresis, see ResolutionPlanner). */
+    final ResolutionPlanner planner = new ResolutionPlanner();
+    /** What the section list was built for: a change of any of these forces a rebuild. */
+    int lastRadius = -1;
+    long lastPlayerSection = Long.MIN_VALUE;
 
     RenderTarget target;
     private ResourceLocation textureId;
@@ -63,9 +88,43 @@ final class VisualFeed {
         return target != null;
     }
 
+    /**
+     * Applies the quality for the NEXT capture. If the resolution changes, the render target is re-created: the section list
+     * and the "has a picture" state are kept, and the new target is filled by the capture that is about to run, so the
+     * picture does not blink.
+     */
+    void applyQuality(VisualSnailRole role, int newResolution, int newFps) {
+        this.role = role;
+        if (target != null && newResolution != resolution) {
+            releaseGl();
+        }
+        resolution = newResolution;
+        fps = Math.max(1, newFps);
+        viewChunks = role.feedViewChunks();
+        viewVertical = role.feedViewSectionsVertical();
+    }
+
+    /**
+     * A screen showing this feed was drawn: the resolution tier it would like and its distance. Several screens may show the
+     * same feed; the highest wish and the shortest distance of a frame win. The result of a frame becomes visible in the next.
+     */
+    void reportView(long frameId, int wantedResolution, double distance) {
+        if (lodFrame != frameId) {
+            if (lodFrame >= 0L) {
+                lodResolution = lodResolutionAcc;
+                lodDistance = lodDistanceAcc;
+            }
+            lodFrame = frameId;
+            lodResolutionAcc = 0;
+            lodDistanceAcc = Double.MAX_VALUE;
+        }
+        lodResolutionAcc = Math.max(lodResolutionAcc, wantedResolution);
+        lodDistanceAcc = Math.min(lodDistanceAcc, distance);
+    }
+
     void allocate(int uniqueId) {
         if (target != null) return;
-        int res = VisualCallConstants.FEED_RESOLUTION;
+        int res = resolution;
         target = new TextureTarget(res, res, true, Minecraft.ON_OSX);
         target.setClearColor(0.0F, 0.0F, 0.0F, 1.0F);
 
@@ -96,6 +155,13 @@ final class VisualFeed {
 
     void release() {
         sections = new ArrayList<>();
+        lastRadius = -1;
+        lastPlayerSection = Long.MIN_VALUE;
+        releaseGl();
+    }
+
+    /** Frees only the GPU side (render target, texture, render type). */
+    private void releaseGl() {
         if (textureId != null) {
             Minecraft.getInstance().getTextureManager().release(textureId);
             textureId = null;

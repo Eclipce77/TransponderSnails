@@ -63,7 +63,7 @@ public final class ScreenLayout {
     }
 
     /**
-     * Builds the size x size screen on the wall in front of the snail. The screen is centred (for odd sizes) on the
+     * Builds the size x size screen on the wall in front of the snail. The screen is centred on the
      * snail's column and grows UPWARDS from the snail's own block row.
      *
      * @param wallDistance result of {@link #findWallDistance}, >= 1
@@ -109,6 +109,27 @@ public final class ScreenLayout {
     }
 
     /**
+     * Moves a screen by the user's offsets, in blocks, in the frame of a viewer standing in front of the snail and looking at
+     * it (the way people watch the screen): {@code side} + = to the viewer's right, {@code up} + = up, {@code front} + = further
+     * out in the direction the snail faces (towards the viewer).
+     *
+     * @param fx,fz the snail's FACING step
+     */
+    public static Quad shift(Quad q, int fx, int fz, double side, double up, double front) {
+        if ((fx == 0) == (fz == 0)) throw new IllegalArgumentException("facing must be a horizontal axis step");
+        // the viewer looks AGAINST the snail's facing, so their right is (fz, -fx)
+        double dx = fz * side + fx * front;
+        double dy = up;
+        double dz = -fx * side + fz * front;
+        return new Quad(move(q.bottomLeft(), dx, dy, dz), move(q.bottomRight(), dx, dy, dz),
+                move(q.topRight(), dx, dy, dz), move(q.topLeft(), dx, dy, dz));
+    }
+
+    private static double[] move(double[] p, double dx, double dy, double dz) {
+        return new double[]{p[0] + dx, p[1] + dy, p[2] + dz};
+    }
+
+    /**
      * Builds a size x size quad on the plane at local coordinate {@code plane} (along the axis of (fx, fz)).
      * (fx, fz) is the direction the viewer looks along; the picture's normal points against it.
      */
@@ -119,11 +140,10 @@ public final class ScreenLayout {
         int rx = -fz;
         int rz = fx;
 
-        // lateral block indices covered, relative to the snail's column
-        int first = -((size - 1) / 2);
-        int last = first + size - 1;
-        double left = first - 0.5;
-        double right = last + 0.5;
+        // Lateral extent, relative to the middle of the snail's column. Exactly centred for EVERY size (a projector's picture is
+        // centred on its axis; the old rule only centred odd sizes and left even ones half a block off).
+        double left = -size / 2.0;
+        double right = size / 2.0;
 
         double[] bl = point(fx, rx, rz, left, 0, plane);
         double[] br = point(fx, rx, rz, right, 0, plane);

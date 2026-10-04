@@ -45,6 +45,11 @@ public class ModConfig {
     public static class ClientConfig {
         public final ForgeConfigSpec.BooleanValue enableNumpadSupport;
 
+        // Video call performance (per player)
+        public final ForgeConfigSpec.BooleanValue adaptiveVideoQuality;
+        public final ForgeConfigSpec.IntValue maxVideoResolution;
+        public final ForgeConfigSpec.IntValue maxActiveVideoFeeds;
+
         public ClientConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("Transponder Snails Client Configuration")
                     .comment("   =%%% :%%%: %@@@@@@@# ")
@@ -69,6 +74,27 @@ public class ModConfig {
                     .comment("Enable numpad keys for dialing in addition to number row keys")
                     .comment("This is a client-side preference that doesn't affect gameplay")
                     .define("enable_numpad", false);
+
+            builder.pop();
+
+            // Video call performance
+            builder.comment("Video call performance")
+                    .comment("Video calls are rendered on YOUR computer. These settings only change how much work that is for you.")
+                    .push("video");
+
+            adaptiveVideoQuality = builder
+                    .comment("Automatically lower the resolution of distant / small screens, and lower the video quality")
+                    .comment("whenever your frame rate drops while video is playing. Recommended.")
+                    .define("adaptive_quality", true);
+
+            maxVideoResolution = builder
+                    .comment("Highest resolution (pixels, square) a video feed may use on your computer.")
+                    .comment("Use 256, 512, 1024 or 2048 (other values are rounded down). The server may set a lower limit.")
+                    .defineInRange("max_resolution", 1024, 256, 2048);
+
+            maxActiveVideoFeeds = builder
+                    .comment("How many video feeds your computer renders at once (the nearest ones). The others keep their last picture.")
+                    .defineInRange("max_active_feeds", 4, 1, 16);
 
             builder.pop();
         }
@@ -102,6 +128,12 @@ public class ModConfig {
 
         // Horned Den Den Mushi jamming settings
         public final ForgeConfigSpec.DoubleValue hornedDDMJammingRadius;
+
+        // Visual Transponder Snails (video calls)
+        public final ForgeConfigSpec.IntValue visualMaxFeedResolution;
+        public final ForgeConfigSpec.IntValue visualMaxFeedFps;
+        public final ForgeConfigSpec.IntValue visualMaxConcurrentCalls;
+        public final ForgeConfigSpec.IntValue visualMaxScreenSize;
 
         // Spawn configuration
         public final SpawnConfig spawning;
@@ -237,6 +269,33 @@ public class ModConfig {
 
             builder.pop();
 
+            // Visual Transponder Snails (video calls)
+            builder.comment("Visual Transponder Snail video calls")
+                    .comment("Video is rendered on the PLAYERS' computers, not on the server: the server only pairs the snails and sends a few")
+                    .comment("small messages per call. These options limit how much work a call can ask of the players' computers.")
+                    .push("visual_snails");
+
+            visualMaxFeedResolution = builder
+                    .comment("Highest resolution (pixels, square) any video feed may use. Synced to every client.")
+                    .comment("256, 512, 1024 or 2048 (other values are rounded down to one of these).")
+                    .comment("Lower this on servers with many players or weak computers. Default: 1024")
+                    .defineInRange("max_feed_resolution", 1024, 256, 2048);
+
+            visualMaxFeedFps = builder
+                    .comment("Highest frame rate (frames per second) of any video feed. Synced to every client. Default: 15")
+                    .defineInRange("max_feed_fps", 15, 5, 30);
+
+            visualMaxConcurrentCalls = builder
+                    .comment("Most video calls that may run at the same time on this server. Default: 64")
+                    .defineInRange("max_concurrent_calls", 64, 1, 256);
+
+            visualMaxScreenSize = builder
+                    .comment("Largest screen (blocks per side) a projector can show. Synced to every client. Default: 20")
+                    .comment("Raise it if you need bigger screens. (How big a screen may be at a given distance also depends on the projector's zoom.)")
+                    .defineInRange("max_screen_size", 20, 1, 64);
+
+            builder.pop();
+
             // Spawn configuration
             this.spawning = new SpawnConfig(builder);
         }
@@ -320,7 +379,7 @@ public class ModConfig {
 
             // Den Den Mushi Configuration
             builder.comment("")
-                    .comment("Den Den Mushi (Land Snail)")
+                    .comment("Den Den Mushi")
                     .comment("-".repeat(60))
                     .push("den_den_mushi");
 
@@ -342,7 +401,7 @@ public class ModConfig {
 
             // Black Transponder Snail Configuration
             builder.comment("")
-                    .comment("Black Transponder Snail (Underwater Adult)")
+                    .comment("Black Transponder Snail")
                     .comment("-".repeat(60))
                     .comment("Spawns in medium to deep water (5-30 blocks deep)")
                     .push("black_transponder_snail");
@@ -364,7 +423,7 @@ public class ModConfig {
 
             // Baby Black Transponder Snail Configuration
             builder.comment("")
-                    .comment("Baby Black Transponder Snail (Underwater Baby)")
+                    .comment("Baby Black Transponder Snail")
                     .comment("-".repeat(60))
                     .comment("Spawns in medium to deep water (5-30 blocks deep)")
                     .push("baby_black_transponder_snail");
@@ -386,7 +445,7 @@ public class ModConfig {
 
             // White Den Den Mushi Configuration
             builder.comment("")
-                    .comment("White Den Den Mushi (Land Snail - White Body Variant)")
+                    .comment("White Den Den Mushi")
                     .comment("-".repeat(60))
                     .comment("Spawns on land like regular Den Den Mushi")
                     .push("white_den_den_mushi");
@@ -426,6 +485,15 @@ public class ModConfig {
 
     private static final double DEFAULT_HORNED_DDM_JAMMING_RADIUS = 20.0;
 
+    // Visual snail (video call) defaults
+    private static final boolean DEFAULT_ADAPTIVE_VIDEO_QUALITY = true;
+    private static final int DEFAULT_MAX_VIDEO_RESOLUTION = 1024;
+    private static final int DEFAULT_MAX_ACTIVE_VIDEO_FEEDS = 4;
+    private static final int DEFAULT_VISUAL_MAX_FEED_RESOLUTION = 1024;
+    private static final int DEFAULT_VISUAL_MAX_FEED_FPS = 15;
+    private static final int DEFAULT_VISUAL_MAX_CONCURRENT_CALLS = 64;
+    private static final int DEFAULT_VISUAL_MAX_SCREEN_SIZE = 20;
+
     // Spawn defaults
     private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
     private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
@@ -449,6 +517,15 @@ public class ModConfig {
     private static double cachedAdultBlackSnailMaxRange = DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
 
     private static double cachedHornedDDMJammingRadius = DEFAULT_HORNED_DDM_JAMMING_RADIUS;
+
+    // Cache for visual snail (video call) values - read every frame / every packet, so they are plain primitives
+    private static volatile boolean cachedAdaptiveVideoQuality = DEFAULT_ADAPTIVE_VIDEO_QUALITY;
+    private static volatile int cachedMaxVideoResolution = DEFAULT_MAX_VIDEO_RESOLUTION;
+    private static volatile int cachedMaxActiveVideoFeeds = DEFAULT_MAX_ACTIVE_VIDEO_FEEDS;
+    private static volatile int cachedVisualMaxFeedResolution = DEFAULT_VISUAL_MAX_FEED_RESOLUTION;
+    private static volatile int cachedVisualMaxFeedFps = DEFAULT_VISUAL_MAX_FEED_FPS;
+    private static volatile int cachedVisualMaxConcurrentCalls = DEFAULT_VISUAL_MAX_CONCURRENT_CALLS;
+    private static volatile int cachedVisualMaxScreenSize = DEFAULT_VISUAL_MAX_SCREEN_SIZE;
 
     // PERFORMANCE: These were previously calling ForgeConfigSpec.get() on every use.
     // Cached here so hot-path callers (call session management, cleanup scheduler) read primitives.
@@ -489,6 +566,9 @@ public class ModConfig {
         if (event.getConfig().getSpec() == CLIENT_SPEC) {
             // Client config changed
             cachedEnableNumpad = CLIENT.enableNumpadSupport.get();
+            cachedAdaptiveVideoQuality = CLIENT.adaptiveVideoQuality.get();
+            cachedMaxVideoResolution = (int) getValidatedValue((long) CLIENT.maxVideoResolution.get(), (long) DEFAULT_MAX_VIDEO_RESOLUTION, 256L, 2048L);
+            cachedMaxActiveVideoFeeds = (int) getValidatedValue((long) CLIENT.maxActiveVideoFeeds.get(), (long) DEFAULT_MAX_ACTIVE_VIDEO_FEEDS, 1L, 16L);
         } else if (event.getConfig().getSpec() == SERVER_SPEC) {
             // Server config changed
             cachedLocationalRange = getValidatedValue(SERVER.locationalSnailRange.get(), DEFAULT_LOCATIONAL_RANGE, 1.0, 100.0);
@@ -503,6 +583,10 @@ public class ModConfig {
             cachedAdultBlackSnailMinRange = getValidatedValue(SERVER.adultBlackSnailMinRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE, 50.0, 500.0);
             cachedAdultBlackSnailMaxRange = getValidatedValue(SERVER.adultBlackSnailMaxRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE, 100.0, 1000.0);
             cachedHornedDDMJammingRadius = getValidatedValue(SERVER.hornedDDMJammingRadius.get(), DEFAULT_HORNED_DDM_JAMMING_RADIUS, 1.0, 200.0);
+            cachedVisualMaxFeedResolution = (int) getValidatedValue((long) SERVER.visualMaxFeedResolution.get(), (long) DEFAULT_VISUAL_MAX_FEED_RESOLUTION, 256L, 2048L);
+            cachedVisualMaxFeedFps = (int) getValidatedValue((long) SERVER.visualMaxFeedFps.get(), (long) DEFAULT_VISUAL_MAX_FEED_FPS, 5L, 30L);
+            cachedVisualMaxConcurrentCalls = (int) getValidatedValue((long) SERVER.visualMaxConcurrentCalls.get(), (long) DEFAULT_VISUAL_MAX_CONCURRENT_CALLS, 1L, 256L);
+            cachedVisualMaxScreenSize = (int) getValidatedValue((long) SERVER.visualMaxScreenSize.get(), (long) DEFAULT_VISUAL_MAX_SCREEN_SIZE, 1L, 64L);
             cachedCallInactivityTimeout    = SERVER.callInactivityTimeoutMs.get();
             cachedParticipantProximityRange = SERVER.participantProximityRange.get();
             cachedNumberPreservationDays    = SERVER.numberPreservationDays.get();
@@ -722,5 +806,66 @@ public class ModConfig {
             return DEFAULT_HORNED_DDM_JAMMING_RADIUS;
         }
         return cachedHornedDDMJammingRadius;
+    }
+
+    // ---- Visual snail (video call) settings ----
+
+    /** Client: lower video quality automatically (distance / frame rate). */
+    public static boolean isAdaptiveVideoQuality() {
+        return cachedAdaptiveVideoQuality;
+    }
+
+    /** Client: highest feed resolution this player allows. */
+    public static int getMaxVideoResolution() {
+        return cachedMaxVideoResolution;
+    }
+
+    /** Client: how many feeds this player renders at once. */
+    public static int getMaxActiveVideoFeeds() {
+        return cachedMaxActiveVideoFeeds;
+    }
+
+    // Setters for the client config screen: set the value, update the cache, save (same pattern as setNumpadEnabled).
+
+    public static void setAdaptiveVideoQuality(boolean enabled) {
+        CLIENT.adaptiveVideoQuality.set(enabled);
+        cachedAdaptiveVideoQuality = enabled;
+        CLIENT_SPEC.save();
+    }
+
+    /** Kept inside the range the config accepts (256 - 2048). */
+    public static void setMaxVideoResolution(int resolution) {
+        int value = Math.max(256, Math.min(2048, resolution));
+        CLIENT.maxVideoResolution.set(value);
+        cachedMaxVideoResolution = value;
+        CLIENT_SPEC.save();
+    }
+
+    /** Kept inside the range the config accepts (1 - 16). */
+    public static void setMaxActiveVideoFeeds(int feeds) {
+        int value = Math.max(1, Math.min(16, feeds));
+        CLIENT.maxActiveVideoFeeds.set(value);
+        cachedMaxActiveVideoFeeds = value;
+        CLIENT_SPEC.save();
+    }
+
+    /** Server (synced to clients): highest feed resolution on this server. */
+    public static int getVisualMaxFeedResolution() {
+        return cachedVisualMaxFeedResolution;
+    }
+
+    /** Server (synced to clients): highest feed frame rate on this server. */
+    public static int getVisualMaxFeedFps() {
+        return cachedVisualMaxFeedFps;
+    }
+
+    /** Server: most video calls running at once. */
+    public static int getVisualMaxConcurrentCalls() {
+        return cachedVisualMaxConcurrentCalls;
+    }
+
+    /** Server (synced to clients): the largest screen (blocks per side) a projector can show. */
+    public static int getVisualMaxScreenSize() {
+        return cachedVisualMaxScreenSize;
     }
 }

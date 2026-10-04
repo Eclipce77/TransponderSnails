@@ -8,13 +8,23 @@ public final class VisualCallConstants {
 
     private VisualCallConstants() {}
 
+    // ---------------- Snail variants (registry paths, namespace = the mod id) ----------------
+    /** Visual Transponder Snail: the projector snail. Films AND shows a picture, picks up AND plays audio. */
+    public static final String DUPLEX_SNAIL_ID = "visual_transponder_snail";
+    /** Visual Transmitter Transponder Snail: a camera. Films and picks up sound, shows nothing and plays nothing. */
+    public static final String CAMERA_SNAIL_ID = "visual_transmitter_transponder_snail";
+
     // ---------------- Matching ----------------
     /** Two Visual Snails auto-connect when they are within this many blocks (centre to centre, same dimension). */
     public static final double CALL_RANGE = 20.0;
 
     // ---------------- Screen ("projector") ----------------
     public static final int SCREEN_MIN_SIZE = 1;
-    public static final int SCREEN_MAX_SIZE = 6;
+    /**
+     * Largest screen (blocks per side) by default. The server config option visual_snails.max_screen_size overrides it, so it can
+     * be raised later without touching the code.
+     */
+    public static final int SCREEN_MAX_SIZE = 20;
     public static final int SCREEN_DEFAULT_SIZE = 2;
     /**
      * true  = the screen floats BEHIND the snail (like a monitor with a webcam in front of it): the picture faces the way
@@ -23,6 +33,10 @@ public final class VisualCallConstants {
      * If a solid block touches the snail on that side (snail against a wall) the screen lies flat on that block's face.
      */
     public static final boolean SCREEN_BEHIND_SNAIL = true;
+    /** The projector settings menu can move the screen at most this many blocks in any direction from its default place. */
+    public static final double SCREEN_OFFSET_MAX = 3.0;
+    /** ...in steps of this many blocks. */
+    public static final double SCREEN_OFFSET_STEP = 0.25;
     /** The screen floats in the air this many blocks from the snail block (no wall needed). */
     public static final double SCREEN_FLOAT_DISTANCE = 1.0;
     /**
@@ -33,8 +47,21 @@ public final class VisualCallConstants {
     public static final double SCREEN_SURFACE_OFFSET = 0.03;
     /** Screens further away than this (blocks) are neither drawn nor fed. */
     public static final double SCREEN_RENDER_DISTANCE = 64.0;
-    /** Legacy: only used for the block entity's render bounding box in TransponderSnailBlockEntity. */
-    public static final int SCREEN_MAX_WALL_DISTANCE = 12;
+
+    // ---------------- Projector: automatic depth and zoom ----------------
+    /**
+     * The snail looks for a surface straight behind it (in line with it) up to this many blocks away and projects onto it.
+     * With no surface in reach the screen floats in the air instead (SCREEN_FLOAT_DISTANCE, plus the "extra depth" setting).
+     */
+    public static final double PROJECTOR_MAX_THROW = 40.0;
+    /** Height above the block's bottom of the projector lens: the ray that looks for a surface starts there. */
+    public static final double PROJECTOR_LENS_HEIGHT = 7.0 / 16.0;
+    /** Zoom: the minimum screen size goes up by 1 every this many blocks of distance to the screen. */
+    public static final double PROJECTOR_BLOCKS_PER_SIZE_STEP = 2.0;
+    /** Zoom: the maximum screen size is this many times the minimum (min 1x1 -> max 4x4, min 3x3 -> max 12x12, ...). */
+    public static final int PROJECTOR_ZOOM_RANGE = 4;
+    /** With no surface behind the snail the screen can be pushed this many blocks further back - never towards the snail. */
+    public static final double SCREEN_BACK_MAX = 3.0;
     /** Colour multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
      *  monitor tint keeps the screen distinguishable from the world around it. */
     public static final int FEED_TINT_R = 215;
@@ -62,16 +89,39 @@ public final class VisualCallConstants {
     public static final int PROJECTOR_EMIT_LIGHT = 8;
 
     // ---------------- Video feed (client rendering) ----------------
-    /** Square resolution of the offscreen render target. */
-    public static final int FEED_RESOLUTION = 256;
+    /**
+     * Highest resolution of a standard (projector) feed. Raised from 256: with adaptive quality (see VisualQuality) the full
+     * resolution is only used while a screen really covers that many pixels of the viewer's display.
+     */
+    public static final int FEED_RESOLUTION = 1024;
+    /** Lowest resolution a feed is ever rendered at (screens that are far away, small, or not seen yet). */
+    public static final int FEED_MIN_RESOLUTION = 256;
+    // ---- adaptive quality: how quickly a feed changes resolution (a resize re-creates the render target) ----
+    /** A higher resolution is only applied after it has been wanted this long (ms)... */
+    public static final long LOD_UP_DELAY_MS = 600L;
+    /** ...a lower one only after this long, so walking back and forth does not cause flapping. */
+    public static final long LOD_DOWN_DELAY_MS = 4000L;
+    /** Never resize the same feed more often than this (ms). */
+    public static final long LOD_MIN_RESIZE_INTERVAL_MS = 1500L;
+
     /** Max captures per second per feed. */
     public static final int FEED_FPS = 15;
     /** Radius (chunks) rendered around the remote snail's eyes. Clamped to the player's own render distance. */
     public static final int FEED_VIEW_CHUNKS = 6;
     /** Sections above/below the camera that are considered when building the visible section list. */
     public static final int FEED_VIEW_SECTIONS_VERTICAL = 4;
+
+    // ---------------- Camera snail feed (Visual Transmitter Transponder Snail): better than a standard call ----------------
+    /** Square resolution of the camera's render target (standard calls: {@link #FEED_RESOLUTION}). 512 is a lighter alternative. */
+    public static final int CAMERA_FEED_RESOLUTION = 1024;
+    /** Max captures per second of a camera feed. Lower this first if the high resolution costs too much frame rate. */
+    public static final int CAMERA_FEED_FPS = 15;
+    /** View radius (chunks) of a camera. Still clamped to the VIEWER's render distance: the viewer's client must have the chunks. */
+    public static final int CAMERA_FEED_VIEW_CHUNKS = 16;
+    /** Sections above/below a camera that are drawn (standard: {@link #FEED_VIEW_SECTIONS_VERTICAL}). */
+    public static final int CAMERA_FEED_VIEW_SECTIONS_VERTICAL = 8;
     /** Captured frames are refreshed into the visible-section list every N captures. */
-    public static final int FEED_SECTION_REFRESH_CAPTURES = 20;
+    public static final int FEED_SECTION_REFRESH_CAPTURES = 60; // also refreshed at once when the viewer changes section
     /** A feed is only re-rendered while a screen asked for it within this window (ms). */
     public static final long FEED_WANTED_WINDOW_MS = 1500L;
     /** Feeds that nobody asked for during this long (ms) and have no link are freed. */
@@ -88,6 +138,12 @@ public final class VisualCallConstants {
     public static final int MAX_AUDIO_SEND_ERRORS = 25;
     /** If true, any viewer reporting a video error ends the call (the requested "video failure fails the call" rule). */
     public static final boolean FAIL_CALL_ON_ANY_VIEWER_ERROR = true;
+
+    // ---------------- Server protection ----------------
+    /** A player's clicks on a Visual snail closer together than this (ticks) are ignored (each one would start / end a call). */
+    public static final int INTERACTION_COOLDOWN_TICKS = 10;
+    /** How often (ticks) a RUNNING call looks for players that walked into range of its screen. */
+    public static final int VIEWER_REFRESH_TICKS = 20;
 
     // ---------------- Audio activity (visual "active" state) ----------------
     public static final long AUDIO_ACTIVITY_WINDOW_MS = 500L;

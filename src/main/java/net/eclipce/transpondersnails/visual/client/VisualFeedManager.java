@@ -8,7 +8,12 @@ import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
+import net.eclipce.transpondersnails.visual.FrameGovernor;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
+import net.eclipce.transpondersnails.visual.VisualQuality;
+import net.eclipce.transpondersnails.visual.VisualSettings;
+import net.eclipce.transpondersnails.visual.VisualRoles;
+import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.eclipce.transpondersnails.visual.mixin.LevelRendererAccessor;
 import net.eclipce.transpondersnails.visual.mixin.ViewAreaAccessor;
 import net.eclipce.transpondersnails.visual.network.VisualFeedStatusPacket;
@@ -72,6 +77,17 @@ public final class VisualFeedManager {
     private static int feedCounter = 0;
     private static long lastPruneMs = 0L;
     private static Boolean sodiumLike = null;
+
+    // ---- performance protection ----
+    /** Watches the viewer's frame rate while feeds render and steps the video quality down / up. */
+    private static final FrameGovernor GOVERNOR = new FrameGovernor();
+    private static int lastGovernorLevel = 0;
+    private static long frameId = 0L;
+    private static long lastFrameNs = 0L;
+    private static long lastCaptureMs = 0L;
+    /** Reused every frame / capture instead of allocating (these run up to 60 times a second). */
+    private static final List<VisualFeed> CANDIDATES = new ArrayList<>();
+    private static final ObjectArrayList<LevelRenderer.RenderChunkInfo> SAVED_SECTIONS = new ObjectArrayList<>();
 
     private VisualFeedManager() {}
 
@@ -185,47 +201,129 @@ public final class VisualFeedManager {
     // Per-frame scheduling
     // ------------------------------------------------------------------------------------------------
 
-    /** Called at the end of every rendered frame (TickEvent.RenderTickEvent, phase END). At most one feed per frame. */
+    /**
+     * Called at the end of every rendered frame (TickEvent.RenderTickEvent, phase END). At most ONE feed is rendered per frame,
+     * and only the nearest few feeds that are actually in view; the quality of each depends on how big / far its screen is
+     * and on how the viewer's frame rate is doing (see VisualQuality, FrameGovernor).
+     */
     public static void onRenderTickEnd(float partialTick) {
-        if (capturing || (LINKS.isEmpty() && FEEDS.isEmpty())) return;
+        frameId++;
+        if (capturing) return;
+        if (LINKS.isEmpty() && FEEDS.isEmpty()) {
+            lastFrameNs = 0L;
+            return;
+        }
 
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         LocalPlayer player = mc.player;
-        if (level == null || player == null || mc.isPaused()) return;
+        if (level == null || player == null || mc.isPaused()) {
+            lastFrameNs = 0L; // a pause is not a slow frame
+            return;
+        }
 
+        long nowNs = System.nanoTime();
         long nowMs = System.currentTimeMillis();
+
+        // frame time -> governor (the gap after a pause / idle period is not a frame time)
+        if (lastFrameNs != 0L) {
+            double frameMs = (nowNs - lastFrameNs) / 1_000_000.0;
+            if (frameMs < 500.0) {
+                GOVERNOR.onFrame(nowMs, frameMs, nowMs - lastCaptureMs < 1000L);
+                if (GOVERNOR.level() != lastGovernorLevel) {
+                    LOGGER.info("VisualFeedManager: video quality level {} -> {} (smoothed frame time {} ms): max {} px, {} feed(s), {}% fps",
+                            lastGovernorLevel, GOVERNOR.level(), Math.round(GOVERNOR.smoothedFrameMs()),
+                            GOVERNOR.maxResolution(VisualSettings.maxFeedResolution()),
+                            GOVERNOR.maxActiveFeeds(VisualSettings.maxActiveFeeds()), Math.round(GOVERNOR.fpsScale() * 100.0));
+                    lastGovernorLevel = GOVERNOR.level();
+                }
+            }
+        }
+        lastFrameNs = nowNs;
+
         if (nowMs - lastPruneMs > 1000L) {
             lastPruneMs = nowMs;
             releaseUnlinkedFeeds(true);
         }
 
-        long nowNs = System.nanoTime();
-        long interval = 1_000_000_000L / VisualCallConstants.FEED_FPS;
+        boolean adaptive = VisualSettings.adaptive();
+        int maxActive = adaptive ? GOVERNOR.maxActiveFeeds(VisualSettings.maxActiveFeeds()) : VisualSettings.maxActiveFeeds();
+
+        // The nearest feeds render, the rest keep their last picture. A feed whose screen has not reported "ready" yet (the
+        // call is still connecting) always renders, otherwise the call could never finish connecting.
+        CANDIDATES.clear();
+        for (VisualFeed feed : FEEDS.values()) {
+            if (!feed.failed && isWanted(feed, nowMs)) {
+                CANDIDATES.add(feed);
+            }
+        }
+        if (CANDIDATES.isEmpty()) return;
+        CANDIDATES.sort((a, b) -> Double.compare(a.lodDistance, b.lodDistance));
 
         VisualFeed due = null;
-        for (VisualFeed feed : FEEDS.values()) {
-            if (feed.failed) continue;
-            if (!isWanted(feed, nowMs)) continue;
-            if (nowNs - feed.lastCaptureNs < interval) continue;
+        for (int i = 0; i < CANDIDATES.size(); i++) {
+            VisualFeed feed = CANDIDATES.get(i);
+            if (i >= maxActive && !isHandshakePending(feed)) continue;
+            feed.fps = effectiveFps(feed, adaptive);
+            if (nowNs - feed.lastCaptureNs < 1_000_000_000L / Math.max(1, feed.fps)) continue; // each feed has its own frame rate
             if (due == null || feed.lastCaptureNs < due.lastCaptureNs) {
                 due = feed;
             }
         }
+        CANDIDATES.clear();
         if (due == null) return;
 
         due.lastCaptureNs = nowNs;
+        lastCaptureMs = nowMs;
         capture(mc, level, player, due, partialTick);
     }
 
     private static boolean isWanted(VisualFeed feed, long nowMs) {
         if (nowMs - feed.lastTouchedMs < VisualCallConstants.FEED_WANTED_WINDOW_MS) return true;
-        // A screen that has not reported "video ready" yet keeps rendering even when nobody is looking at it,
-        // otherwise the call could never finish connecting.
+        return isHandshakePending(feed);
+    }
+
+    /** A screen of this feed has not reported "video ready" yet: it must render even when nobody is looking at it. */
+    private static boolean isHandshakePending(VisualFeed feed) {
         for (ScreenLink link : LINKS.values()) {
             if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent) return true;
         }
         return false;
+    }
+
+    /**
+     * The screen renderer reports every screen it draws: how many pixels of the viewer's display it covers and how far away it
+     * is. Adaptive quality turns that into a resolution tier, frame rate and view radius for the feed.
+     */
+    static void reportView(ScreenLink link, double pixels, double distance) {
+        VisualFeed feed = FEEDS.get(link.cameraPos);
+        if (feed == null) return;
+        int wanted = VisualQuality.pickResolution(pixels, VisualCallConstants.FEED_MIN_RESOLUTION,
+                VisualQuality.TIERS[VisualQuality.TIERS.length - 1]);
+        feed.reportView(frameId, wanted, distance);
+    }
+
+    /** Frame rate of a feed: its role's rate, limited by the server, lower for far screens and when the governor asks for it. */
+    private static int effectiveFps(VisualFeed feed, boolean adaptive) {
+        int cap = Math.max(1, Math.min(feed.role.feedFps(), VisualSettings.maxFeedFps()));
+        if (!adaptive) return cap;
+        int fps = VisualQuality.pickFps(feed.lodDistance, cap);
+        return Math.max(1, (int) Math.round(fps * GOVERNOR.fpsScale()));
+    }
+
+    /**
+     * Resolution tier for the next capture of a feed. Limits (server, player, governor) apply at once; otherwise the tier the
+     * screens want is applied only after it has been wanted for a while (ResolutionPlanner), so walking back and forth does not
+     * re-create the render target all the time. A feed that no screen has been seen showing yet renders small.
+     */
+    private static int chooseResolution(VisualFeed feed, VisualSnailRole role, long nowMs) {
+        int cap = VisualQuality.floorTier(Math.min(role.feedResolution(), VisualSettings.maxFeedResolution()));
+        if (!VisualSettings.adaptive()) return cap;
+
+        cap = Math.min(cap, GOVERNOR.maxResolution(cap));
+        int min = Math.min(VisualCallConstants.FEED_MIN_RESOLUTION, cap);
+        int wanted = feed.lodResolution > 0 ? feed.lodResolution : min;
+        return feed.planner.choose(feed.isAllocated() ? feed.resolution : 0, wanted, cap, min, nowMs);
     }
 
     private static void releaseUnlinkedFeeds(boolean onlyIdle) {
@@ -272,6 +370,11 @@ public final class VisualFeedManager {
                 : ScreenLayout.eyeOffset(facing.getStepX(), facing.getStepZ());
         Vec3 eyePos = new Vec3(camPos.getX() + eye[0], camPos.getY() + eye[1], camPos.getZ() + eye[2]);
 
+        // quality depends on the filming snail: a camera snail is sharper and sees further than a standard video call
+        VisualSnailRole role = VisualRoles.of(camState.getBlock());
+        if (role == null) role = VisualSnailRole.DUPLEX;
+        feed.applyQuality(role, chooseResolution(feed, role, System.currentTimeMillis()), feed.fps);
+
         try {
             feed.allocate(++feedCounter);
         } catch (Throwable t) {
@@ -293,7 +396,12 @@ public final class VisualFeedManager {
         RenderTarget oldItemEntity = levelRenderer.itemEntityTarget;
         RenderTarget oldWeather = levelRenderer.weatherTarget;
         PostChain oldTransparencyChain = levelRenderer.transparencyChain;
-        ObjectArrayList<LevelRenderer.RenderChunkInfo> oldSections = sodium ? null : levelRenderer.renderChunksInFrustum.clone();
+        ObjectArrayList<LevelRenderer.RenderChunkInfo> oldSections = null;
+        if (!sodium) {
+            SAVED_SECTIONS.clear();
+            SAVED_SECTIONS.addAll(levelRenderer.renderChunksInFrustum); // reused list: no allocation per capture
+            oldSections = SAVED_SECTIONS;
+        }
         int oldWidth = window.getWidth();
         int oldHeight = window.getHeight();
         CameraType oldCameraType = mc.options.getCameraType();
@@ -376,6 +484,7 @@ public final class VisualFeedManager {
             if (oldSections != null) {
                 levelRenderer.renderChunksInFrustum.clear();
                 levelRenderer.renderChunksInFrustum.addAll(oldSections);
+                oldSections.clear(); // do not keep render chunks alive through the static list
             }
 
             camera.eyeHeight = oldEyeHeight;
@@ -442,9 +551,26 @@ public final class VisualFeedManager {
         LevelRenderer levelRenderer = mc.levelRenderer;
         int viewDistance = mc.options.getEffectiveRenderDistance();
 
+        // View radius: the feed's own, never more than this client has loaded (its render distance). With adaptive quality it
+        // is also shorter for low resolutions (they cannot show distant detail anyway) and when the frame governor asks for it.
+        int radius = Math.min(feed.viewChunks, viewDistance);
+        if (VisualSettings.adaptive()) {
+            radius = Math.min(radius, GOVERNOR.maxViewChunks(feed.viewChunks));
+            radius = Math.min(radius, VisualQuality.viewRadiusFor(feed.resolution, feed.viewChunks));
+        }
+        radius = Math.max(2, radius);
+
+        // The sections are the player's own ViewArea slots; they are re-assigned when the PLAYER moves to another section, so
+        // the list is rebuilt at once then (and when the radius changes), and otherwise only now and then.
+        long playerSection = SectionPos.asLong(
+                SectionPos.blockToSectionCoord(mc.player.getX()),
+                SectionPos.blockToSectionCoord(mc.player.getY()),
+                SectionPos.blockToSectionCoord(mc.player.getZ()));
         feed.capturesSinceSectionRefresh++;
         boolean refresh = feed.capturesSinceSectionRefresh >= VisualCallConstants.FEED_SECTION_REFRESH_CAPTURES
                 || feed.lastViewDistance != viewDistance
+                || feed.lastRadius != radius
+                || feed.lastPlayerSection != playerSection
                 || feed.sections.isEmpty();
         if (!refresh) return;
 
@@ -456,11 +582,12 @@ public final class VisualFeedManager {
         int camX = SectionPos.blockToSectionCoord(eyePos.x);
         int camY = SectionPos.blockToSectionCoord(eyePos.y);
         int camZ = SectionPos.blockToSectionCoord(eyePos.z);
-        int radius = Math.min(VisualCallConstants.FEED_VIEW_CHUNKS, viewDistance);
-        int minY = Math.max(level.getMinSection(), camY - VisualCallConstants.FEED_VIEW_SECTIONS_VERTICAL);
-        int maxY = Math.min(level.getMaxSection() - 1, camY + VisualCallConstants.FEED_VIEW_SECTIONS_VERTICAL);
+        int minY = Math.max(level.getMinSection(), camY - feed.viewVertical);
+        int maxY = Math.min(level.getMaxSection() - 1, camY + feed.viewVertical);
 
-        List<LevelRenderer.RenderChunkInfo> list = new ArrayList<>();
+        BlockPos.MutableBlockPos origin = new BlockPos.MutableBlockPos(); // one object for the whole scan, not one per section
+        List<LevelRenderer.RenderChunkInfo> list = feed.sections;
+        list.clear();
         for (int cx = camX - radius; cx <= camX + radius; cx++) {
             for (int cz = camZ - radius; cz <= camZ + radius; cz++) {
                 int dx = cx - camX;
@@ -468,7 +595,7 @@ public final class VisualFeedManager {
                 if (dx * dx + dz * dz > radius * radius) continue;
 
                 for (int cy = minY; cy <= maxY; cy++) {
-                    BlockPos origin = new BlockPos(cx << 4, cy << 4, cz << 4);
+                    origin.set(cx << 4, cy << 4, cz << 4);
                     ChunkRenderDispatcher.RenderChunk section = ((ViewAreaAccessor) viewArea).transpondersnails$getRenderChunkAt(origin);
                     if (section == null) continue;
 
@@ -491,13 +618,14 @@ public final class VisualFeedManager {
             }
         } else if (!feed.sectionsLogged) {
             feed.sectionsLogged = true;
-            LOGGER.info("VisualFeedManager: rendering {} sections around the snail at {} (radius {} chunks)",
-                    list.size(), feed.cameraPos, radius);
+            LOGGER.info("VisualFeedManager: rendering {} sections around the snail at {} ({}x{} px, view radius {} of {} chunks, {} fps)",
+                    list.size(), feed.cameraPos, feed.resolution, feed.resolution, radius, feed.viewChunks, feed.fps);
         }
 
-        feed.sections = list;
         feed.capturesSinceSectionRefresh = 0;
         feed.lastViewDistance = viewDistance;
+        feed.lastRadius = radius;
+        feed.lastPlayerSection = playerSection;
     }
 
     private static void fail(VisualFeed feed, String reason) {

@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.visual.server;
 
 import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
+import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.resources.ResourceKey;
@@ -32,7 +33,7 @@ public final class VisualCallSession {
         CONNECTED
     }
 
-    public enum EndReason { HANG_UP, CANCELLED, REJECTED, NO_ANSWER, LOST, FAILED, SERVER_STOP }
+    public enum EndReason { HANG_UP, CANCELLED, NO_ANSWER, LOST, FAILED, SERVER_STOP }
 
     /** A player who was told to render the feed for one screen. */
     public record ViewerKey(UUID player, BlockPos screen) {}
@@ -42,6 +43,8 @@ public final class VisualCallSession {
     private final BlockPos callerPos;
     private final BlockPos calleePos;
     private final long createdTick;
+    private final VisualSnailRole callerRole;
+    private final VisualSnailRole calleeRole;
 
     private volatile State state = State.RINGING;
     private volatile long connectingSinceTick;
@@ -57,14 +60,36 @@ public final class VisualCallSession {
     private final AtomicInteger audioErrors = new AtomicInteger(0);
     private volatile long lastAudioAtCallerMs = 0L;
     private volatile long lastAudioAtCalleeMs = 0L;
+    private volatile long lastAudioFromCallerMs = 0L;
+    private volatile long lastAudioFromCalleeMs = 0L;
     private volatile String pendingFailure;
 
-    public VisualCallSession(UUID callId, ResourceKey<Level> dimension, BlockPos callerPos, BlockPos calleePos, long createdTick) {
+    public VisualCallSession(UUID callId, ResourceKey<Level> dimension, BlockPos callerPos, BlockPos calleePos, long createdTick,
+                             VisualSnailRole callerRole, VisualSnailRole calleeRole) {
         this.callId = callId;
         this.dimension = dimension;
         this.callerPos = callerPos.immutable();
         this.calleePos = calleePos.immutable();
         this.createdTick = createdTick;
+        this.callerRole = callerRole;
+        this.calleeRole = calleeRole;
+    }
+
+    // ---------------- roles (what each end can do in THIS call) ----------------
+
+    public VisualSnailRole roleAt(BlockPos pos) { return isCaller(pos) ? callerRole : calleeRole; }
+
+    /**
+     * This end shows the other end's picture (has a screen) and plays its audio. False for a transmit-only camera, and for
+     * an end whose partner is not able to transmit.
+     */
+    public boolean receivesFromOther(BlockPos pos) {
+        return VisualSnailRole.receives(roleAt(pos), roleAt(other(pos)));
+    }
+
+    /** This end's camera and microphone are used by the other end. False for e.g. a projector that is watching a camera. */
+    public boolean transmitsToOther(BlockPos pos) {
+        return VisualSnailRole.transmits(roleAt(pos), roleAt(other(pos)));
     }
 
     // ---------------- identity ----------------
@@ -123,6 +148,16 @@ public final class VisualCallSession {
         return isCaller(pos) ? lastAudioAtCallerMs : lastAudioAtCalleeMs;
     }
 
+    /** Called from the audio thread when the microphone of the snail at pos picked up a speaker (transmit-only ends use it for the "active" model). */
+    public void markAudioFrom(BlockPos pos) {
+        long now = System.currentTimeMillis();
+        if (isCaller(pos)) lastAudioFromCallerMs = now; else lastAudioFromCalleeMs = now;
+    }
+
+    public long lastAudioFrom(BlockPos pos) {
+        return isCaller(pos) ? lastAudioFromCallerMs : lastAudioFromCalleeMs;
+    }
+
     /** @return consecutive send errors including this one */
     public int recordAudioError() { return audioErrors.incrementAndGet(); }
 
@@ -141,7 +176,11 @@ public final class VisualCallSession {
     // ---------------- video handshake ----------------
 
     public void markScreenReady(BlockPos screen) { readyScreens.add(screen); }
-    public boolean allScreensReady() { return readyScreens.contains(callerPos) && readyScreens.contains(calleePos); }
+    /** Every end that HAS a screen has reported a working picture (a transmit-only camera has no screen and is not waited for). */
+    public boolean allScreensReady() {
+        return (!receivesFromOther(callerPos) || readyScreens.contains(callerPos))
+                && (!receivesFromOther(calleePos) || readyScreens.contains(calleePos));
+    }
 
     /** @return true if this (player, screen) pair was newly added, i.e. the player still has to be sent START */
     public boolean addViewer(UUID player, BlockPos screen) { return viewers.add(new ViewerKey(player, screen.immutable())); }

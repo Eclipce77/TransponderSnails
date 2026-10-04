@@ -6,9 +6,15 @@ import de.maxhenkel.voicechat.api.audiochannel.AudioChannel;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import net.eclipce.transpondersnails.TransponderSnails;
+import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.visual.ProjectorPlacement;
+import net.eclipce.transpondersnails.visual.ProjectorSurface;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
+import net.eclipce.transpondersnails.visual.VisualRoles;
+import net.eclipce.transpondersnails.visual.VisualSettings;
+import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.eclipce.transpondersnails.visual.VisualCallState;
 import net.eclipce.transpondersnails.visual.network.VisualFeedControlPacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
@@ -21,12 +27,14 @@ import net.eclipce.transpondersnails.voice.server.SnailAudioRelay;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -103,6 +111,8 @@ public final class VisualCallManager {
     private final Map<UUID, VisualCallSession> sessions = new ConcurrentHashMap<>();
     private final Map<GlobalPos, UUID> snailToCall = new ConcurrentHashMap<>();
     private long tickCounter = 0;
+    /** Last tick a player's click was accepted (rate limit, see INTERACTION_COOLDOWN_TICKS). */
+    private final Map<UUID, Long> lastInteractionTick = new ConcurrentHashMap<>();
 
     private VisualCallManager(TransponderCallManager callManager) {
         this.callManager = callManager;
@@ -120,16 +130,24 @@ public final class VisualCallManager {
     // =====================================================================================================
 
     /**
-     * Right click on a Visual Snail (sneak + right click on an idle one is handled by the block entity: screen size).
+     * Right click on a Visual Snail. (Crouch + right click never gets here: on a projector it opens the settings menu, see
+     * VisualProjectorConfig; there is no reject - a call that is not wanted is simply not answered.)
      * <ul>
      *   <li>idle: start a call to the nearest idle Visual Snail in range</li>
-     *   <li>ringing (callee), no sneak: answer</li>
-     *   <li>ringing (callee), sneak: reject; ringing (caller): cancel</li>
+     *   <li>ringing (callee): answer; ringing (caller): cancel</li>
      *   <li>connecting / connected: hang up</li>
      * </ul>
      */
-    public InteractionResult onInteract(ServerPlayer player, TransponderSnailBlockEntity snail, boolean sneaking) {
+    public InteractionResult onInteract(ServerPlayer player, TransponderSnailBlockEntity snail) {
         if (!(snail.getLevel() instanceof ServerLevel level)) return InteractionResult.FAIL;
+
+        // A player hammering the button would start and end calls (with sounds and packets) every tick: ignore clicks that
+        // come too soon after the last accepted one. Ignored clicks do not extend the cooldown.
+        Long lastClick = lastInteractionTick.get(player.getUUID());
+        if (lastClick != null && tickCounter - lastClick < VisualCallConstants.INTERACTION_COOLDOWN_TICKS) {
+            return InteractionResult.SUCCESS;
+        }
+        lastInteractionTick.put(player.getUUID(), tickCounter);
 
         BlockPos pos = snail.getBlockPos();
         GlobalPos gp = GlobalPos.of(level.dimension(), pos);
@@ -142,10 +160,10 @@ public final class VisualCallManager {
 
         switch (session.getState()) {
             case RINGING:
-                if (session.isCallee(pos) && !sneaking) {
+                if (session.isCallee(pos)) {
                     return accept(player, level, session) ? InteractionResult.SUCCESS : InteractionResult.FAIL;
                 }
-                end(session, session.isCallee(pos) ? EndReason.REJECTED : EndReason.CANCELLED, null, player, pos);
+                end(session, EndReason.CANCELLED, null, player, pos);
                 return InteractionResult.SUCCESS;
             case CONNECTING:
             case CONNECTED:
@@ -162,12 +180,24 @@ public final class VisualCallManager {
             return false;
         }
 
+        // server-wide limit (server config: visual_snails.max_concurrent_calls)
+        if (sessions.size() >= VisualSettings.maxConcurrentCalls()) {
+            msg(player, "This server's limit of " + VisualSettings.maxConcurrentCalls()
+                    + " simultaneous video calls has been reached - try again later.", ChatFormatting.RED);
+            return false;
+        }
+
         BlockPos callerPos = caller.getBlockPos();
+        VisualSnailRole callerRole = VisualRoles.ofEntity(caller);
+        if (callerRole == null) callerRole = VisualSnailRole.DUPLEX;
 
         List<TransponderSnailBlockEntity> others = new ArrayList<>();
         List<VisualPartnerFinder.Candidate> candidates = new ArrayList<>();
         for (TransponderSnailBlockEntity be : VisualSnailRegistry.all()) {
             if (be == caller || be.isRemoved() || be.getLevel() != level) continue;
+            // only snails that can show a picture are called: a camera (transmit only) is never the one being called
+            VisualSnailRole role = VisualRoles.ofEntity(be);
+            if (role == null || !VisualSnailRole.canCall(callerRole, role)) continue;
             BlockPos p = be.getBlockPos();
             others.add(be);
             candidates.add(new VisualPartnerFinder.Candidate(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5,
@@ -180,7 +210,9 @@ public final class VisualCallManager {
 
         switch (result.outcome()) {
             case NONE:
-                msg(player, "No other Visual Transponder Snail within " + (int) VisualCallConstants.CALL_RANGE + " blocks!",
+                msg(player, callerRole == VisualSnailRole.CAMERA
+                                ? "No Visual Transponder Snail within " + (int) VisualCallConstants.CALL_RANGE + " blocks to transmit to!"
+                                : "No other Visual Transponder Snail within " + (int) VisualCallConstants.CALL_RANGE + " blocks!",
                         ChatFormatting.RED);
                 return false;
             case BUSY:
@@ -194,7 +226,9 @@ public final class VisualCallManager {
         TransponderSnailBlockEntity callee = others.get(result.index());
         BlockPos calleePos = callee.getBlockPos();
 
-        VisualCallSession session = new VisualCallSession(UUID.randomUUID(), level.dimension(), callerPos, calleePos, tickCounter);
+        VisualSnailRole calleeRole = VisualRoles.ofEntity(callee);
+        VisualCallSession session = new VisualCallSession(UUID.randomUUID(), level.dimension(), callerPos, calleePos, tickCounter,
+                callerRole, calleeRole == null ? VisualSnailRole.DUPLEX : calleeRole);
         sessions.put(session.callId(), session);
         snailToCall.put(session.callerGp(), session.callId());
         snailToCall.put(session.calleeGp(), session.callId());
@@ -217,9 +251,12 @@ public final class VisualCallManager {
         // Audio first: if it cannot be set up the call never connects.
         soundManager.stopSnailPositionSounds(session.calleePos(), CallSoundManager.SoundType.RING_TONE);
 
-        LocationalAudioChannel atCaller = createChannel(level, session.callerPos());
-        LocationalAudioChannel atCallee = createChannel(level, session.calleePos());
-        if (atCaller == null || atCallee == null) {
+        // a channel (speaker) is only needed at an end that plays audio; a transmit-only camera has none
+        boolean callerPlays = session.receivesFromOther(session.callerPos());
+        boolean calleePlays = session.receivesFromOther(session.calleePos());
+        LocationalAudioChannel atCaller = callerPlays ? createChannel(level, session.callerPos()) : null;
+        LocationalAudioChannel atCallee = calleePlays ? createChannel(level, session.calleePos()) : null;
+        if ((callerPlays && atCaller == null) || (calleePlays && atCallee == null)) {
             fail(session, "audio channel could not be created", player);
             return false;
         }
@@ -265,7 +302,7 @@ public final class VisualCallManager {
     public void onVideoStatus(ServerPlayer player, UUID callId, BlockPos screenPos, boolean ok, String reason) {
         VisualCallSession session = sessions.get(callId);
         if (session == null || session.getState() == State.RINGING) return;
-        if (!session.involves(screenPos)) return;
+        if (!session.involves(screenPos) || !session.receivesFromOther(screenPos)) return; // only ends that have a screen report
         if (!player.level().dimension().equals(session.dimension())) return;
         double maxDist = VisualCallConstants.VIDEO_TRACK_RANGE + 16.0;
         if (player.distanceToSqr(screenPos.getX() + 0.5, screenPos.getY() + 0.5, screenPos.getZ() + 0.5) > maxDist * maxDist) return;
@@ -277,17 +314,53 @@ public final class VisualCallManager {
         }
     }
 
-    /** Tell every player near either screen to render the feed. Idempotent per (player, screen). */
+    /** Tell every player near a screen to render its feed. Idempotent per (player, screen). One pass over the players, no allocation. */
     private void refreshViewers(ServerLevel level, VisualCallSession session) {
-        double range = VisualCallConstants.VIDEO_TRACK_RANGE;
-        for (BlockPos screen : new BlockPos[]{session.callerPos(), session.calleePos()}) {
-            BlockPos camera = session.other(screen);
-            for (ServerPlayer p : playersNear(level, screen, range)) {
-                if (session.addViewer(p.getUUID(), screen)) {
-                    sendControl(p, session.callId(), screen, camera, true);
-                }
+        BlockPos a = session.callerPos();
+        BlockPos b = session.calleePos();
+        boolean aShows = session.receivesFromOther(a); // a transmit-only camera has no screen to feed
+        boolean bShows = session.receivesFromOther(b);
+        if (!aShows && !bShows) return;
+
+        // A projector's screen can be up to PROJECTOR_MAX_THROW blocks from the snail (on the surface behind it), so a player
+        // counts as a viewer when they are near the snail OR near the screen itself.
+        double r2 = VisualCallConstants.VIDEO_TRACK_RANGE * VisualCallConstants.VIDEO_TRACK_RANGE;
+        double[] aScreen = aShows ? screenCenter(level, a) : null;
+        double[] bScreen = bShows ? screenCenter(level, b) : null;
+        for (ServerPlayer p : level.players()) {
+            if (aShows && isNear(p, a, aScreen, r2) && session.addViewer(p.getUUID(), a)) {
+                sendControl(p, session.callId(), a, b, true);
+            }
+            if (bShows && isNear(p, b, bScreen, r2) && session.addViewer(p.getUUID(), b)) {
+                sendControl(p, session.callId(), b, a, true);
             }
         }
+    }
+
+    private static boolean isNear(ServerPlayer p, BlockPos snail, double[] screen, double rangeSq) {
+        return p.distanceToSqr(snail.getX() + 0.5, snail.getY() + 0.5, snail.getZ() + 0.5) <= rangeSq
+                || p.distanceToSqr(screen[0], screen[1], screen[2]) <= rangeSq;
+    }
+
+    /**
+     * World position of the middle of a projector snail's screen (the snail itself if that cannot be worked out). Uses the same
+     * placement as the client draws (ProjectorPlacement), so server and clients agree about where the screen is.
+     */
+    private static double[] screenCenter(ServerLevel level, BlockPos pos) {
+        double[] snailCenter = {pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5};
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof TransponderSnailBlock) || !state.hasProperty(TransponderSnailBlock.FACING)) return snailCenter;
+        BlockEntity be = level.getBlockEntity(pos);
+        if (!(be instanceof TransponderSnailBlockEntity snail)) return snailCenter;
+
+        Direction facing = state.getValue(TransponderSnailBlock.FACING);
+        Direction screenDir = VisualCallConstants.SCREEN_BEHIND_SNAIL ? facing.getOpposite() : facing;
+        double surface = ProjectorSurface.find(level, pos, screenDir);
+        ProjectorPlacement.Result r = ProjectorPlacement.compute(facing.getStepX(), facing.getStepZ(), snail.getScreenSize(),
+                snail.getScreenOffsetSide(), snail.getScreenOffsetUp(), snail.getScreenOffsetBack(),
+                VisualSettings.maxScreenSize(), surface);
+        double[] c = r.center();
+        return new double[]{pos.getX() + c[0], pos.getY() + c[1], pos.getZ() + c[2]};
     }
 
     private static void sendControl(ServerPlayer player, UUID callId, BlockPos screen, BlockPos camera, boolean start) {
@@ -296,6 +369,7 @@ public final class VisualCallManager {
     }
 
     public void onPlayerLeft(UUID playerId) {
+        lastInteractionTick.remove(playerId);
         for (VisualCallSession s : sessions.values()) {
             s.removeViewersOf(playerId);
         }
@@ -312,7 +386,8 @@ public final class VisualCallManager {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        for (VisualCallSession session : new ArrayList<>(sessions.values())) {
+        // sessions is a ConcurrentHashMap: iterating it directly is safe even though end() removes entries, and costs no copy per tick
+        for (VisualCallSession session : sessions.values()) {
             try {
                 tickSession(server, session);
             } catch (Exception e) {
@@ -360,15 +435,21 @@ public final class VisualCallManager {
                 break;
 
             case CONNECTED:
-                if (tickCounter % 10 == 0) refreshViewers(level, session);
+                if (tickCounter % VisualCallConstants.VIEWER_REFRESH_TICKS == 0) refreshViewers(level, session);
                 long now = System.currentTimeMillis();
-                caller.setVisualAudioActive(now - session.lastAudioAt(session.callerPos()) < VisualCallConstants.AUDIO_ACTIVITY_WINDOW_MS);
-                callee.setVisualAudioActive(now - session.lastAudioAt(session.calleePos()) < VisualCallConstants.AUDIO_ACTIVITY_WINDOW_MS);
+                caller.setVisualAudioActive(audioActive(session, session.callerPos(), now));
+                callee.setVisualAudioActive(audioActive(session, session.calleePos(), now));
                 break;
         }
     }
 
-    /** Audio AND video are up on both ends. */
+    /** "Active" model: an end that plays audio shows it while audio arrives; a transmit-only end (camera) while it picks sound up. */
+    private static boolean audioActive(VisualCallSession session, BlockPos end, long nowMs) {
+        long last = session.receivesFromOther(end) ? session.lastAudioAt(end) : session.lastAudioFrom(end);
+        return nowMs - last < VisualCallConstants.AUDIO_ACTIVITY_WINDOW_MS;
+    }
+
+    /** Audio AND video are up on every end that has a screen / speaker. */
     private void connect(ServerLevel level, VisualCallSession session) {
         session.setState(State.CONNECTED);
         setSnailState(session.callerGp(), VisualCallState.CONNECTED);
@@ -400,16 +481,21 @@ public final class VisualCallManager {
         double range = VoiceChatConstants.getLocationalSnailRange();
         if (range <= 0.0) return false;
 
+        // This runs for EVERY microphone packet of EVERY player (about 50 per second each), so it must stay cheap: squared
+        // distances only (one sqrt at the end), one dimension lookup, no allocation.
         VisualCallSession bestSession = null;
         BlockPos bestPos = null;
-        double bestDist = range;
+        double bestDistSq = range * range;
+        var speakerDimension = speaker.level().dimension();
 
         for (VisualCallSession s : sessions.values()) {
-            if (!s.dimension().equals(speaker.level().dimension())) continue;
-            for (BlockPos p : new BlockPos[]{s.callerPos(), s.calleePos()}) {
-                double d = Math.sqrt(speaker.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5));
-                if (d < bestDist) {
-                    bestDist = d;
+            if (!s.dimension().equals(speakerDimension)) continue;
+            for (int end = 0; end < 2; end++) {
+                BlockPos p = end == 0 ? s.callerPos() : s.calleePos();
+                if (!s.transmitsToOther(p)) continue; // nobody listens at the other end (e.g. a projector that is watching a camera)
+                double dSq = speaker.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5);
+                if (dSq < bestDistSq) {
+                    bestDistSq = dSq;
                     bestSession = s;
                     bestPos = p;
                 }
@@ -417,6 +503,7 @@ public final class VisualCallManager {
         }
 
         if (bestSession == null) return false;
+        double bestDist = Math.sqrt(bestDistSq);
         if (bestSession.getState() != State.CONNECTED) return true; // in range, but audio only flows once video is up too
 
         byte[] opus = event.getPacket().getOpusEncodedData();
@@ -433,6 +520,7 @@ public final class VisualCallManager {
         try {
             channel.send(audio);
             bestSession.markAudioAt(target);
+            bestSession.markAudioFrom(bestPos);
         } catch (Exception e) {
             int errors = bestSession.recordAudioError();
             if (errors == 1) LOGGER.warn("VisualCallManager: audio send failed: {}", e.toString());
@@ -518,9 +606,6 @@ public final class VisualCallManager {
                     break;
                 case NO_ANSWER:
                     broadcastNear(level, session, "No answer.", ChatFormatting.GRAY);
-                    break;
-                case REJECTED:
-                    broadcastNear(level, session, "Call rejected.", ChatFormatting.GRAY);
                     break;
                 case CANCELLED:
                     broadcastNear(level, session, "Call cancelled.", ChatFormatting.GRAY);

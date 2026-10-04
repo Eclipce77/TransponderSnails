@@ -375,12 +375,13 @@ public class TransponderSnailItem extends BlockItem {
     }
 
     /**
-     * The Visual and Amplified Transponder Snail have no Snail Number and take no part in the
+     * The Visual Transponder Snail, the Visual Transmitter Transponder Snail and the Amplified Transponder Snail have no Snail Number and take no part in the
      * calling system - see TransponderSnailBlockEntity.hasSnailNumber for the placed-block side
      * of this same restriction.
      */
     private static boolean isNumberlessSnail(ItemStack stack) {
         return stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()
+                || stack.getItem() == ModItems.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get()
                 || stack.getItem() == ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get();
     }
 
