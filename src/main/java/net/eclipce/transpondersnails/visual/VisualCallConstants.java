@@ -15,7 +15,7 @@ public final class VisualCallConstants {
     public static final String CAMERA_SNAIL_ID = "visual_transmitter_transponder_snail";
 
     // ---------------- Matching ----------------
-    /** Two Visual Snails auto-connect when they are within this many blocks (centre to centre, same dimension). */
+    /** Two Visual Snails auto-connect when they are within this many blocks (center to center, same dimension). */
     public static final double CALL_RANGE = 20.0;
 
     // ---------------- Screen ("projector") ----------------
@@ -62,7 +62,7 @@ public final class VisualCallConstants {
     public static final int PROJECTOR_ZOOM_RANGE = 4;
     /** With no surface behind the snail the screen can be pushed this many blocks further back - never towards the snail. */
     public static final double SCREEN_BACK_MAX = 3.0;
-    /** Colour multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
+    /** Color multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
      *  monitor tint keeps the screen distinguishable from the world around it. */
     public static final int FEED_TINT_R = 215;
     public static final int FEED_TINT_G = 255;
@@ -82,11 +82,19 @@ public final class VisualCallConstants {
     /** The picture fades in over this long after the call is answered (a projector warming up, only faster). */
     public static final long FEED_FADE_IN_MS = 800L;
     /** The picture is drawn at least this bright (Minecraft light level 0-15) even in a dark room, like a projector;
-     *  in a brighter spot it is drawn at that spot's brightness. */
-    public static final int PROJECTOR_IMAGE_LIGHT = 14;
+     *  in a brighter spot it is drawn at that spot's brightness. 15 = full brightness: the picture is exactly as bright at night as by
+     *  day (by day the surroundings are 15 anyway). With less than 15 the picture is dimmer in the dark than in the sun. */
+    public static final int PROJECTOR_IMAGE_LIGHT = 15;
+    /**
+     * Camera exposure (0-1). The feed is a render of the world through the snail's eyes, so at night it is as dark as the night. A camera
+     * exposes for the dark: while a feed is captured the world is lit as if the player's Brightness option were at least this value
+     * (1.0 = "Bright"), so the picture shows what is going on at night. It never lowers the player's own setting, and the player's own view
+     * is not affected (the setting and the light map are put back right after each capture). 0 switches it off.
+     */
+    public static final double FEED_CAPTURE_BRIGHTNESS = 1.0;
     /** Light level (0-15) the snail BLOCK itself gives off while it is in a call. Only used by the optional
      *  ModBlocks patch; 0 = no light. */
-    public static final int PROJECTOR_EMIT_LIGHT = 8;
+    public static final int PROJECTOR_EMIT_LIGHT = 8; // no longer used: the snails do not light up as a whole any more (see GLOW_* below)
 
     // ---------------- Video feed (client rendering) ----------------
     /**
@@ -138,6 +146,76 @@ public final class VisualCallConstants {
     public static final int MAX_AUDIO_SEND_ERRORS = 25;
     /** If true, any viewer reporting a video error ends the call (the requested "video failure fails the call" rule). */
     public static final boolean FAIL_CALL_ON_ANY_VIEWER_ERROR = true;
+
+    // ---------------- Projector effects ----------------
+    // --- glowing parts of the snails (see VisualGlowModels / VisualScreenRenderer): light levels 0-15, drawn full-bright over the model ---
+    /** The snail's eyes while it is capturing (projector: capturing AND projecting). */
+    public static final int GLOW_EYES_LIGHT = 15;
+    /** The projector part of the Visual Transponder Snail while it projects. */
+    public static final int GLOW_PROJECTOR_LIGHT = 12;
+    /** The TOP part of the projector - the lens that "throws" the picture - is slightly brighter than the rest of it. */
+    public static final int GLOW_PROJECTOR_TOP_LIGHT = 14;
+    /**
+     * Where the light ray starts: the center of the top part of the projector (element 9 of visual_transponder_snail.json), in model
+     * pixels (0-16) for a snail facing north. tools/generate_glow_models.py prints this center; update it if the model changes.
+     */
+    public static final double PROJECTOR_LENS_X = 8.0;
+    public static final double PROJECTOR_LENS_Y = 11.75;
+    public static final double PROJECTOR_LENS_Z = 10.52;
+
+    // --- the projector turning on and off: the picture fades in / out, with TV static and a pop of light at both ends (ProjectorTransition) ---
+    /** The picture fades out over this long (ms) when the call ends, frozen on its last frame. (The fade-in is FEED_FADE_IN_MS.) */
+    public static final long FEED_FADE_OUT_MS = 900L;
+    /** TV static: how strong it gets at most (0-1 opacity), and how long it takes to die away after the projector turns on (ms). */
+    public static final double PROJECTOR_STATIC_PEAK = 0.85;
+    public static final long PROJECTOR_STATIC_IN_MS = 700L;
+    /** The pop of light: it rises in this many ms and dies away with a time constant of DECAY ms when the projector turns on... */
+    public static final long PROJECTOR_POP_RISE_MS = 50L;
+    public static final long PROJECTOR_POP_DECAY_MS = 130L;
+    /** ...and when it turns off, as a fraction of FEED_FADE_OUT_MS: the pop peaks at AT and is WIDTH wide (a bump). */
+    public static final double PROJECTOR_POP_END_AT = 0.55;
+    public static final double PROJECTOR_POP_END_WIDTH = 0.12;
+    /** How strong the pop is: the flash over the picture, the bright horizontal line (like a CRT's), and how much it boosts the glow and the ray. */
+    public static final double PROJECTOR_POP_FLASH_ALPHA = 0.55;
+    public static final double PROJECTOR_POP_LINE_ALPHA = 0.90;
+    public static final double PROJECTOR_POP_BLOOM_BOOST = 1.5;
+    public static final double PROJECTOR_POP_BEAM_BOOST = 1.0;
+
+    // --- the projected picture ---
+    /** The picture fades out at its edges over about this many blocks (never less than MIN, nor more than MAX of the picture's width). */
+    public static final double PROJECTOR_EDGE_FEATHER_BLOCKS = 0.30;
+    public static final double PROJECTOR_EDGE_FEATHER_MIN = 0.02;
+    public static final double PROJECTOR_EDGE_FEATHER_MAX = 0.10;
+    /** Corners of the picture are this much darker than its middle (a projector's light is strongest in the middle). */
+    public static final double PROJECTOR_VIGNETTE = 0.30;
+    /** The picture loses up to this much brightness at the longest throw (PROJECTOR_MAX_THROW)... */
+    public static final double PROJECTOR_THROW_DIMMING = 0.20;
+    /** ...and up to this much at the largest screen (the same light spread over a bigger area). */
+    public static final double PROJECTOR_SIZE_DIMMING = 0.15;
+    /** In full daylight the picture is this much fainter (a real projector is washed out by ambient light). */
+    public static final double PROJECTOR_DAYLIGHT_WASHOUT = 0.20;
+
+    // --- light bloom: a soft glow around the picture, stronger in the dark ---
+    /** How strongly the glow and the ray show (0-1) in full daylight and in the dark; in between it follows the light level. */
+    public static final double PROJECTOR_GLOW_DAY = 0.35;
+    public static final double PROJECTOR_GLOW_NIGHT = 0.60;
+    /** Strength of the glow right next to the picture's edge (0-1), and of its wider, fainter second layer. */
+    public static final double PROJECTOR_BLOOM_NEAR_ALPHA = 0.28;
+    public static final double PROJECTOR_BLOOM_FAR_ALPHA = 0.12;
+    /** Width of the glow in blocks: BASE + PER_SIZE x the screen size, kept between MIN and MAX. */
+    public static final double PROJECTOR_BLOOM_WIDTH_BASE = 0.20;
+    public static final double PROJECTOR_BLOOM_WIDTH_PER_SIZE = 0.06;
+    public static final double PROJECTOR_BLOOM_WIDTH_MIN = 0.30;
+    public static final double PROJECTOR_BLOOM_WIDTH_MAX = 1.40;
+    public static final int PROJECTOR_LIGHT_R = 190;
+    public static final int PROJECTOR_LIGHT_G = 225;
+    public static final int PROJECTOR_LIGHT_B = 255;
+
+    // --- the light ray between the projector and the screen ---
+    public static final boolean PROJECTOR_BEAM_ENABLED = true;
+    /** Strength (0-1) of the ray at the lens and at the screen. It is deliberately almost invisible at the screen, so it never hides it. */
+    public static final double PROJECTOR_BEAM_APEX_ALPHA = 0.35;
+    public static final double PROJECTOR_BEAM_BASE_ALPHA = 0.02;
 
     // ---------------- Server protection ----------------
     /** A player's clicks on a Visual snail closer together than this (ticks) are ignored (each one would start / end a call). */

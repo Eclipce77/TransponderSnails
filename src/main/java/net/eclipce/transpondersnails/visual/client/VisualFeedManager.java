@@ -9,6 +9,8 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
 import net.eclipce.transpondersnails.visual.FrameGovernor;
+import net.eclipce.transpondersnails.visual.ProjectorEffects;
+import net.eclipce.transpondersnails.visual.ProjectorTransition;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualQuality;
 import net.eclipce.transpondersnails.visual.VisualSettings;
@@ -25,6 +27,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.PostChain;
 import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.ChunkRenderDispatcher;
@@ -55,7 +58,7 @@ import java.util.UUID;
  * Client side of the video call: renders the world from a remote Visual Snail's eyes into an offscreen render target.
  *
  * The capture sequence (temporary camera entity, render target swap, panoramic 1:1 projection, restoring all touched
- * renderer state afterwards) follows the approach of SecurityCraft's FrameFeedHandler
+ * renderer state afterward) follows the approach of SecurityCraft's FrameFeedHandler
  * (https://github.com/Geforce132/SecurityCraft, MIT License, Copyright (c) 2025 The SecurityCraft development team).
  * See THIRD_PARTY_NOTICE.txt. Unlike SecurityCraft, no distant chunks are loaded: the two snails are at most
  * {@link VisualCallConstants#CALL_RANGE} blocks apart, so the chunks around the remote snail are already loaded on any
@@ -102,6 +105,15 @@ public final class VisualFeedManager {
         boolean drawLogged = false;
         /** When the first fresh picture of this call arrived (start of the fade-in), or -1 while there is none. */
         long pictureStartMs = -1L;
+        /**
+         * When the call ended (the "stop" arrived), or -1 while it runs. A screen that has a picture does not vanish then: it stays for
+         * FEED_FADE_OUT_MS, frozen on its last picture, and plays its fade-out (with static and a pop of light); then it is removed.
+         */
+        long endMs = -1L;
+
+        boolean isEnding() {
+            return endMs >= 0L;
+        }
 
         private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos) {
             this.callId = callId;
@@ -157,6 +169,12 @@ public final class VisualFeedManager {
         return feed;
     }
 
+    /** The feed of a link WITHOUT marking it as wanted: for a screen that is fading out, which must not make the feed capture again. */
+    @Nullable
+    static VisualFeed peekFeed(ScreenLink link) {
+        return FEEDS.get(link.cameraPos);
+    }
+
     static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start) {
         if (start) {
             ScreenLink already = LINKS.get(screenPos);
@@ -178,8 +196,16 @@ public final class VisualFeedManager {
         } else {
             ScreenLink link = LINKS.get(screenPos);
             if (link != null && link.callId.equals(callId)) {
-                LINKS.remove(screenPos);
-                releaseUnlinkedFeeds(false);
+                VisualFeed feed = FEEDS.get(link.cameraPos);
+                boolean hasPicture = link.pictureStartMs >= 0L && feed != null && feed.hasFrame() && !feed.failed;
+                if (hasPicture) {
+                    if (!link.isEnding()) {
+                        link.endMs = System.currentTimeMillis(); // keep it: it fades out on its last picture, then pruneEndedLinks removes it
+                    }
+                } else {
+                    LINKS.remove(screenPos); // never showed anything: nothing to fade out
+                    releaseUnlinkedFeeds(false);
+                }
             }
         }
     }
@@ -209,6 +235,7 @@ public final class VisualFeedManager {
     public static void onRenderTickEnd(float partialTick) {
         frameId++;
         if (capturing) return;
+        pruneEndedLinks(System.currentTimeMillis());
         if (LINKS.isEmpty() && FEEDS.isEmpty()) {
             lastFrameNs = 0L;
             return;
@@ -279,8 +306,17 @@ public final class VisualFeedManager {
     }
 
     private static boolean isWanted(VisualFeed feed, long nowMs) {
+        if (!hasRunningLink(feed)) return false; // every screen of this feed is fading out: its last picture stays frozen
         if (nowMs - feed.lastTouchedMs < VisualCallConstants.FEED_WANTED_WINDOW_MS) return true;
         return isHandshakePending(feed);
+    }
+
+    /** Is there a screen of this feed whose call has not ended? */
+    private static boolean hasRunningLink(VisualFeed feed) {
+        for (ScreenLink link : LINKS.values()) {
+            if (link.cameraPos.equals(feed.cameraPos) && !link.isEnding()) return true;
+        }
+        return false;
     }
 
     /** A screen of this feed has not reported "video ready" yet: it must render even when nobody is looking at it. */
@@ -324,6 +360,22 @@ public final class VisualFeedManager {
         int min = Math.min(VisualCallConstants.FEED_MIN_RESOLUTION, cap);
         int wanted = feed.lodResolution > 0 ? feed.lodResolution : min;
         return feed.planner.choose(feed.isAllocated() ? feed.resolution : 0, wanted, cap, min, nowMs);
+    }
+
+    /** Removes the screens whose fade-out has played completely (and frees their feed if nothing else uses it). */
+    private static void pruneEndedLinks(long nowMs) {
+        boolean removed = false;
+        Iterator<ScreenLink> it = LINKS.values().iterator();
+        while (it.hasNext()) {
+            ScreenLink link = it.next();
+            if (link.isEnding() && ProjectorTransition.finished(nowMs - link.endMs)) {
+                it.remove();
+                removed = true;
+            }
+        }
+        if (removed) {
+            releaseUnlinkedFeeds(false);
+        }
     }
 
     private static void releaseUnlinkedFeeds(boolean onlyIdle) {
@@ -412,6 +464,13 @@ public final class VisualFeedManager {
         HitResult oldHitResult = mc.hitResult;
         Entity oldCrosshairEntity = mc.crosshairPickEntity;
 
+        // Camera exposure: a camera exposes for the dark, so the feed is lit as if the Brightness option were at least
+        // FEED_CAPTURE_BRIGHTNESS (never below the player's own setting). Put back right after the capture, see the finally block.
+        LightTexture lightTexture = gameRenderer.lightTexture();
+        double playerBrightness = mc.options.gamma().get();
+        double exposure = ProjectorEffects.exposureFor(playerBrightness);
+        boolean exposed = false;
+
         Marker eyeEntity = new Marker(EntityType.MARKER, level);
         boolean ok = false;
         String error = null;
@@ -450,6 +509,13 @@ public final class VisualFeedManager {
             feed.target.bindWrite(true);
             mc.mainRenderTarget = feed.target;
 
+            if (exposure > playerBrightness) {
+                exposed = true; // from here on the finally block puts the player's setting back, whatever happens below
+                mc.options.gamma().set(exposure);
+                lightTexture.tick();                           // marks the light map as outdated (otherwise the update below does nothing)
+                lightTexture.updateLightTexture(partialTick);  // the light map the world is rendered with now has the camera's exposure
+            }
+
             gameRenderer.renderLevel(1.0F, 0L, new PoseStack());
 
             // renderLevel clears the target with alpha 0 and many passes never write alpha, but the picture is later
@@ -465,6 +531,15 @@ public final class VisualFeedManager {
             error = t.getClass().getSimpleName() + ": " + t.getMessage();
             LOGGER.error("VisualFeedManager: capturing the view of the snail at {} failed", camPos, t);
         } finally {
+            if (exposed) {
+                mc.options.gamma().set(playerBrightness); // the player's own setting, always
+                try {
+                    lightTexture.tick();
+                    lightTexture.updateLightTexture(partialTick); // the player's own light map again
+                } catch (Throwable ignored) {
+                    // the next client tick refreshes the light map anyway
+                }
+            }
             try {
                 feed.target.unbindWrite();
             } catch (Throwable ignored) {
@@ -511,7 +586,7 @@ public final class VisualFeedManager {
         feed.okFrames++;
         long nowMs = System.currentTimeMillis();
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && link.pictureStartMs < 0L) {
+            if (link.cameraPos.equals(feed.cameraPos) && link.pictureStartMs < 0L && !link.isEnding()) {
                 link.pictureStartMs = nowMs; // the fade-in of this screen starts now
             }
         }
@@ -529,7 +604,7 @@ public final class VisualFeedManager {
         // handshake: tell the server this screen has a working picture
         if (feed.okFrames >= VisualCallConstants.HANDSHAKE_OK_FRAMES) {
             for (ScreenLink link : LINKS.values()) {
-                if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent) {
+                if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
                     link.ackSent = true;
                     LOGGER.info("VisualFeedManager: the view of the snail at {} is rendering - reporting the screen at {} as ready",
                             feed.cameraPos, link.screenPos);
@@ -633,7 +708,7 @@ public final class VisualFeedManager {
         feed.failed = true;
 
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && !link.failedSent) {
+            if (link.cameraPos.equals(feed.cameraPos) && !link.failedSent && !link.isEnding()) {
                 link.failedSent = true;
                 VisualNetwork.CHANNEL.sendToServer(new VisualFeedStatusPacket(link.callId, link.screenPos, false, reason));
             }

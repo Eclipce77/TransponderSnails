@@ -1,0 +1,79 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"texture_size": [
+		64,
+		64
+	],
+	"ambientocclusion": false,
+	"textures": {
+		"snail": "transpondersnails:block/transpondersnail/snail/transponder_snail_active",
+		"particle": "transpondersnails:block/transpondersnail/snail/transponder_snail_active"
+	},
+	"elements": [
+		{
+			"from": [
+				5,
+				7,
+				2.94
+			],
+			"to": [
+				7,
+				9,
+				3.94
+			],
+			"rotation": {
+				"angle": 0,
+				"axis": "y",
+				"origin": [
+					6,
+					7,
+					4
+				]
+			},
+			"faces": {
+				"north": {
+					"uv": [
+						4.25,
+						9,
+						4.75,
+						9.5
+					],
+					"texture": "#snail"
+				}
+			}
+		},
+		{
+			"from": [
+				9,
+				7,
+				2.94
+			],
+			"to": [
+				11,
+				9,
+				3.94
+			],
+			"rotation": {
+				"angle": 0,
+				"axis": "y",
+				"origin": [
+					10,
+					7,
+					4
+				]
+			},
+			"faces": {
+				"north": {
+					"uv": [
+						11.75,
+						10.75,
+						12.25,
+						11.25
+					],
+					"texture": "#snail"
+				}
+			}
+		}
+	]
+}

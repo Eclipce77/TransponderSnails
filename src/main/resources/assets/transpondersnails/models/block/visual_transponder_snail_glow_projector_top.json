@@ -1,0 +1,92 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"texture_size": [
+		64,
+		64
+	],
+	"ambientocclusion": false,
+	"textures": {
+		"visual": "transpondersnails:item/projector",
+		"particle": "transpondersnails:item/projector"
+	},
+	"elements": [
+		{
+			"from": [
+				7.19,
+				10.94,
+				9.71
+			],
+			"to": [
+				8.81,
+				12.56,
+				11.33
+			],
+			"rotation": {
+				"angle": 0,
+				"axis": "y",
+				"origin": [
+					7.25,
+					10,
+					9.77
+				]
+			},
+			"faces": {
+				"north": {
+					"uv": [
+						13.625,
+						7.75,
+						13.875,
+						8
+					],
+					"texture": "#visual"
+				},
+				"east": {
+					"uv": [
+						13.5625,
+						7.75,
+						13.8125,
+						8
+					],
+					"texture": "#visual"
+				},
+				"south": {
+					"uv": [
+						13.0625,
+						7.75,
+						13.3125,
+						8
+					],
+					"texture": "#visual"
+				},
+				"west": {
+					"uv": [
+						13.625,
+						7.75,
+						13.875,
+						8
+					],
+					"texture": "#visual"
+				},
+				"up": {
+					"uv": [
+						13.625,
+						7.5,
+						13.875,
+						7.75
+					],
+					"texture": "#visual"
+				},
+				"down": {
+					"uv": [
+						13.625,
+						7.4375,
+						13.875,
+						7.6875
+					],
+					"texture": "#visual"
+				}
+			}
+		}
+	]
+}
