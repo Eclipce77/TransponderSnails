@@ -59,7 +59,8 @@ public class SnailNBTHandler {
             }
             // The Visual Transponder Snail (projector) has a number too, so its item carries one (tooltip, find, removal).
             // The Visual Transmitter (camera) has none.
-            if (blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()) {
+            if (blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
+                    || blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get()) {
                 return SnailType.BLOCK;
             }
         }
@@ -79,7 +80,8 @@ public class SnailNBTHandler {
 
     /** Which kind of number this item's snail holds: the Visual Transponder Snail's is VISUAL, every other snail's is a phone. */
     private static SnailKind kindOf(@NotNull ItemStack stack) {
-        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
+        return stack.getItem() instanceof BlockItem blockItem && (blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
+                || blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get())
                 ? SnailKind.VISUAL : SnailKind.PHONE;
     }
 

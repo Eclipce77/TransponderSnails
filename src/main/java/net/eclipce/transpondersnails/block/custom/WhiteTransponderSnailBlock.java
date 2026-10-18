@@ -136,6 +136,7 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
             
             // ✨ Notify protection manager of White Snail placement
             WhiteSnailProtectionManager.getInstance().onWhiteSnailChanged(level, pos, true);
+            net.eclipce.transpondersnails.visual.server.VisualTapManager.onWireNetworkChanged(level, pos);
         }
     }
 
@@ -144,6 +145,7 @@ public class WhiteTransponderSnailBlock extends HorizontalDirectionalBlock imple
         // ✨ Notify protection manager BEFORE removal (only if actually being removed, not replaced)
         if (!level.isClientSide && !state.is(newState.getBlock())) {
             WhiteSnailProtectionManager.getInstance().onWhiteSnailChanged(level, pos, false);
+            net.eclipce.transpondersnails.visual.server.VisualTapManager.onWireNetworkChanged(level, pos);
         }
         
         super.onRemove(state, level, pos, newState, isMoving);

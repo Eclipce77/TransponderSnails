@@ -53,6 +53,7 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
     // State
     private int shellColor = DyeColor.YELLOW.getId();
     private boolean isOpen = false;
+    private volatile boolean visualIntercepting = false;
 
     // Antenna connection
     @Nullable
@@ -413,7 +414,7 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
 
         int newCallState;
 
-        if (interceptingCallId == null) {
+        if (interceptingCallId == null && !visualIntercepting) {
             newCallState = 1; // SOUND - searching
         } else if (hasRecentAudioActivity()) {
             newCallState = 3; // ACTIVE - receiving audio
@@ -460,6 +461,11 @@ public class BlackTransponderSnailBlockEntity extends BlockEntity {
 
     public boolean isOpen() {
         return isOpen;
+    }
+
+    /** Set by the visual interception manager: this snail is tapping a visual call or stream (its model then shows "intercepting"). */
+    public void setVisualIntercepting(boolean on) {
+        this.visualIntercepting = on;
     }
 
     public void setOpen(boolean open) {

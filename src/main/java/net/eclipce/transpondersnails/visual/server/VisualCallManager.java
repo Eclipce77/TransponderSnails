@@ -271,6 +271,16 @@ public final class VisualCallManager {
             msg(player, "Snail #" + targetNumber + " cannot take this call!", ChatFormatting.RED);
             return false;
         }
+        // A visual snail wired to a Black Transponder Snail only shows what that snail intercepts: it cannot call and it is not there to be called.
+        if (VisualTapManager.isTapped(level, caller.getBlockPos())) {
+            msg(player, "This snail is connected to a Black Transponder Snail!", ChatFormatting.RED);
+            return false;
+        }
+        if (VisualTapManager.isTapped(level, callee.getBlockPos())) {
+            soundManager.playBusySoundAtSnail(player, caller.getBlockPos());
+            msg(player, "Snail #" + targetNumber + " is not available!", ChatFormatting.RED);
+            return false;
+        }
 
         // No range limit: like a phone snail, a visual snail can be dialed anywhere in its dimension (the dimension was checked above).
         BlockPos a = caller.getBlockPos();
@@ -410,7 +420,7 @@ public final class VisualCallManager {
         }
     }
 
-    private static boolean isNear(ServerPlayer p, BlockPos snail, double[] screen, double rangeSq) {
+    static boolean isNear(ServerPlayer p, BlockPos snail, double[] screen, double rangeSq) {
         return p.distanceToSqr(snail.getX() + 0.5, snail.getY() + 0.5, snail.getZ() + 0.5) <= rangeSq
                 || p.distanceToSqr(screen[0], screen[1], screen[2]) <= rangeSq;
     }
@@ -419,7 +429,7 @@ public final class VisualCallManager {
      * World position of the middle of a projector snail's screen (the snail itself if that cannot be worked out). Uses the same
      * placement as the client draws (ProjectorPlacement), so server and clients agree about where the screen is.
      */
-    private static double[] screenCenter(ServerLevel level, BlockPos pos) {
+    static double[] screenCenter(ServerLevel level, BlockPos pos) {
         double[] snailCenter = {pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5};
         BlockState state = level.getBlockState(pos);
         if (!(state.getBlock() instanceof TransponderSnailBlock) || !state.hasProperty(TransponderSnailBlock.FACING)) return snailCenter;
@@ -532,6 +542,10 @@ public final class VisualCallManager {
         session.setState(State.CONNECTED);
         setSnailState(session.callerGp(), VisualCallState.CONNECTED);
         setSnailState(session.calleeGp(), VisualCallState.CONNECTED);
+        runStep("protection", () -> {   // a visual snail wired to a White Transponder Snail is protected from interception
+            VisualTapManager.syncProtection(level, session.callerGp(), true);
+            VisualTapManager.syncProtection(level, session.calleeGp(), true);
+        });
 
         ServerPlayer anyone = anyPlayer(level, null);
         if (anyone != null) {
@@ -661,11 +675,35 @@ public final class VisualCallManager {
         if (s != null) end(s, EndReason.HANG_UP, null, actor, s.calleePos());
     }
 
+    /** The voice chat API (null if voice chat is not available). */
+    @Nullable
+    public VoicechatServerApi voiceApi() {
+        return api;
+    }
+
+    /** A copy of the running sessions (calls and stream connections), for whoever needs to look at them. */
+    public List<VisualCallSession> callsSnapshot() {
+        return new ArrayList<>(sessions.values());
+    }
+
+    @Nullable
+    public VisualCallSession sessionById(UUID callId) {
+        return sessions.get(callId);
+    }
+
+    /** Ends the call or stream connection a snail is in (it was wired to a Black Transponder Snail, say), with the reason. */
+    public void endCallsOf(GlobalPos snail, String detail) {
+        UUID id = snailToCall.get(snail);
+        VisualCallSession s = id == null ? null : sessions.get(id);
+        if (s != null) end(s, EndReason.FAILED, detail, null, null);
+    }
+
     /**
      * Whether this player is a viewer of a screen that shows the picture of the snail at {@code camera} (a call or a stream). The relay
      * only sends a camera's picture to such a player: nobody can watch a camera they are not connected to.
      */
     public boolean isViewerOfCamera(UUID player, GlobalPos camera) {
+        if (VisualInterceptionManager.isViewerOfCamera(player, camera)) return true;   // the display of a Black Transponder Snail
         for (VisualCallSession s : sessions.values()) {
             if (s.isEnded() || !s.dimension().equals(camera.dimension())) continue;
             for (ViewerKey key : s.viewerKeys()) {
@@ -745,7 +783,7 @@ public final class VisualCallManager {
      * @return true if the packet was consumed (the normal call pipeline must not process it)
      */
     public boolean handleMicrophonePacket(SnailAudioRelay relay, ServerPlayer speaker, MicrophonePacketEvent event) {
-        if (sessions.isEmpty()) return false;
+        if (sessions.isEmpty() && !VisualInterceptionManager.hasStreamTaps()) return false;
         if (callManager.isInCall(speaker.getUUID())) return false; // a numbered call takes priority
 
         double range = VoiceChatConstants.getLocationalSnailRange();
@@ -772,9 +810,23 @@ public final class VisualCallManager {
             }
         }
 
-        if (bestSession == null) return false;
+        // A stream that a Black Transponder Snail is tapping is heard by the tapper even when nobody has tuned in to it (then it has no session).
+        GlobalPos tapCamera = null;
+        for (GlobalPos camera : VisualInterceptionManager.tappedStreamCameras()) {
+            if (!camera.dimension().equals(speakerDimension)) continue;
+            BlockPos p = camera.pos();
+            double dSq = speaker.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5);
+            if (dSq < bestDistSq) {
+                bestDistSq = dSq;
+                bestSession = null;
+                bestPos = p;
+                tapCamera = camera;
+            }
+        }
+
+        if (bestSession == null && tapCamera == null) return false;
         double bestDist = Math.sqrt(bestDistSq);
-        if (bestSession.getState() != State.CONNECTED) return true; // in range, but audio only flows once video is up too
+        if (bestSession != null && bestSession.getState() != State.CONNECTED) return true; // in range, but audio only flows once video is up too
 
         byte[] opus = event.getPacket().getOpusEncodedData();
         if (opus == null || opus.length == 0) return true;
@@ -783,11 +835,18 @@ public final class VisualCallManager {
         byte[] audio = relay.processForVisualCall(opus, speaker.getUUID(), gain);
         if (audio == null) return true;
 
+        if (tapCamera != null) {                       // a tapped stream nobody has tuned in to
+            VisualInterceptionManager.routeStreamAudio(tapCamera, audio);
+            return true;
+        }
+
         if (bestSession.isStream()) {
+            VisualInterceptionManager.routeStreamAudio(GlobalPos.of(bestSession.dimension(), bestPos), audio);   // whoever is tapping it
             sendToStreamViewers(bestSession.dimension(), bestPos, audio);
             return true;
         }
 
+        VisualInterceptionManager.routeCallAudio(bestSession, bestPos, audio);       // whoever is tapping this call
         BlockPos target = bestSession.other(bestPos);
         AudioChannel channel = bestSession.channelAt(target);
         if (channel == null) return true;
@@ -844,6 +903,15 @@ public final class VisualCallManager {
         sessions.remove(session.callId());
         snailToCall.remove(session.callerGp(), session.callId());
         snailToCall.remove(session.calleeGp(), session.callId());
+        if (server != null) {
+            ServerLevel endedIn = server.getLevel(session.dimension());
+            if (endedIn != null) {
+                runStep("protection", () -> {
+                    VisualTapManager.syncProtection(endedIn, session.callerGp(), false);
+                    VisualTapManager.syncProtection(endedIn, session.calleeGp(), false);
+                });
+            }
+        }
 
         runStep("stop ringing", () ->
                 soundManager.stopSnailPositionSounds(session.calleePos(), CallSoundManager.SoundType.RING_TONE));

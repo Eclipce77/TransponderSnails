@@ -107,6 +107,14 @@ public final class VisualFeedManager {
         private final BlockPos cameraPos;
         /** A stream (a Visual Transmitter's broadcast): its camera does not glow because of its viewers. */
         private final boolean stream;
+        /** A split screen: the picture of this camera is shown on the right half (null = one picture on the whole screen). */
+        @Nullable
+        private final BlockPos cameraPos2;
+        /** Which halves show static instead of a picture (the end of the call is protected). Can change while the link runs. */
+        volatile boolean static1;
+        volatile boolean static2;
+        /** A Black Transponder Snail's display: nothing for the server to wait for. */
+        private final boolean tap;
         private boolean ackSent = false;
         private boolean failedSent = false;
         // renderer diagnostics (package-private on purpose: VisualScreenRenderer logs these once per call)
@@ -123,11 +131,35 @@ public final class VisualFeedManager {
             return endMs >= 0L;
         }
 
-        private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean stream) {
+        private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean stream,
+                           @Nullable BlockPos cameraPos2, boolean static1, boolean static2, boolean tap) {
             this.callId = callId;
             this.screenPos = screenPos.immutable();
             this.cameraPos = cameraPos.immutable();
             this.stream = stream;
+            this.cameraPos2 = cameraPos2 == null ? null : cameraPos2.immutable();
+            this.static1 = static1;
+            this.static2 = static2;
+            this.tap = tap;
+            if (tap) this.ackSent = true;   // the server does not wait for this screen
+        }
+
+        public boolean isSplit() {
+            return cameraPos2 != null;
+        }
+
+        @Nullable
+        public BlockPos cameraPos2() {
+            return cameraPos2;
+        }
+
+        public boolean isStatic(int half) {
+            return half == 0 ? static1 : static2;
+        }
+
+        /** Does this screen draw the picture of this camera? (A half that shows static does not use its camera.) */
+        boolean usesCamera(BlockPos camera) {
+            return (!static1 && cameraPos.equals(camera)) || (cameraPos2 != null && !static2 && cameraPos2.equals(camera));
         }
 
         public boolean isStream() {
@@ -175,7 +207,13 @@ public final class VisualFeedManager {
     /** Called by the block entity renderer each time it wants to draw: marks the feed as needed and returns it. */
     @Nullable
     static VisualFeed touchFeed(ScreenLink link) {
-        VisualFeed feed = FEEDS.get(link.cameraPos);
+        return touchFeed(link, 0);
+    }
+
+    /** The feed of one half of a screen (a half that shows static has none). */
+    @Nullable
+    static VisualFeed touchFeed(ScreenLink link, int half) {
+        VisualFeed feed = peekFeed(link, half);
         if (feed != null) {
             feed.lastTouchedMs = System.currentTimeMillis();
         }
@@ -185,33 +223,40 @@ public final class VisualFeedManager {
     /** The feed of a link WITHOUT marking it as wanted: for a screen that is fading out, which must not make the feed capture again. */
     @Nullable
     static VisualFeed peekFeed(ScreenLink link) {
-        return FEEDS.get(link.cameraPos);
+        return peekFeed(link, 0);
     }
 
-    static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream) {
+    @Nullable
+    static VisualFeed peekFeed(ScreenLink link, int half) {
+        if (half == 0) return link.static1 ? null : FEEDS.get(link.cameraPos);
+        return link.cameraPos2 == null || link.static2 ? null : FEEDS.get(link.cameraPos2);
+    }
+
+    static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream,
+                          @Nullable BlockPos secondCamera, boolean staticFirst, boolean staticSecond, boolean tap) {
         if (start) {
             ScreenLink already = LINKS.get(screenPos);
             if (already != null && already.callId.equals(callId)) {
-                return; // duplicate START for the same call
+                // A duplicate START for the same call - or the protection of one end has changed: update the halves in place, the picture stays.
+                if (already.static1 != staticFirst || already.static2 != staticSecond) {
+                    already.static1 = staticFirst;
+                    already.static2 = staticSecond;
+                    if (!staticFirst) ensureFeed(cameraPos);
+                    if (secondCamera != null && !staticSecond) ensureFeed(secondCamera);
+                    if ((staticFirst || staticSecond) && already.pictureStartMs < 0L) already.pictureStartMs = System.currentTimeMillis();
+                }
+                return;
             }
-            LINKS.put(screenPos.immutable(), new ScreenLink(callId, screenPos, cameraPos, stream));
-
-            VisualFeed existing = FEEDS.get(cameraPos);
-            if (existing != null && existing.failed) {
-                existing.release();
-                FEEDS.remove(cameraPos);
-            }
-            VisualFeed feed = FEEDS.computeIfAbsent(cameraPos.immutable(), VisualFeed::new);
-            feed.lastTouchedMs = System.currentTimeMillis();
-            // The render target may still hold the last picture of an earlier call: require fresh frames, so nothing
-            // stale is shown and the fade-in starts with the first real picture of THIS call.
-            feed.okFrames = 0;
+            ScreenLink link = new ScreenLink(callId, screenPos, cameraPos, stream, secondCamera, staticFirst, staticSecond, tap);
+            LINKS.put(screenPos.immutable(), link);
+            if (!staticFirst) ensureFeed(cameraPos);
+            if (secondCamera != null && !staticSecond) ensureFeed(secondCamera);
+            // a half that is static is "on" at once (static needs no picture): the projector turns on and shows it while the other half tunes in
+            if (staticFirst || (secondCamera != null && staticSecond)) link.pictureStartMs = System.currentTimeMillis();
         } else {
             ScreenLink link = LINKS.get(screenPos);
             if (link != null && link.callId.equals(callId)) {
-                VisualFeed feed = FEEDS.get(link.cameraPos);
-                boolean hasPicture = link.pictureStartMs >= 0L && feed != null && feed.hasFrame() && !feed.failed;
-                if (hasPicture) {
+                if (hasPicture(link)) {
                     if (!link.isEnding()) {
                         link.endMs = System.currentTimeMillis(); // keep it: it fades out on its last picture, then pruneEndedLinks removes it
                     }
@@ -221,6 +266,29 @@ public final class VisualFeedManager {
                 }
             }
         }
+    }
+
+    /** Makes sure there is a feed for a camera that a screen is about to show. */
+    private static void ensureFeed(BlockPos cameraPos) {
+        VisualFeed existing = FEEDS.get(cameraPos);
+        if (existing != null && existing.failed) {
+            existing.release();
+            FEEDS.remove(cameraPos);
+        }
+        VisualFeed feed = FEEDS.computeIfAbsent(cameraPos.immutable(), VisualFeed::new);
+        feed.lastTouchedMs = System.currentTimeMillis();
+        // The render target may still hold the last picture of an earlier call: require fresh frames, so nothing
+        // stale is shown and the fade-in starts with the first real picture of THIS call.
+        feed.okFrames = 0;
+    }
+
+    /** Has this screen shown anything yet (a picture, or static)? Then it fades out when it ends instead of vanishing. */
+    private static boolean hasPicture(ScreenLink link) {
+        if (link.pictureStartMs < 0L) return false;
+        if (link.static1 || link.static2) return true;
+        VisualFeed f1 = FEEDS.get(link.cameraPos);
+        VisualFeed f2 = link.cameraPos2 == null ? null : FEEDS.get(link.cameraPos2);
+        return (f1 != null && f1.hasFrame() && !f1.failed) || (f2 != null && f2.hasFrame() && !f2.failed);
     }
 
     public static void clearAll() {
@@ -341,7 +409,7 @@ public final class VisualFeedManager {
     /** Is there a screen of this feed whose call has not ended? */
     private static boolean hasRunningLink(VisualFeed feed) {
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && !link.isEnding()) return true;
+            if (link.usesCamera(feed.cameraPos) && !link.isEnding()) return true;
         }
         return false;
     }
@@ -349,7 +417,7 @@ public final class VisualFeedManager {
     /** A screen of this feed has not reported "video ready" yet: it must render even when nobody is looking at it. */
     private static boolean isHandshakePending(VisualFeed feed) {
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent) return true;
+            if (link.usesCamera(feed.cameraPos) && !link.ackSent && !link.failedSent) return true;
         }
         return false;
     }
@@ -359,7 +427,12 @@ public final class VisualFeedManager {
      * is. Adaptive quality turns that into a resolution tier, frame rate and view radius for the feed.
      */
     static void reportView(ScreenLink link, double pixels, double distance) {
-        VisualFeed feed = FEEDS.get(link.cameraPos);
+        reportView(link, 0, pixels, distance);
+    }
+
+    /** The same for one half of a split screen. */
+    static void reportView(ScreenLink link, int half, double pixels, double distance) {
+        VisualFeed feed = peekFeed(link, half);
         if (feed == null) return;
         int wanted = VisualQuality.pickResolution(pixels, VisualCallConstants.FEED_MIN_RESOLUTION,
                 VisualQuality.TIERS[VisualQuality.TIERS.length - 1]);
@@ -412,7 +485,7 @@ public final class VisualFeedManager {
             VisualFeed feed = it.next().getValue();
             boolean linked = false;
             for (ScreenLink link : LINKS.values()) {
-                if (link.cameraPos.equals(feed.cameraPos)) {
+                if (link.usesCamera(feed.cameraPos)) {
                     linked = true;
                     break;
                 }
@@ -623,7 +696,7 @@ public final class VisualFeedManager {
         feed.okFrames++;
         long nowMs = System.currentTimeMillis();
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && link.pictureStartMs < 0L && !link.isEnding()) {
+            if (link.usesCamera(feed.cameraPos) && link.pictureStartMs < 0L && !link.isEnding()) {
                 link.pictureStartMs = nowMs; // the fade-in of this screen starts now
             }
         }
@@ -644,7 +717,7 @@ public final class VisualFeedManager {
         // handshake: tell the server this screen has a working picture
         if (feed.okFrames >= VisualCallConstants.HANDSHAKE_OK_FRAMES) {
             for (ScreenLink link : LINKS.values()) {
-                if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
+                if (link.usesCamera(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
                     link.ackSent = true;
                     LOGGER.info("VisualFeedManager: the view of the snail at {} is rendering - reporting the screen at {} as ready",
                             feed.cameraPos, link.screenPos);
@@ -800,7 +873,7 @@ public final class VisualFeedManager {
     /** Tells the server the screens of this feed are ready, so a call that is connecting can connect. */
     private static void ackPendingLinks(VisualFeed feed) {
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
+            if (link.usesCamera(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
                 link.ackSent = true;
                 VisualNetwork.CHANNEL.sendToServer(new VisualFeedStatusPacket(link.callId, link.screenPos, true, ""));
             }
@@ -825,7 +898,7 @@ public final class VisualFeedManager {
         }
         long nowMs = System.currentTimeMillis();
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(camera) && link.pictureStartMs < 0L && !link.isEnding()) {
+            if (link.usesCamera(camera) && link.pictureStartMs < 0L && !link.isEnding()) {
                 link.pictureStartMs = nowMs; // the projector turns on with the first picture
             }
         }
@@ -836,7 +909,7 @@ public final class VisualFeedManager {
         feed.failed = true;
 
         for (ScreenLink link : LINKS.values()) {
-            if (link.cameraPos.equals(feed.cameraPos) && !link.failedSent && !link.isEnding()) {
+            if (link.usesCamera(feed.cameraPos) && !link.failedSent && !link.isEnding()) {
                 link.failedSent = true;
                 VisualNetwork.CHANNEL.sendToServer(new VisualFeedStatusPacket(link.callId, link.screenPos, false, reason));
             }

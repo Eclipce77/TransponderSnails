@@ -11,6 +11,16 @@ public final class VisualCallConstants {
     // ---------------- Snail variants (registry paths, namespace = the mod id) ----------------
     /** Visual Transponder Snail: the projector snail. Films AND shows a picture, picks up AND plays audio. */
     public static final String DUPLEX_SNAIL_ID = "visual_transponder_snail";
+    /**
+     * The Visual Transponder Snail WITH a Transmitter: a projector exactly like the one above (the same role, the same glow models), and the
+     * only one that can be wired to a White or a Black Transponder Snail.
+     */
+    /**
+     * How much static a protected end of an intercepted call shows: the same snow as when a projector turns on, held steady (looped) instead
+     * of dying away.
+     */
+    public static final double PROTECTED_STATIC_AMOUNT = 0.95;
+    public static final String DUPLEX_TRANSMITTER_SNAIL_ID = "visual_transponder_snail_transmitter";
     /** Visual Transmitter Transponder Snail: a camera. Films and picks up sound, shows nothing and plays nothing. */
     public static final String CAMERA_SNAIL_ID = "visual_transmitter_transponder_snail";
 

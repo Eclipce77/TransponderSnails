@@ -19,10 +19,12 @@ public final class VisualCallEvents {
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.tick();
         VisualRelayManager.tick(net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer());
+        VisualInterceptionManager.tick(net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer());
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        VisualInterceptionManager.clear();
         VisualCallManager.discard();
         VisualSnailRegistry.clear();
         VisualRelayManager.clear();
@@ -33,6 +35,7 @@ public final class VisualCallEvents {
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.onPlayerLeft(event.getEntity().getUUID());
         VisualRelayManager.onPlayerLeft(event.getEntity().getUUID());
+        VisualInterceptionManager.onPlayerLeft(event.getEntity().getUUID());
     }
 
     @SubscribeEvent
@@ -40,5 +43,6 @@ public final class VisualCallEvents {
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.onPlayerLeft(event.getEntity().getUUID());
         VisualRelayManager.onPlayerLeft(event.getEntity().getUUID());
+        VisualInterceptionManager.onPlayerLeft(event.getEntity().getUUID());
     }
 }

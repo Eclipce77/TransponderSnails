@@ -60,6 +60,9 @@ public class ModItems {
     public static final RegistryObject<Item> WIRE = ITEMS.register("wire",
             () -> new BlockItem(ModBlocks.WIRE.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> PROJECTOR = ITEMS.register("projector",
+            () -> new Item(new Item.Properties()));
+
     public static final RegistryObject<Item> TRANSMITTER = ITEMS.register("transmitter",
             () -> new Item(new Item.Properties()));
 
@@ -79,6 +82,10 @@ public class ModItems {
 
     public static final RegistryObject<Item> VISUAL_TRANSPONDER_SNAIL = ITEMS.register("visual_transponder_snail",
             () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(),
+                    new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> VISUAL_TRANSPONDER_SNAIL_TRANSMITTER = ITEMS.register("visual_transponder_snail_transmitter",
+            () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = ITEMS.register("visual_transmitter_transponder_snail",

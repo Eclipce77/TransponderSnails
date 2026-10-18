@@ -8,7 +8,7 @@
   ],
   "key": {
     "L": {
-      "item": "minecraft:lighting_rod"
+      "item": "minecraft:lightning_rod"
     },
     "I": {
       "item": "minecraft:iron_ingot"
@@ -17,10 +17,11 @@
       "item": "transpondersnails:wire"
     },
     "C": {
-      "item":  "transpondersnails:copper_nugget"
+      "item": "transpondersnails:copper_nugget"
     }
   },
   "result": {
-    "item": "transpondersnails:visual_transmitter"
+    "item": "transpondersnails:visual_transmitter",
+    "count": 1
   }
 }

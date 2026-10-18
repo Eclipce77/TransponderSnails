@@ -1,0 +1,23 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    " PC",
+    " D ",
+    "   "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:den_den_mushi"
+    },
+    "C": {
+      "item": "transpondersnails:wire"
+    },
+    "P": {
+      "item": "transpondersnails:projector"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:visual_transponder_snail"
+  }
+}

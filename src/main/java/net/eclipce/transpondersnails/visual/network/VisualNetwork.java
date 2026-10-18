@@ -14,7 +14,7 @@ import java.util.Optional;
  */
 public final class VisualNetwork {
 
-    private static final String PROTOCOL = "4"; // 2: streams; 3: relayed video (any distance); 4: tile video (key frames + changed tiles)
+    private static final String PROTOCOL = "5"; // 2: streams; 3: relayed video; 4: tile video; 5: split screens (taps) and protected halves
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TransponderSnails.MOD_ID, "visual_video"),

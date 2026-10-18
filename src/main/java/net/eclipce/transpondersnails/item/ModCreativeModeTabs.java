@@ -24,6 +24,7 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModBlocks.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
@@ -32,6 +33,7 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModBlocks.WHITE_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.ROTARY_DIAL.get());
                         pOutput.accept(ModItems.MICROPHONE_CAPSULE.get());
+                        pOutput.accept(ModItems.PROJECTOR.get());
                         pOutput.accept(ModItems.TRANSMITTER.get());
                         pOutput.accept(ModItems.VISUAL_TRANSMITTER.get());
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());

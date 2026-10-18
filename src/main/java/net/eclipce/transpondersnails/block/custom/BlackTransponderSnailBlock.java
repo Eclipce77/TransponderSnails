@@ -6,6 +6,8 @@ import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.eclipce.transpondersnails.visual.server.VisualInterceptionManager;
+import net.eclipce.transpondersnails.visual.server.VisualTapManager;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -138,6 +140,7 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
 
                 // Initialize the antenna connection
                 snailBE.updateAntennaConnection();
+                VisualTapManager.onWireNetworkChanged(level, pos);   // a visual snail wired to it is now tapped
             }
         }
     }
@@ -168,6 +171,12 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
 
+        // Crouch + right click on an open snail that is tapping a visual signal: switch to the next signal in range
+        if (!level.isClientSide && player.isShiftKeyDown() && state.getValue(OPEN) && player instanceof ServerPlayer switcher
+                && VisualInterceptionManager.hasSession(switcher.getUUID()) && VisualInterceptionManager.switchNext(switcher)) {
+            return InteractionResult.sidedSuccess(false);
+        }
+
         // Toggle open/close state (right-click without dye)
         if (!level.isClientSide) {
             boolean newOpenState = !state.getValue(OPEN);
@@ -182,11 +191,11 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
                     var callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
 
                     if (newOpenState) {
-                        // Opening - use InterceptionHelper with range indicators
-                        if (callManager != null) {
-                            // Get lightning rod count from block entity
-                            int lightningRodCount = snailBE.getLightningRodCount();
-
+                        // Opening. A black snail wired to a Visual Transponder Snail with a Transmitter first looks for a VISUAL signal: if one is
+                        // in range and nearer than any phone call it takes over; otherwise the phone search runs as always.
+                        int lightningRodCount = snailBE.getLightningRodCount();
+                        boolean visualTookOver = VisualInterceptionManager.onBlackOpened(serverPlayer, pos, lightningRodCount);
+                        if (!visualTookOver && callManager != null) {
                             // Use block-specific method with range indicators
                             net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailBlockOpened(
                                     serverPlayer, callManager, lightningRodCount, pos);
@@ -197,7 +206,8 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
                     } else {
                         // Closing - use InterceptionHelper messages
                         // This shows "Search cancelled" or disconnect messages
-                        if (callManager != null) {
+                        boolean visualStopped = VisualInterceptionManager.onBlackClosed(serverPlayer);
+                        if (!visualStopped && callManager != null) {
                             net.eclipce.transpondersnails.voice.server.InterceptionHelper.onSnailClosed(serverPlayer, callManager);
                         }
 
@@ -318,6 +328,10 @@ public class BlackTransponderSnailBlock extends Block implements EntityBlock {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof BlackTransponderSnailBlockEntity snailBE) {
                 snailBE.stopInterception();
+            }
+            if (!level.isClientSide) {
+                VisualInterceptionManager.stopAtBlack(net.minecraft.core.GlobalPos.of(level.dimension(), pos));
+                VisualTapManager.onWireNetworkChanged(level, pos);   // a black snail was removed: what was wired to it is no longer tapped
             }
         }
         super.onRemove(state, level, pos, newState, isMoving);

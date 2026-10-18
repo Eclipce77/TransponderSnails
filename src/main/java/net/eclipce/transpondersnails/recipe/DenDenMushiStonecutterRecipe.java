@@ -99,7 +99,8 @@ public class DenDenMushiStonecutterRecipe extends StonecutterRecipe {
         }
 
         // Visual Transponder Snail → Den Den Mushi (body + shell color, same as TRANSPONDER_SNAIL)
-        if (!input.isEmpty() && input.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()) {
+        if (!input.isEmpty() && (input.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()
+                || input.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get())) {
             CompoundTag inputNbt = input.getTag();
 
             if (inputNbt != null) {

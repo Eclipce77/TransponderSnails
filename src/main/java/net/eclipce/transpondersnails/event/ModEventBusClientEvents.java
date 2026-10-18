@@ -229,6 +229,25 @@ public class ModEventBusClientEvents {
                         return 0.0f; // Default white
                     });
 
+            // The same for the Visual Transponder Snail with a Transmitter.
+            ItemProperties.register(ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        CompoundTag nbt = stack.getTag();
+                        if (nbt != null) {
+                            if (nbt.contains("shell_color")) {
+                                return nbt.getInt("shell_color") / 100.0f;
+                            }
+                            if (nbt.contains("BlockEntityTag")) {
+                                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                                if (beTag.contains("ShellColor")) {
+                                    return beTag.getInt("ShellColor") / 100.0f;
+                                }
+                            }
+                        }
+                        return 0.0f; // Default white
+                    });
+
             // âœ… CRITICAL FIX: Closing brace moved HERE - ALL registrations inside enqueueWork!
 
             // Amplified's model has transparent regions that render as solid black without this -
@@ -236,6 +255,7 @@ public class ModEventBusClientEvents {
             // for consistency since it shares the same kind of geometry.
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get(), RenderType.cutout());
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(), RenderType.cutout());
+            ItemBlockRenderTypes.setRenderLayer(ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(), RenderType.cutout());
         });
     }
 
@@ -379,7 +399,7 @@ public class ModEventBusClientEvents {
                 }
             }
             return -1;
-        }, ModItems.VISUAL_TRANSPONDER_SNAIL.get());
+        }, ModItems.VISUAL_TRANSPONDER_SNAIL.get(), ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get());
 
         // Amplified Transponder Snail item — body color only (tintIndex 0); no compatible shell
         event.register((stack, tintIndex) -> {
@@ -468,7 +488,7 @@ public class ModEventBusClientEvents {
                 }
             }
             return -1;
-        }, ModBlocks.VISUAL_TRANSPONDER_SNAIL.get());
+        }, ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(), ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get());
 
         // Amplified Transponder Snail block — body color only (tintIndex 0); no compatible shell
         event.register((state, level, pos, tintIndex) -> {

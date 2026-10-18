@@ -407,6 +407,7 @@ public class WireBlock extends Block {
         if (!level.isClientSide && !state.is(oldState.getBlock())) {
             // ✨ Notify White Snail protection manager of wire network change
             WhiteSnailProtectionManager.getInstance().onWireNetworkChanged(level, pos);
+            net.eclipce.transpondersnails.visual.server.VisualTapManager.onWireNetworkChanged(level, pos);
             
             // Notify horizontal neighbors
             for (Direction dir : Direction.Plane.HORIZONTAL) {
@@ -442,6 +443,7 @@ public class WireBlock extends Block {
         if (!level.isClientSide && !state.is(newState.getBlock())) {
             // ✨ Notify White Snail protection manager of wire network change
             WhiteSnailProtectionManager.getInstance().onWireNetworkChanged(level, pos);
+            net.eclipce.transpondersnails.visual.server.VisualTapManager.onWireNetworkChanged(level, pos);
             
             // Notify horizontal neighbors
             for (Direction dir : Direction.Plane.HORIZONTAL) {
@@ -577,6 +579,11 @@ public class WireBlock extends Block {
 
         // Transponder Snail Transmitter
         if (block == ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()) {
+            return true;
+        }
+
+        // The Visual Transponder Snail WITH a Transmitter (the plain Visual Transponder Snail and the Visual Transmitter do not connect)
+        if (block == ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get()) {
             return true;
         }
 

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NAN",
+    "CWC",
+    "   "
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    },
+    "C": {
+      "item": "minecraft:copper_ingot"
+    },
+    "N": {
+      "item": "transpondersnails:copper_nugget"
+    },
+    "W": {
+      "item": "transpondersnails:wire"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:projector",
+    "count": 1
+  }
+}

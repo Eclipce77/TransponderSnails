@@ -41,6 +41,11 @@ public class ModBlocks {
     public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL = BLOCKS.register("visual_transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
+    // The Visual Transponder Snail with a Transmitter: the same projector, and the only one that can be wired to a White or a Black
+    // Transponder Snail (like the phone's Transponder Snail with Transmitter).
+    public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("visual_transponder_snail_transmitter",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
     public static final RegistryObject<Block> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = BLOCKS.register("visual_transmitter_transponder_snail",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 

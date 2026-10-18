@@ -136,7 +136,7 @@ public class VisualTransmitterScreen extends Screen {
         g.fill(l + 13, t + 28, l + 21, t + 36, 0xFF000000);
         g.fill(l + 14, t + 29, l + 20, t + 35, dot);
         g.drawString(this.font, Component.literal(active ? "Active" : "Idle"), l + 27, t + 28, active ? 0x55FF55 : 0xA0A0A0);
-        g.drawString(this.font, Component.literal(active ? "Watching: " + viewers : "Right click the snail to start the stream"), l + 13, t + 42,
+        g.drawString(this.font, Component.literal(active ? "Watching: " + viewers : "Right click the snail to stream"), l + 13, t + 42,
                 active ? 0xE0E0E0 : 0x909090, false);
 
         g.drawString(this.font, Component.literal("Stream name"), l + 13, t + 58, 0xC0C0C0, false);

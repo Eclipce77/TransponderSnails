@@ -276,6 +276,25 @@ public class InterceptionHelper {
         return Math.min(minRange + extraRange, maxRange);
     }
 
+    /** The interception range of a placed black snail with this many lightning rods (blocks). */
+    public static double blockRange(int lightningRodCount) {
+        return calculateBlockRange(lightningRodCount);
+    }
+
+    /**
+     * How far the nearest connected PHONE call within {@code range} is from the player (as {@link #findNearbyActiveCall} measures it), or -1 if
+     * there is none. The visual interception uses it to take over only when a visual signal is nearer.
+     */
+    public static double nearestPhoneCallDistance(ServerPlayer player, TransponderCallManager callManager, double range) {
+        double nearest = -1.0;
+        for (CallSession call : callManager.getActiveCalls()) {
+            if (call.getState() != CallSession.CallState.CONNECTED || call.isParticipant(player.getUUID())) continue;
+            double distance = getDistanceToNearestParticipant(player, call, callManager);
+            if (distance < range && (nearest < 0.0 || distance < nearest)) nearest = distance;
+        }
+        return nearest;
+    }
+
     /**
      * Find nearby active call within custom range
      */

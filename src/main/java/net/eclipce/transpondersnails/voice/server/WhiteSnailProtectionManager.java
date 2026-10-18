@@ -580,7 +580,8 @@ public class WhiteSnailProtectionManager {
         }
 
         Block block = state.getBlock();
-        return block == ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get();
+        return block == ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()
+                || block == ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get();
     }
 
     /**

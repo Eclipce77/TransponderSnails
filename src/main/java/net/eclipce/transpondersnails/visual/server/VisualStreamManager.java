@@ -87,6 +87,11 @@ public final class VisualStreamManager {
         if (!(level.getBlockEntity(pos) instanceof TransponderSnailBlockEntity be) || be.isRemoved()) return null;
         if (VisualRoles.ofEntity(be) != role) return null;
         if (player.distanceToSqr(Vec3.atCenterOf(pos)) > REACH_SQ) return null;
+        // a projector wired to a Black Transponder Snail only shows what that snail intercepts: it cannot tune to a stream
+        if (role == VisualSnailRole.DUPLEX && VisualTapManager.isTapped(level, pos)) {
+            msg(player, "This snail is connected to a Black Transponder Snail", ChatFormatting.RED);
+            return null;
+        }
         return be;
     }
 
@@ -105,12 +110,12 @@ public final class VisualStreamManager {
             VisualCallManager calls = VisualCallManager.peek();
             if (calls != null) calls.endStreamsOf(GlobalPos.of(level.dimension(), camera.getBlockPos()), "The stream ended.");
             camera.setStreaming(false);
-            msg(player, "Stream stopped.", ChatFormatting.GRAY);
+            msg(player, "Stopped Streaming: "+ camera.getStreamDisplayName(), ChatFormatting.GRAY);
         } else {
             camera.setOwnerIfAbsent(player);   // a transmitter placed before owners existed belongs to whoever first uses it
             camera.getOrCreateStreamId();
             camera.setStreaming(true);
-            msg(player, "Streaming: " + camera.getStreamDisplayName(), ChatFormatting.GREEN);
+            msg(player, "Started Streaming: " + camera.getStreamDisplayName(), ChatFormatting.GREEN);
         }
     }
 

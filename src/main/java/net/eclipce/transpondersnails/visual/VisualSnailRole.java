@@ -57,6 +57,7 @@ public enum VisualSnailRole {
         for (VisualSnailRole role : values()) {
             if (role.registryPath.equals(registryPath)) return role;
         }
+        if (VisualCallConstants.DUPLEX_TRANSMITTER_SNAIL_ID.equals(registryPath)) return DUPLEX; // the projector with a transmitter is a projector
         return null;
     }
 

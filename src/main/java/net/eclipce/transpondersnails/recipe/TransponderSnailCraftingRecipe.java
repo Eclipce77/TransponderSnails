@@ -58,6 +58,18 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
             nbt.put("BlockEntityTag", blockEntityTag);
         }
 
+        // An UPGRADE (a Visual Transponder Snail + a Transmitter): the new snail IS the old one with a transmitter, so it keeps what makes it
+        // that snail - its number, its identity, its colours - instead of starting over.
+        if (result.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get()) {
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                ItemStack stack = container.getItem(i);
+                if (stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get() && stack.hasTag()) {
+                    result.setTag(stack.getTag().copy());
+                    break;
+                }
+            }
+        }
+
         return result;
     }
 

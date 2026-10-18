@@ -14,6 +14,7 @@ import net.eclipce.transpondersnails.visual.StreamPresets;
 import net.eclipce.transpondersnails.visual.VisualCameraPositions;
 import net.eclipce.transpondersnails.visual.VisualStreamNames;
 import net.eclipce.transpondersnails.visual.server.VisualStreamManager;
+import net.eclipce.transpondersnails.visual.server.VisualTapManager;
 import net.eclipce.transpondersnails.visual.VisualRoles;
 import net.eclipce.transpondersnails.visual.VisualScreenConfig;
 import net.eclipce.transpondersnails.visual.VisualSettings;
@@ -346,7 +347,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             inCall = calls != null && level != null && calls.isInCall(GlobalPos.of(level.dimension(), worldPosition));
         }
 
-        switch (VisualInteraction.decide(projector, isSneaking, inCall)) {
+        // A projector wired to a Black Transponder Snail is its display: no dialing GUI, nothing to answer; its settings still open.
+        boolean tapped = projector && level != null && VisualTapManager.isTapped(level, worldPosition);
+        switch (VisualInteraction.decide(projector, isSneaking, inCall, tapped)) {
+            case TAP_BLOCKED:
+                player.displayClientMessage(Component.literal("Connected to a Black Transponder Snail")
+                        .withStyle(net.minecraft.ChatFormatting.GRAY), true);
+                return InteractionResult.SUCCESS;
             case OPEN_SETTINGS:
                 VisualProjectorConfig.open(player, this);
                 return InteractionResult.SUCCESS;

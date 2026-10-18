@@ -16,8 +16,9 @@ public final class VisualClientPackets {
 
     private VisualClientPackets() {}
 
-    public static void handleControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream) {
-        VisualFeedManager.onControl(callId, screenPos, cameraPos, start, stream);
+    public static void handleControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream,
+                                     @javax.annotation.Nullable BlockPos secondCamera, boolean staticFirst, boolean staticSecond, boolean tap) {
+        VisualFeedManager.onControl(callId, screenPos, cameraPos, start, stream, secondCamera, staticFirst, staticSecond, tap);
     }
 
     /** The tuner of a projector: the streams on air, its presets, what it is tuned to. */

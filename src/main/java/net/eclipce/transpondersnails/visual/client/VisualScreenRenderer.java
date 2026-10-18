@@ -13,6 +13,8 @@ import net.eclipce.transpondersnails.visual.ProjectorPlacement;
 import net.eclipce.transpondersnails.visual.ProjectorTransition;
 import net.eclipce.transpondersnails.visual.ProjectorSurface;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
+import net.eclipce.transpondersnails.visual.SplitScreen;
+import javax.annotation.Nullable;
 import net.eclipce.transpondersnails.visual.VisualCameraPositions;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualGlow;
@@ -189,15 +191,20 @@ public final class VisualScreenRenderer {
         if (!screenVisible && !beamVisible) return;
 
         VisualFeed feed = null;
+        VisualFeed feed2 = null;
+        boolean split = link.isSplit(); // two pictures side by side (an intercepted call); a half that shows static has no feed
         if (screenVisible) {
             // a screen that is fading out must not make its feed capture again: the last picture stays frozen
-            feed = ending ? VisualFeedManager.peekFeed(link) : VisualFeedManager.touchFeed(link); // touching marks the feed as wanted
-            if (feed != null && !ending) {
+            feed = ending ? VisualFeedManager.peekFeed(link, 0) : VisualFeedManager.touchFeed(link, 0); // touching marks the feed as wanted
+            if (split) feed2 = ending ? VisualFeedManager.peekFeed(link, 1) : VisualFeedManager.touchFeed(link, 1);
+            if ((feed != null || feed2 != null) && !ending) {
                 // How many pixels of this display the screen covers and how far away it is: adaptive quality picks the resolution,
                 // frame rate and view radius of the feed from it (a far or small screen does not need a sharp feed).
                 double dist = Math.sqrt(screenDistSq);
                 double pixels = VisualQuality.projectedPixels(size, dist, mc.getWindow().getHeight(), mc.options.fov().get());
-                VisualFeedManager.reportView(link, pixels, dist);
+                double share = split ? 0.5 : 1.0; // each half of a split screen is half of the picture
+                if (feed != null) VisualFeedManager.reportView(link, 0, pixels * share, dist);
+                if (feed2 != null) VisualFeedManager.reportView(link, 1, pixels * share, dist);
             }
         }
         // projector still off: no picture, no light and no effects until the first fresh picture of this call exists
@@ -251,7 +258,9 @@ public final class VisualScreenRenderer {
             pose.translate(pos.getX() - cam.x, pos.getY() - cam.y, pos.getZ() - cam.z);
             Matrix4f matrix = pose.last().pose();
 
-            if (pictureReady) {
+            if (split) {
+                drawSplit(buffers, matrix, c, size, link, feed, feed2, screenVisible, alpha, staticAmount, ease, washout, now, r, g, b, a);
+            } else if (pictureReady) {
                 if (alpha > 0.0F) {
                     RenderType type = feed.renderType();
                     drawPicture(buffers.getBuffer(type), matrix, c, size, r, g, b, a, 0.0F, 0.0F, 1.0F);
@@ -330,6 +339,79 @@ public final class VisualScreenRenderer {
                 pictureVertex(vc, m, c, u0, v1, r, g, b, a, feather, uOff, vOff, uvScale);
                 pictureVertex(vc, m, c, u1, v1, r, g, b, a, feather, uOff, vOff, uvScale);
                 pictureVertex(vc, m, c, u1, v0, r, g, b, a, feather, uOff, vOff, uvScale);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // A split screen: two pictures side by side (an intercepted call). Each half is drawn like a small projection of its own: the middle of its
+    // camera's picture, cropped to fill the half, with its own vignette and soft edge. A half whose end is protected shows steady static.
+    // ------------------------------------------------------------------------------------------------
+
+    private static void drawSplit(MultiBufferSource.BufferSource buffers, Matrix4f matrix, double[][] c, int size,
+                                  VisualFeedManager.ScreenLink link, @Nullable VisualFeed feed1, @Nullable VisualFeed feed2, boolean visible,
+                                  float alpha, double staticAmount, float ease, float washout, long now, int r, int g, int b, int a) {
+        if (!visible) return;
+        VisualFeed[] feeds = {feed1, feed2};
+        float[] window = VisualStaticTexture.window(now); // fresh noise every few hundredths of a second
+        for (int half = 0; half < 2; half++) {
+            SplitScreen.Rect where = SplitScreen.screenHalf(half);
+            SplitScreen.Rect crop = SplitScreen.pictureFor(half, size, size);
+            boolean isStatic = link.isStatic(half);
+            VisualFeed feed = feeds[half];
+            boolean ready = !isStatic && feed != null && feed.hasFrame();
+            if (ready && alpha > 0.0F) {
+                RenderType type = feed.renderType();
+                drawPictureRegion(buffers.getBuffer(type), matrix, c, size, r, g, b, a, where, crop.u0(), crop.v0(), crop.u1(), crop.v1());
+                buffers.endBatch(type);
+            }
+            // static: the snow of the projector turning on and off over a picture; steady over a protected end (it fades in and out with the screen)
+            double amount = isStatic ? Math.max(staticAmount, VisualCallConstants.PROTECTED_STATIC_AMOUNT) * ease : (ready ? staticAmount : 0.0);
+            if (amount > 0.0) {
+                int staticAlpha = Math.round(Math.min(1.0F, (float) (VisualCallConstants.FEED_OPACITY * amount * washout)) * 255.0F);
+                RenderType staticType = VisualStaticTexture.renderType();
+                drawPictureRegion(buffers.getBuffer(staticType), matrix, c, size, r, g, b, staticAlpha, where,
+                        window[0], window[1], window[0] + VisualStaticTexture.WINDOW, window[1] + VisualStaticTexture.WINDOW);
+                buffers.endBatch(staticType);
+            }
+        }
+    }
+
+    /**
+     * One vertex of a picture that fills only part of the screen. (lu, lv) is where it is in that part (0..1); the part is {@code where} of
+     * the screen, and the texture coordinate runs over {@code [tu0, tu1] x [tv0, tv1]}.
+     */
+    private static void regionVertex(VertexConsumer vc, Matrix4f m, double[][] c, SplitScreen.Rect where, float lu, float lv,
+                                     double tu0, double tv0, double tu1, double tv1, int r, int g, int b, int a, double feather) {
+        double shade = ProjectorEffects.vignette(lu, lv);          // each part is brightest in its own middle
+        double fade = ProjectorEffects.edgeAlpha(lu, lv, feather);  // and fades out at its own edge
+        double su = where.u0() + lu * where.width();
+        double sv = where.v0() + lv * where.height();
+        vc.vertex(m, (float) bilinear(c, 0, su, sv), (float) bilinear(c, 1, su, sv), (float) bilinear(c, 2, su, sv))
+                .color(to255(r * shade), to255(g * shade), to255(b * shade), to255(a * fade))
+                .uv((float) (tu0 + lu * (tu1 - tu0)), (float) (tv0 + lv * (tv1 - tv0)))
+                .endVertex();
+    }
+
+    private static void drawPictureRegion(VertexConsumer vc, Matrix4f m, double[][] c, int size, int r, int g, int b, int a,
+                                          SplitScreen.Rect where, double tu0, double tv0, double tu1, double tv1) {
+        float[] grid = ProjectorEffects.GRID;
+        double feather = ProjectorEffects.edgeFeather(size);
+        for (int iy = 0; iy < grid.length - 1; iy++) {
+            float v0 = grid[iy];
+            float v1 = grid[iy + 1];
+            for (int ix = 0; ix < grid.length - 1; ix++) {
+                float u0 = grid[ix];
+                float u1 = grid[ix + 1];
+                // front, then back (reversed, so it is visible from behind too) - as drawPicture
+                regionVertex(vc, m, c, where, u0, v0, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u1, v0, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u1, v1, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u0, v1, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u0, v0, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u0, v1, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u1, v1, tu0, tv0, tu1, tv1, r, g, b, a, feather);
+                regionVertex(vc, m, c, where, u1, v0, tu0, tv0, tu1, tv1, r, g, b, a, feather);
             }
         }
     }
@@ -501,9 +583,12 @@ public final class VisualScreenRenderer {
             if (link.pictureStartMs < 0L) continue; // not projecting yet
             BlockPos screen = link.screenPos();
             BlockPos camera = link.cameraPos();
-            if (!level.isLoaded(screen) || !level.isLoaded(camera)) continue;
+            if (!level.isLoaded(screen)) continue;
             VisualSnailRole screenRole = VisualRoles.of(level.getBlockState(screen).getBlock());
-            VisualSnailRole cameraRole = VisualRoles.of(level.getBlockState(camera).getBlock());
+            // A camera that is far away (not loaded here: its picture is relayed) is not drawn here, but its screen still glows. Its role is
+            // not known then: a stream's is a camera, a call's other end is a projector.
+            VisualSnailRole cameraRole = level.isLoaded(camera) ? VisualRoles.of(level.getBlockState(camera).getBlock())
+                    : (link.isStream() ? VisualSnailRole.CAMERA : VisualSnailRole.DUPLEX);
             if (screenRole == null || cameraRole == null) continue;
 
             long sinceStart = now - link.pictureStartMs;
