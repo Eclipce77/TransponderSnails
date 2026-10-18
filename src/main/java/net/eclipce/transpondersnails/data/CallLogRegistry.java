@@ -48,6 +48,7 @@ public final class CallLogRegistry {
         BUSY,            // the target was already in a call
         UNREACHABLE,     // the number exists but nobody could be rung (not loaded / not held)
         NO_SUCH_NUMBER,  // the number was not assigned to any snail
+        BOUNCED,         // the number belongs to the other kind of snail (a phone dialing a visual snail, or the reverse): refused
         FAILED           // ended before connecting for any other reason
     }
 

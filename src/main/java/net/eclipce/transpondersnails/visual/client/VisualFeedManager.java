@@ -11,6 +11,8 @@ import net.eclipce.transpondersnails.visual.ScreenLayout;
 import net.eclipce.transpondersnails.visual.FrameGovernor;
 import net.eclipce.transpondersnails.visual.ProjectorEffects;
 import net.eclipce.transpondersnails.visual.ProjectorTransition;
+import net.eclipce.transpondersnails.visual.TileCodec;
+import net.eclipce.transpondersnails.visual.RelayFrames;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualQuality;
 import net.eclipce.transpondersnails.visual.VisualSettings;
@@ -19,6 +21,7 @@ import net.eclipce.transpondersnails.visual.VisualSnailRole;
 import net.eclipce.transpondersnails.visual.mixin.LevelRendererAccessor;
 import net.eclipce.transpondersnails.visual.mixin.ViewAreaAccessor;
 import net.eclipce.transpondersnails.visual.network.VisualFeedStatusPacket;
+import net.eclipce.transpondersnails.visual.network.VisualRelayRequestPacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
 import net.minecraft.client.Camera;
 import net.minecraft.client.CameraType;
@@ -58,7 +61,7 @@ import java.util.UUID;
  * Client side of the video call: renders the world from a remote Visual Snail's eyes into an offscreen render target.
  *
  * The capture sequence (temporary camera entity, render target swap, panoramic 1:1 projection, restoring all touched
- * renderer state afterward) follows the approach of SecurityCraft's FrameFeedHandler
+ * renderer state afterwards) follows the approach of SecurityCraft's FrameFeedHandler
  * (https://github.com/Geforce132/SecurityCraft, MIT License, Copyright (c) 2025 The SecurityCraft development team).
  * See THIRD_PARTY_NOTICE.txt. Unlike SecurityCraft, no distant chunks are loaded: the two snails are at most
  * {@link VisualCallConstants#CALL_RANGE} blocks apart, so the chunks around the remote snail are already loaded on any
@@ -79,6 +82,7 @@ public final class VisualFeedManager {
     private static boolean capturing = false;
     private static int feedCounter = 0;
     private static long lastPruneMs = 0L;
+    private static long lastRemoteCheckMs = 0L;
     private static Boolean sodiumLike = null;
 
     // ---- performance protection ----
@@ -88,6 +92,8 @@ public final class VisualFeedManager {
     private static long frameId = 0L;
     private static long lastFrameNs = 0L;
     private static long lastCaptureMs = 0L;
+    /** A feed was captured at the end of the previous frame, so the time of the frame now ending contains its cost (see FrameGovernor). */
+    private static boolean lastFrameHadCapture = false;
     /** Reused every frame / capture instead of allocating (these run up to 60 times a second). */
     private static final List<VisualFeed> CANDIDATES = new ArrayList<>();
     private static final ObjectArrayList<LevelRenderer.RenderChunkInfo> SAVED_SECTIONS = new ObjectArrayList<>();
@@ -99,6 +105,8 @@ public final class VisualFeedManager {
         private final UUID callId;
         private final BlockPos screenPos;
         private final BlockPos cameraPos;
+        /** A stream (a Visual Transmitter's broadcast): its camera does not glow because of its viewers. */
+        private final boolean stream;
         private boolean ackSent = false;
         private boolean failedSent = false;
         // renderer diagnostics (package-private on purpose: VisualScreenRenderer logs these once per call)
@@ -115,10 +123,15 @@ public final class VisualFeedManager {
             return endMs >= 0L;
         }
 
-        private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos) {
+        private ScreenLink(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean stream) {
             this.callId = callId;
             this.screenPos = screenPos.immutable();
             this.cameraPos = cameraPos.immutable();
+            this.stream = stream;
+        }
+
+        public boolean isStream() {
+            return stream;
         }
 
         public BlockPos cameraPos() {
@@ -175,13 +188,13 @@ public final class VisualFeedManager {
         return FEEDS.get(link.cameraPos);
     }
 
-    static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start) {
+    static void onControl(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream) {
         if (start) {
             ScreenLink already = LINKS.get(screenPos);
             if (already != null && already.callId.equals(callId)) {
                 return; // duplicate START for the same call
             }
-            LINKS.put(screenPos.immutable(), new ScreenLink(callId, screenPos, cameraPos));
+            LINKS.put(screenPos.immutable(), new ScreenLink(callId, screenPos, cameraPos, stream));
 
             VisualFeed existing = FEEDS.get(cameraPos);
             if (existing != null && existing.failed) {
@@ -212,8 +225,10 @@ public final class VisualFeedManager {
 
     public static void clearAll() {
         LINKS.clear();
+        VisualRelayClient.clear();
         for (VisualFeed feed : FEEDS.values()) {
             try {
+                if (feed.remote) sendRelayRequest(feed, false, System.currentTimeMillis());
                 feed.release();
             } catch (Exception e) {
                 LOGGER.warn("VisualFeedManager: error releasing feed", e);
@@ -246,6 +261,7 @@ public final class VisualFeedManager {
         LocalPlayer player = mc.player;
         if (level == null || player == null || mc.isPaused()) {
             lastFrameNs = 0L; // a pause is not a slow frame
+            lastFrameHadCapture = false;
             return;
         }
 
@@ -256,10 +272,11 @@ public final class VisualFeedManager {
         if (lastFrameNs != 0L) {
             double frameMs = (nowNs - lastFrameNs) / 1_000_000.0;
             if (frameMs < 500.0) {
-                GOVERNOR.onFrame(nowMs, frameMs, nowMs - lastCaptureMs < 1000L);
+                GOVERNOR.onFrame(nowMs, frameMs, lastFrameHadCapture, nowMs - lastCaptureMs < 1000L);
                 if (GOVERNOR.level() != lastGovernorLevel) {
-                    LOGGER.info("VisualFeedManager: video quality level {} -> {} (smoothed frame time {} ms): max {} px, {} feed(s), {}% fps",
+                    LOGGER.info("VisualFeedManager: video quality level {} -> {} (smoothed frame time {} ms, a capture costs {} ms = {}% of the time): max {} px, {} feed(s), {}% fps",
                             lastGovernorLevel, GOVERNOR.level(), Math.round(GOVERNOR.smoothedFrameMs()),
+                            Math.round(GOVERNOR.captureCostMs() * 10.0) / 10.0, Math.round(GOVERNOR.overhead() * 100.0),
                             GOVERNOR.maxResolution(VisualSettings.maxFeedResolution()),
                             GOVERNOR.maxActiveFeeds(VisualSettings.maxActiveFeeds()), Math.round(GOVERNOR.fpsScale() * 100.0));
                     lastGovernorLevel = GOVERNOR.level();
@@ -267,6 +284,12 @@ public final class VisualFeedManager {
             }
         }
         lastFrameNs = nowNs;
+        lastFrameHadCapture = false; // set again below if a feed is captured now
+
+        if (nowMs - lastRemoteCheckMs >= 500L) {
+            lastRemoteCheckMs = nowMs;
+            updateRemoteModes(level, nowMs);
+        }
 
         if (nowMs - lastPruneMs > 1000L) {
             lastPruneMs = nowMs;
@@ -280,7 +303,7 @@ public final class VisualFeedManager {
         // call is still connecting) always renders, otherwise the call could never finish connecting.
         CANDIDATES.clear();
         for (VisualFeed feed : FEEDS.values()) {
-            if (!feed.failed && isWanted(feed, nowMs)) {
+            if (!feed.failed && !feed.remote && isWanted(feed, nowMs)) {   // a remote feed is not drawn here: its frames arrive over the network
                 CANDIDATES.add(feed);
             }
         }
@@ -292,6 +315,8 @@ public final class VisualFeedManager {
             VisualFeed feed = CANDIDATES.get(i);
             if (i >= maxActive && !isHandshakePending(feed)) continue;
             feed.fps = effectiveFps(feed, adaptive);
+            int exportFps = VisualRelayClient.exportFps(feed.cameraPos, nowMs);
+            if (exportFps > 0) feed.fps = Math.max(feed.fps, exportFps); // far viewers get the rate the server asked for, however far the screens are
             if (nowNs - feed.lastCaptureNs < 1_000_000_000L / Math.max(1, feed.fps)) continue; // each feed has its own frame rate
             if (due == null || feed.lastCaptureNs < due.lastCaptureNs) {
                 due = feed;
@@ -302,10 +327,12 @@ public final class VisualFeedManager {
 
         due.lastCaptureNs = nowNs;
         lastCaptureMs = nowMs;
+        lastFrameHadCapture = true; // its cost lands in the next frame's time
         capture(mc, level, player, due, partialTick);
     }
 
     private static boolean isWanted(VisualFeed feed, long nowMs) {
+        if (VisualRelayClient.isExporting(feed.cameraPos, nowMs)) return true; // somebody far away needs this camera drawn, screens here or not
         if (!hasRunningLink(feed)) return false; // every screen of this feed is fading out: its last picture stays frozen
         if (nowMs - feed.lastTouchedMs < VisualCallConstants.FEED_WANTED_WINDOW_MS) return true;
         return isHandshakePending(feed);
@@ -390,8 +417,12 @@ public final class VisualFeedManager {
                     break;
                 }
             }
-            if (linked) continue;
+            if (linked || VisualRelayClient.isExporting(feed.cameraPos, now)) continue;
             if (onlyIdle && now - feed.lastTouchedMs < VisualCallConstants.FEED_IDLE_RELEASE_MS) continue;
+            if (feed.remote) {
+                sendRelayRequest(feed, false, now);   // no screen needs the relayed picture any more
+                VisualRelayClient.forget(feed.cameraPos);
+            }
             feed.release();
             it.remove();
         }
@@ -405,8 +436,7 @@ public final class VisualFeedManager {
         BlockPos camPos = feed.cameraPos;
 
         if (!level.isLoaded(camPos)) {
-            fail(feed, "remote snail is outside the loaded area");
-            return;
+            return;   // too far to draw here: updateRemoteModes() switches this feed to the relayed picture within half a second
         }
         BlockState camState = level.getBlockState(camPos);
         if (!(camState.getBlock() instanceof TransponderSnailBlock) || !camState.hasProperty(TransponderSnailBlock.FACING)) {
@@ -425,7 +455,14 @@ public final class VisualFeedManager {
         // quality depends on the filming snail: a camera snail is sharper and sees further than a standard video call
         VisualSnailRole role = VisualRoles.of(camState.getBlock());
         if (role == null) role = VisualSnailRole.DUPLEX;
-        feed.applyQuality(role, chooseResolution(feed, role, System.currentTimeMillis()), feed.fps);
+        long qualityNow = System.currentTimeMillis();
+        int resolution = chooseResolution(feed, role, qualityNow);
+        int exportResolution = VisualRelayClient.exportResolution(feed.cameraPos, qualityNow);
+        if (exportResolution > 0) {
+            // far viewers asked for this size (each asks for what its screen can show, as for a local feed): draw at least that, within the same limits
+            resolution = Math.max(resolution, Math.min(VisualQuality.floorTier(exportResolution), exportCap(role)));
+        }
+        feed.applyQuality(role, resolution, feed.fps);
 
         try {
             feed.allocate(++feedCounter);
@@ -601,6 +638,9 @@ public final class VisualFeedManager {
             }
         }
 
+        // somebody far away is watching this camera and this client is the one drawing it for them: send the picture up
+        if (VisualRelayClient.isExporting(feed.cameraPos, nowMs)) VisualRelayClient.exportFrame(feed);
+
         // handshake: tell the server this screen has a working picture
         if (feed.okFrames >= VisualCallConstants.HANDSHAKE_OK_FRAMES) {
             for (ScreenLink link : LINKS.values()) {
@@ -628,7 +668,7 @@ public final class VisualFeedManager {
 
         // View radius: the feed's own, never more than this client has loaded (its render distance). With adaptive quality it
         // is also shorter for low resolutions (they cannot show distant detail anyway) and when the frame governor asks for it.
-        int radius = Math.min(feed.viewChunks, viewDistance);
+        int radius = Math.min(Math.min(feed.viewChunks, viewDistance), VisualSettings.maxFeedViewChunks()); // ... and the server's limit
         if (VisualSettings.adaptive()) {
             radius = Math.min(radius, GOVERNOR.maxViewChunks(feed.viewChunks));
             radius = Math.min(radius, VisualQuality.viewRadiusFor(feed.resolution, feed.viewChunks));
@@ -701,6 +741,94 @@ public final class VisualFeedManager {
         feed.lastViewDistance = viewDistance;
         feed.lastRadius = radius;
         feed.lastPlayerSection = playerSection;
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Relayed video: a camera too far away to be drawn here
+    // ------------------------------------------------------------------------------------------------
+
+    /**
+     * Visual snails work anywhere in the dimension, but a picture can only be drawn from the chunks this client has. So a feed whose camera is
+     * NOT loaded here is not captured: this client asks the server for the picture, which comes from the client of a player near the camera
+     * (VisualRelayManager), and shows the frames that arrive. A camera that is loaded is drawn here, as always. Checked twice a second, so
+     * walking towards or away from a camera switches smoothly between the two.
+     */
+    private static void updateRemoteModes(ClientLevel level, long nowMs) {
+        for (VisualFeed feed : FEEDS.values()) {
+            boolean wantRemote = !feed.failed && hasRunningLink(feed) && RelayFrames.chooseRemote(feed.remote,
+                    loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_WIDE), loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_NARROW));
+            if (wantRemote && !feed.remote) {
+                feed.remote = true;
+                ackPendingLinks(feed);              // a call must not wait for a picture that comes over the network: its sound can start
+                sendRelayRequest(feed, true, nowMs);
+                LOGGER.info("VisualFeedManager: the camera at {} is not loaded here - its picture is relayed", feed.cameraPos);
+            } else if (!wantRemote && feed.remote) {
+                feed.remote = false;
+                sendRelayRequest(feed, false, nowMs);
+                VisualRelayClient.forget(feed.cameraPos);
+                LOGGER.info("VisualFeedManager: the camera at {} can be drawn here - no relay needed", feed.cameraPos);
+            } else if (feed.remote && nowMs - feed.lastRelayRequestMs >= RelayFrames.REQUEST_RENEW_MS) {
+                sendRelayRequest(feed, true, nowMs);   // the server forgets a request that is not renewed
+            }
+        }
+    }
+
+    /** Are the chunks {@code margin} chunks around the camera (the middle, the four sides and the four corners of that square) loaded on this client? */
+    private static boolean loadedAround(ClientLevel level, BlockPos pos, int margin) {
+        int cx = pos.getX() >> 4;
+        int cz = pos.getZ() >> 4;
+        for (int dx = -margin; dx <= margin; dx += margin) {
+            for (int dz = -margin; dz <= margin; dz += margin) {
+                if (!level.hasChunk(cx + dx, cz + dz)) return false;
+            }
+        }
+        return true;
+    }
+
+    private static void sendRelayRequest(VisualFeed feed, boolean wants, long nowMs) {
+        feed.lastRelayRequestMs = nowMs;
+        int wanted = feed.lodResolution > 0 ? feed.lodResolution : VisualCallConstants.FEED_MIN_RESOLUTION; // what the screens here can show
+        VisualNetwork.CHANNEL.sendToServer(new VisualRelayRequestPacket(feed.cameraPos, wants, wanted, wants && VisualRelayClient.consumeResync(feed.cameraPos)));
+    }
+
+    /** The biggest picture this client will draw for far viewers: the same limits as a local feed (the role, the server, the frame-rate governor). */
+    private static int exportCap(VisualSnailRole role) {
+        int cap = VisualQuality.floorTier(Math.min(role.feedResolution(), VisualSettings.maxFeedResolution()));
+        return VisualSettings.adaptive() ? Math.min(cap, GOVERNOR.maxResolution(cap)) : cap;
+    }
+
+    /** Tells the server the screens of this feed are ready, so a call that is connecting can connect. */
+    private static void ackPendingLinks(VisualFeed feed) {
+        for (ScreenLink link : LINKS.values()) {
+            if (link.cameraPos.equals(feed.cameraPos) && !link.ackSent && !link.failedSent && !link.isEnding()) {
+                link.ackSent = true;
+                VisualNetwork.CHANNEL.sendToServer(new VisualFeedStatusPacket(link.callId, link.screenPos, true, ""));
+            }
+        }
+    }
+
+    /** The server asked this client to draw a far camera for others: make sure there is a feed for it. */
+    static void onExportRequested(BlockPos camera) {
+        VisualFeed feed = FEEDS.computeIfAbsent(camera.immutable(), VisualFeed::new);
+        feed.lastTouchedMs = System.currentTimeMillis();
+    }
+
+    /** What a relayed payload changed (render thread): the changed tiles, or the whole picture. */
+    static void onRemoteUpdate(BlockPos camera, TileCodec.Update update) {
+        VisualFeed feed = FEEDS.get(camera);
+        if (feed == null || !feed.remote || feed.failed) return;
+        try {
+            feed.acceptRemote(++feedCounter, update);
+        } catch (Throwable t) {
+            LOGGER.warn("VisualFeedManager: showing a relayed frame of the camera at {} failed: {}", camera, t.toString());
+            return;
+        }
+        long nowMs = System.currentTimeMillis();
+        for (ScreenLink link : LINKS.values()) {
+            if (link.cameraPos.equals(camera) && link.pictureStartMs < 0L && !link.isEnding()) {
+                link.pictureStartMs = nowMs; // the projector turns on with the first picture
+            }
+        }
     }
 
     private static void fail(VisualFeed feed, String reason) {

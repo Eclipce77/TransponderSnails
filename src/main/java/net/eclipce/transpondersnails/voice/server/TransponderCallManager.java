@@ -6,10 +6,13 @@ import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.data.CallLogRegistry;
+import net.eclipce.transpondersnails.data.SnailKind;
 import net.eclipce.transpondersnails.data.SnailNBTHandler;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.item.TransponderSnailItem;
 import net.eclipce.transpondersnails.network.ModPackets;
+import net.eclipce.transpondersnails.visual.server.VisualCallManager;
+import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -232,7 +235,11 @@ public class TransponderCallManager {
                 return false;
             }
 
-            if (isInCall(caller.getUUID())) {
+            // Phone and visual snails are separate networks that share one pool of numbers (see SnailKind)
+            SnailKind callerKind = kindOf(callerSnailNumber);
+
+            // Voice calls are tracked per player; a visual caller's calls are tracked by VisualCallManager
+            if (callerKind == SnailKind.PHONE && isInCall(caller.getUUID())) {
                 caller.displayClientMessage(
                         Component.literal("You are already in a call!"),
                         true
@@ -247,6 +254,28 @@ public class TransponderCallManager {
                 );
                 logCallImmediate(CallLogRegistry.Outcome.NO_SUCH_NUMBER, caller, callerSnailNumber, targetSnailNumber);
                 return false;
+            }
+
+            // A snail can only dial numbers of its own kind: a phone cannot dial a visual snail and a visual snail cannot dial a phone.
+            // The call is bounced back to the caller - nothing rings, no session is created.
+            SnailKind targetKind = kindOf(targetSnailNumber);
+            if (!SnailKind.canDial(callerKind, targetKind)) {
+                handleCallBounced(caller, callerSnailNumber, targetSnailNumber, callerKind, targetKind);
+                logCallImmediate(CallLogRegistry.Outcome.BOUNCED, caller, callerSnailNumber, targetSnailNumber);
+                return false;
+            }
+
+            // Visual snails dial the same way (the same dialing GUI) but ring another visual snail, see VisualCallManager#dial
+            if (callerKind == SnailKind.VISUAL) {
+                VisualCallManager visualCalls = VisualCallManager.get();
+                if (visualCalls == null) {
+                    caller.displayClientMessage(
+                            Component.literal("Voice chat system not available!").withStyle(ChatFormatting.RED),
+                            true
+                    );
+                    return false;
+                }
+                return visualCalls.dial(caller, callerSnailNumber, targetSnailNumber);
             }
 
             if (isSnailInCall(targetSnailNumber)) {
@@ -1454,6 +1483,44 @@ public class TransponderCallManager {
     private void handleTargetBusy(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber) {
         System.out.println("DEBUG handleTargetBusy: Caller snail #" + callerSnailNumber);
 
+        playBusyToneForCaller(caller, callerSnailNumber);
+
+        caller.displayClientMessage(
+                Component.literal("Snail #" + targetSnailNumber + " is busy!")
+                        .withStyle(ChatFormatting.RED),
+                true
+        );
+    }
+
+    /**
+     * The call cannot be completed because the number belongs to the other kind of snail: the busy tone where the caller is dialing from,
+     * and a message that says what it takes. (A phone dialing a visual snail, or a visual snail dialing a phone.)
+     */
+    private void handleCallBounced(ServerPlayer caller, int callerSnailNumber, int targetSnailNumber,
+                                   SnailKind callerKind, SnailKind targetKind) {
+        System.out.println("DEBUG handleCallBounced: " + callerKind.label() + " snail #" + callerSnailNumber
+                + " dialed the " + targetKind.label() + " snail #" + targetSnailNumber);
+
+        if (callerKind == SnailKind.VISUAL) {
+            // a visual snail's own sounds come from its block; the visual manager plays the busy tone there
+            TransponderSnailBlockEntity callerBlock = VisualSnailRegistry.findByNumber(callerSnailNumber);
+            if (callerBlock != null) {
+                soundManager.playBusySoundAtSnail(caller, callerBlock.getBlockPos());
+            }
+        } else {
+            playBusyToneForCaller(caller, callerSnailNumber);
+        }
+
+        caller.displayClientMessage(
+                Component.literal("Call bounced - #" + targetSnailNumber + " only takes calls from a "
+                                + targetKind.displayName() + ".")
+                        .withStyle(ChatFormatting.RED),
+                true
+        );
+    }
+
+    /** The busy tone for a phone caller: from the player's hand if the snail is handheld, otherwise from the placed snail. */
+    private void playBusyToneForCaller(ServerPlayer caller, int callerSnailNumber) {
         // Check if caller has a handheld snail
         if (isHandheldSnail(callerSnailNumber)) {
             soundManager.playBusySoundForPlayer(caller);
@@ -1466,12 +1533,13 @@ public class TransponderCallManager {
                 System.out.println("DEBUG: Played busy sound at BLOCK caller #" + callerSnailNumber);
             }
         }
+    }
 
-        caller.displayClientMessage(
-                Component.literal("Snail #" + targetSnailNumber + " is busy!")
-                        .withStyle(ChatFormatting.RED),
-                true
-        );
+    /** Which kind of snail holds this number. A number nobody holds counts as a phone (every number saved before visual snails was one). */
+    private SnailKind kindOf(int snailNumber) {
+        SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
+        SnailKind kind = registry != null ? registry.getKindOfNumber(snailNumber) : null;
+        return kind != null ? kind : SnailKind.PHONE;
     }
 
     private void handleCallTimeout(CallSession callSession) {

@@ -18,23 +18,27 @@ public final class VisualCallEvents {
         if (event.phase != TickEvent.Phase.END) return;
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.tick();
+        VisualRelayManager.tick(net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer());
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         VisualCallManager.discard();
         VisualSnailRegistry.clear();
+        VisualRelayManager.clear();
     }
 
     @SubscribeEvent
     public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.onPlayerLeft(event.getEntity().getUUID());
+        VisualRelayManager.onPlayerLeft(event.getEntity().getUUID());
     }
 
     @SubscribeEvent
     public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.onPlayerLeft(event.getEntity().getUUID());
+        VisualRelayManager.onPlayerLeft(event.getEntity().getUUID());
     }
 }

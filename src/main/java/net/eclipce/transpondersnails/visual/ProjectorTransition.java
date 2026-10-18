@@ -46,6 +46,15 @@ public final class ProjectorTransition {
         return fadeIn(sinceStartMs) * fadeOut(sinceEndMs);
     }
 
+    /**
+     * How far the snail is CAPTURING (0..1), which is what its eyes glow for. It comes on with the fade-in like the picture, but when the
+     * call ends it is over at once: the eyes do not fade out, they turn off.
+     */
+    public static double captureEase(long sinceStartMs, long sinceEndMs) {
+        if (sinceEndMs >= 0L) return 0.0;
+        return fadeIn(sinceStartMs);
+    }
+
     /** The fade-out has played completely: the screen can go. */
     public static boolean finished(long sinceEndMs) {
         return sinceEndMs >= VisualCallConstants.FEED_FADE_OUT_MS;

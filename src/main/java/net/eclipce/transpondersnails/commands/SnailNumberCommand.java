@@ -6,7 +6,9 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.data.CallLogRegistry;
+import net.eclipce.transpondersnails.data.SnailKind;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
+import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -32,6 +34,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Usage: /snailnumber <find|help|history|list|logs|lookup|remove|stats> [args]
  *
+ * Phone snails and visual snails share the numbers; find, lookup, list and stats say which kind a number is, and "remove all" can be
+ * limited to one kind: remove all [phone|visual].
+ *
  * Layout: players always get the symbol layout. The server console gets it too when its output charset can
  * draw the symbols, otherwise it gets a plain-text layout with the same information (see Sym). Nothing is
  * bold, and nothing depends on hover text or buttons; the remove-all confirmation is typed, not clicked.
@@ -47,7 +52,7 @@ public class SnailNumberCommand {
 
     // Pending "remove all" confirmations: command source -> time the prompt was shown.
     // The key is the player's UUID, or the source name for the console / RCON / command blocks.
-    private static final Map<String, Long> pendingRemoveAll = new ConcurrentHashMap<>();
+    private static final Map<String, PendingRemoval> pendingRemoveAll = new ConcurrentHashMap<>();
     private static final long CONFIRMATION_TIMEOUT_MS = 30000; // 30 seconds
 
     private static final DateTimeFormatter TIME_FORMAT =
@@ -55,7 +60,8 @@ public class SnailNumberCommand {
 
     // ---- Symbols. Basic Multilingual Plane only, so the default Minecraft font can draw them.
     // Written as unicode escapes so this file stays ASCII whatever encoding the compiler assumes.
-    private static final String PHONE = "\u260E";   // telephone, marks titles
+    private static final String PHONE = "\u260E";   // telephone, marks titles (and phone snails)
+    private static final String SCREEN = "\u25A3";  // a square in a square: a screen, marks visual snails
     private static final String OK = "\u2714";      // check mark
     private static final String NO = "\u2718";      // cross
     private static final String WARN = "\u26A0";    // warning sign
@@ -73,7 +79,7 @@ public class SnailNumberCommand {
     private static final String BAR_ON = "\u2588";  // filled block, for the usage bar
     private static final String BAR_OFF = "\u2591"; // light block, for the usage bar
 
-    private static final String ALL_SYMBOLS = PHONE + OK + NO + WARN + DOT + OUT + IN + HOME + PLAYER + PIN
+    private static final String ALL_SYMBOLS = PHONE + SCREEN + OK + NO + WARN + DOT + OUT + IN + HOME + PLAYER + PIN
             + GO + LIVE + REDO + RULE + MID + BAR_ON + BAR_OFF;
 
     // Colors: titles gold, labels and dim text gray, numbers aqua, good green, caution yellow, bad red
@@ -83,6 +89,8 @@ public class SnailNumberCommand {
     private static final ChatFormatting C_GOOD = ChatFormatting.GREEN;
     private static final ChatFormatting C_WARN = ChatFormatting.YELLOW;
     private static final ChatFormatting C_BAD = ChatFormatting.RED;
+    private static final ChatFormatting C_PHONE = ChatFormatting.DARK_AQUA;     // the kind of a phone snail
+    private static final ChatFormatting C_VISUAL = ChatFormatting.LIGHT_PURPLE; // the kind of a visual snail
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
@@ -240,6 +248,38 @@ public class SnailNumberCommand {
         emit(context, line);
     }
 
+    /** "--- (symbol) Snail #1234 ---  visual snail": the symbol and the word say which kind of snail it is. */
+    private static void titleOfSnail(CommandContext<CommandSourceStack> context, Sym s, String text, SnailKind kind) {
+        String symbol = kind == SnailKind.VISUAL ? SCREEN : PHONE;
+        Line line = new Line().add(s.t(RULE + RULE + RULE + " " + symbol + " " + text + " " + RULE + RULE + RULE,
+                "=== " + text + " ==="), C_TITLE);
+        line.add("  " + kind.label() + " snail", kindColor(kind));
+        emit(context, line);
+    }
+
+    private static ChatFormatting kindColor(SnailKind kind) {
+        return kind == SnailKind.VISUAL ? C_VISUAL : C_PHONE;
+    }
+
+    /** The kind of the snail that holds this number (a number nobody holds - or an old one without a kind - counts as a phone). */
+    private static SnailKind kindOf(SnailNumberRegistry registry, int number) {
+        SnailKind kind = registry.getKindOfNumber(number);
+        return kind != null ? kind : SnailKind.PHONE;
+    }
+
+    /**
+     * Where a snail is right now. A placed visual snail is found through the visual registry (it never registers with the phone call
+     * manager); anything carried by an online player - either kind - is found by the call manager.
+     */
+    private static TransponderCallManager.SnailLocation locate(int number, SnailKind kind) {
+        if (kind == SnailKind.VISUAL) {
+            TransponderCallManager.SnailLocation placed = VisualSnailRegistry.locate(number);
+            if (placed != null) return placed;
+        }
+        TransponderCallManager callManager = TransponderSnails.getCallManager();
+        return callManager != null ? callManager.locateSnail(number) : null;
+    }
+
     private static int fail(CommandContext<CommandSourceStack> context, String text) {
         context.getSource().sendFailure(Component.literal(sym(context).t(NO + " ", "") + text));
         return 0;
@@ -347,11 +387,10 @@ public class SnailNumberCommand {
             return 1;
         }
 
-        title(context, s, "Snail #" + number, null);
+        titleOfSnail(context, s, "Snail #" + number, kindOf(registry, number));
         sendId(context, s, snailUUID);
 
-        TransponderCallManager callManager = TransponderSnails.getCallManager();
-        TransponderCallManager.SnailLocation location = callManager != null ? callManager.locateSnail(number) : null;
+        TransponderCallManager.SnailLocation location = locate(number, kindOf(registry, number));
 
         if (location != null) {
             emit(context, locationLine(s, location));
@@ -387,13 +426,13 @@ public class SnailNumberCommand {
         title(context, s, "/snailnumber", null);
 
         String[][] lines = {
-                {"find <number>", "where a snail is + teleport command"},
+                {"find <number>", "what kind of snail (phone/visual), where it is + teleport command"},
                 {"history <number> [count]", "a number's calls: placed, received, missed"},
                 {"list", "every number with its full UUID"},
                 {"logs [count]", "every call ever placed"},
-                {"lookup <number>", "UUID, last user, usage history"},
-                {"remove <number>", "reset one number (OP 3)"},
-                {"remove all", "reset every number, asks first (OP 4)"},
+                {"lookup <number>", "kind of snail, UUID, last user, usage history"},
+                {"remove <number>", "reset one number, phone or visual (OP 3)"},
+                {"remove all [phone|visual]", "reset every number, or only the phone / visual snails', asks first (OP 4)"},
                 {"remove confirm | cancel", "answer that prompt within 30s (OP 4)"},
                 {"stats", "registry usage"},
         };
@@ -409,7 +448,7 @@ public class SnailNumberCommand {
                     .add(NO + " not connected  ", C_WARN)
                     .add(LIVE + " in progress", ChatFormatting.AQUA));
         }
-        send(context, "Numbers are 1000-9999. Everything works from the console.", C_DIM);
+        send(context, "Numbers are 1000-9999, shared by phone and visual snails. Everything works from the console.", C_DIM);
         return 1;
     }
 
@@ -603,7 +642,7 @@ public class SnailNumberCommand {
             text += " (" + reasonText(reason) + ")";
         }
         boolean mild = outcome == CallLogRegistry.Outcome.MISSED || outcome == CallLogRegistry.Outcome.BUSY
-                || outcome == CallLogRegistry.Outcome.CANCELLED;
+                || outcome == CallLogRegistry.Outcome.CANCELLED || outcome == CallLogRegistry.Outcome.BOUNCED;
         line.add(text, mild ? C_WARN : C_BAD);
     }
 
@@ -616,6 +655,7 @@ public class SnailNumberCommand {
             case BUSY -> "busy";
             case UNREACHABLE -> "unreachable";
             case NO_SUCH_NUMBER -> "no such number";
+            case BOUNCED -> "bounced (other kind of snail)";
             case FAILED -> "failed";
         };
     }
@@ -664,9 +704,13 @@ public class SnailNumberCommand {
             return 1;
         }
 
-        title(context, s, "Snail numbers", String.valueOf(assignments.size()));
+        title(context, s, "Snail numbers", assignments.size() + " (" + registry.getAssignedCount(SnailKind.Scope.PHONE) + " phone, "
+                + registry.getAssignedCount(SnailKind.Scope.VISUAL) + " visual)");
         for (Map.Entry<Integer, UUID> assignment : assignments.entrySet()) {
-            emit(context, new Line().add("#" + assignment.getKey(), C_NUM).add("  " + assignment.getValue(), C_DIM));
+            SnailKind kind = kindOf(registry, assignment.getKey());
+            emit(context, new Line().add("#" + assignment.getKey(), C_NUM)
+                    .add("  ").add(String.format(Locale.ROOT, "%-6s", kind.label()), kindColor(kind))
+                    .add("  " + assignment.getValue(), C_DIM));
         }
 
         return 1;
@@ -708,11 +752,10 @@ public class SnailNumberCommand {
             return 1;
         }
 
-        title(context, s, "Snail #" + number, null);
+        titleOfSnail(context, s, "Snail #" + number, kindOf(registry, number));
         sendId(context, s, snailUUID);
 
-        TransponderCallManager callManager = TransponderSnails.getCallManager();
-        TransponderCallManager.SnailLocation location = callManager != null ? callManager.locateSnail(number) : null;
+        TransponderCallManager.SnailLocation location = locate(number, kindOf(registry, number));
         if (location == null) {
             emit(context, new Line().add(s.t(NO + " not loaded", "Not loaded"), C_WARN)
                     .add(s.t("  ", " (") + "/snailnumber find " + number + s.t("", ")"), C_DIM));
@@ -808,36 +851,44 @@ public class SnailNumberCommand {
 
     // =================== REMOVE ===================
 
+    /** A "remove all" that is waiting for its confirmation: when it was asked, and which numbers it covers. */
+    private record PendingRemoval(long timeMs, SnailKind.Scope scope) { }
+
     /**
      * /snailnumber remove <number | all | * | confirm | cancel>
+     * /snailnumber remove <all | *> [phone | visual | all]     (also: remove phone, remove visual)
      *
-     * The keywords are parsed here rather than registered as literals, so tab completion only offers
-     * <number>. They still need OP 4; a plain number needs OP 3 (checked by the command tree).
+     * The words are parsed by RemoveArgument rather than registered as literals, so tab completion only offers <number>. They still
+     * need OP 4; a plain number needs OP 3 (checked by the command tree).
      */
     private static int removeCommand(CommandContext<CommandSourceStack> context) {
-        String argument = StringArgumentType.getString(context, "number").trim();
+        RemoveArgument.Parsed parsed = RemoveArgument.parse(StringArgumentType.getString(context, "number"));
 
-        if (argument.matches("\\d{1,9}")) {
-            int number = Integer.parseInt(argument);
-            if (number < 1000 || number > 9999) {
-                return fail(context, "Snail numbers are 1000-9999.");
-            }
-            return removeNumber(context, number);
+        if (parsed.type() == RemoveArgument.Type.NUMBER) {
+            return removeNumber(context, parsed.number());
+        }
+        if (parsed.type() == RemoveArgument.Type.INVALID) {
+            return fail(context, parsed.problem());
         }
 
-        String word = argument.toLowerCase(Locale.ROOT);
-        if (word.equals("all") || word.equals("*") || word.equals("confirm") || word.equals("cancel")) {
-            if (!context.getSource().hasPermission(4)) {
-                return fail(context, "\"remove " + word + "\" needs OP level 4.");
-            }
-            return switch (word) {
-                case "confirm" -> confirmRemoveAll(context);
-                case "cancel" -> cancelRemoveAll(context);
-                default -> requestRemoveAll(context);
-            };
+        if (!context.getSource().hasPermission(4)) {
+            return fail(context, "\"remove " + parsed.text() + "\" needs OP level 4.");
         }
+        return switch (parsed.type()) {
+            case CONFIRM -> confirmRemoveAll(context);
+            case CANCEL -> cancelRemoveAll(context);
+            default -> requestRemoveAll(context, parsed.scope());
+        };
+    }
 
-        return fail(context, "Enter a snail number: /snailnumber remove <number>");
+    /** "all 12 snail numbers (8 phone, 4 visual)", "all 8 phone snail numbers", "all 4 visual snail numbers" */
+    private static String scopeText(SnailNumberRegistry registry, SnailKind.Scope scope) {
+        int count = registry.getAssignedCount(scope);
+        if (scope == SnailKind.Scope.ALL) {
+            return "ALL " + count + " snail numbers (" + registry.getAssignedCount(SnailKind.Scope.PHONE) + " phone, "
+                    + registry.getAssignedCount(SnailKind.Scope.VISUAL) + " visual)";
+        }
+        return "all " + count + " " + scope.label() + " snail numbers";
     }
 
     /**
@@ -857,6 +908,7 @@ public class SnailNumberCommand {
         if (snailUUID == null) {
             return fail(context, "Number #" + number + " is not assigned!");
         }
+        SnailKind kind = kindOf(registry, number); // before the removal: it forgets the kind
 
         // The registry must be updated first: applyRevocation relies on the UUID already being revoked
         if (registry.revokeSnail(snailUUID) == -1) {
@@ -866,8 +918,10 @@ public class SnailNumberCommand {
         TransponderCallManager callManager = TransponderSnails.getCallManager();
         TransponderCallManager.RevocationReport report = callManager != null
                 ? callManager.applyRevocation(List.of(number)) : null;
+        List<String> visualReset = VisualSnailRegistry.applyRevocation(List.of(number));
 
-        send(context, s.t(OK + " Removed #" + number, "Removed snail number #" + number + "."), C_GOOD);
+        send(context, s.t(OK + " Removed #" + number + " (" + kind.label() + ")",
+                "Removed " + kind.label() + " snail number #" + number + "."), C_GOOD);
         sendId(context, s, snailUUID);
         if (report != null) {
             if (report.callsEnded() > 0) {
@@ -880,14 +934,17 @@ public class SnailNumberCommand {
                 send(context, s.t(DOT, "-") + " reset held snail " + held);
             }
         }
+        for (String placed : visualReset) {
+            send(context, s.t(DOT, "-") + " reset placed visual snail " + placed);
+        }
         send(context, s.t(REDO + " registers a new number on its next use", "It registers a new number the next time it is used."), C_DIM);
 
-        System.out.println("ADMIN ACTION: " + sourceName(context.getSource()) + " removed snail number #" + number + " (snail " + snailUUID + ")");
+        System.out.println("ADMIN ACTION: " + sourceName(context.getSource()) + " removed " + kind.label() + " snail number #" + number + " (snail " + snailUUID + ")");
         return 1;
     }
 
     /** First step of "remove all": explains what will happen and waits for "remove confirm". */
-    private static int requestRemoveAll(CommandContext<CommandSourceStack> context) {
+    private static int requestRemoveAll(CommandContext<CommandSourceStack> context, SnailKind.Scope scope) {
         Sym s = sym(context);
 
         SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
@@ -895,23 +952,31 @@ public class SnailNumberCommand {
             return registryUnavailable(context);
         }
 
-        int assignedCount = registry.getAssignedCount();
-        if (assignedCount == 0) {
-            send(context, s.t(NO + " ", "") + "No snail numbers are assigned - nothing to remove.", C_WARN);
+        int count = registry.getAssignedCount(scope);
+        if (count == 0) {
+            String what = scope == SnailKind.Scope.ALL ? "snail numbers are" : scope.label() + " snail numbers are";
+            send(context, s.t(NO + " ", "") + "No " + what + " assigned - nothing to remove.", C_WARN);
             return 1;
         }
 
-        // Forget expired prompts from everyone, then remember this one
+        // Forget expired prompts from everyone, then remember this one (and what it covers)
         long now = System.currentTimeMillis();
-        pendingRemoveAll.values().removeIf(time -> now - time > CONFIRMATION_TIMEOUT_MS);
-        pendingRemoveAll.put(sourceKey(context.getSource()), now);
+        pendingRemoveAll.values().removeIf(pending -> now - pending.timeMs() > CONFIRMATION_TIMEOUT_MS);
+        pendingRemoveAll.put(sourceKey(context.getSource()), new PendingRemoval(now, scope));
 
-        send(context, s.t(WARN + " Remove ALL " + assignedCount + " snail numbers?",
-                "WARNING: this will remove ALL " + assignedCount + " snail numbers."), C_BAD);
-        send(context, s.t(DOT + " every snail, placed or held, registers again on its next use",
-                "- Every snail (placed or held) must register a new number the next time it is used."), C_WARN);
-        send(context, s.t(DOT + " active calls end " + MID + " this cannot be undone",
-                "- All active calls will be ended. This cannot be undone."), C_WARN);
+        String text = scopeText(registry, scope);
+        send(context, s.t(WARN + " Remove " + text + "?", "WARNING: this will remove " + text + "."), C_BAD);
+        if (scope == SnailKind.Scope.VISUAL) {
+            send(context, s.t(DOT + " every visual snail, placed or carried, registers again on its next use",
+                    "- Every visual snail (placed or carried) must register a new number the next time it is used."), C_WARN);
+            send(context, s.t(DOT + " phone snails are not touched " + MID + " this cannot be undone",
+                    "- Phone snails are not touched. This cannot be undone."), C_WARN);
+        } else {
+            send(context, s.t(DOT + " every " + (scope == SnailKind.Scope.PHONE ? "phone " : "") + "snail, placed or held, registers again on its next use",
+                    "- Every " + (scope == SnailKind.Scope.PHONE ? "phone " : "") + "snail (placed or held) must register a new number the next time it is used."), C_WARN);
+            send(context, s.t(DOT + " active calls end " + MID + (scope == SnailKind.Scope.PHONE ? " visual snails are not touched " + MID : "") + " this cannot be undone",
+                    "- Active calls will be ended." + (scope == SnailKind.Scope.PHONE ? " Visual snails are not touched." : "") + " This cannot be undone."), C_WARN);
+        }
         emit(context, new Line().add(s.t(OK + " ", "To confirm within 30 seconds, type: "), C_GOOD)
                 .add("/snailnumber remove confirm")
                 .add(s.t("  (30s)", ""), C_DIM));
@@ -920,16 +985,16 @@ public class SnailNumberCommand {
         return 1;
     }
 
-    /** Second step of "remove all". Runs only if this same source asked within the last 30 seconds. */
+    /** Second step of "remove all". Runs only if this same source asked within the last 30 seconds - and removes what THAT request covered. */
     private static int confirmRemoveAll(CommandContext<CommandSourceStack> context) {
         Sym s = sym(context);
         String key = sourceKey(context.getSource());
 
-        Long requestedAt = pendingRemoveAll.remove(key);
-        if (requestedAt == null) {
+        PendingRemoval pending = pendingRemoveAll.remove(key);
+        if (pending == null) {
             return fail(context, "Nothing to confirm. Use /snailnumber remove all first.");
         }
-        if (System.currentTimeMillis() - requestedAt > CONFIRMATION_TIMEOUT_MS) {
+        if (System.currentTimeMillis() - pending.timeMs() > CONFIRMATION_TIMEOUT_MS) {
             return fail(context, "Confirmation expired. Use /snailnumber remove all to try again.");
         }
 
@@ -939,23 +1004,29 @@ public class SnailNumberCommand {
         }
 
         // The registry must be updated first: applyRevocation relies on the UUIDs already being revoked
-        Map<Integer, UUID> removed = registry.revokeAllSnails();
+        SnailKind.Scope scope = pending.scope();
+        Map<Integer, UUID> removed = registry.revokeAllSnails(scope);
 
         TransponderCallManager callManager = TransponderSnails.getCallManager();
         TransponderCallManager.RevocationReport report = callManager != null
                 ? callManager.applyRevocation(removed.keySet()) : null;
+        List<String> visualReset = VisualSnailRegistry.applyRevocation(removed.keySet());
 
-        send(context, s.t(OK + " Removed all " + removed.size() + " snail numbers", "Removed all snail numbers (" + removed.size() + ")."), C_GOOD);
+        String what = scope == SnailKind.Scope.ALL ? "all " + removed.size() + " snail numbers" : "all " + removed.size() + " " + scope.label() + " snail numbers";
+        send(context, s.t(OK + " Removed " + what, "Removed " + what + "."), C_GOOD);
+        int placedReset = (report != null ? report.placedReset().size() : 0) + visualReset.size();
         if (report != null) {
-            send(context, s.t(DOT + " " + report.callsEnded() + " calls ended" + s.sep() + report.placedReset().size()
+            send(context, s.t(DOT + " " + report.callsEnded() + " calls ended" + s.sep() + placedReset
                             + " placed snails reset" + s.sep() + report.itemsReset() + " items reset",
-                    "Ended " + report.callsEnded() + " active calls. Reset " + report.placedReset().size()
+                    "Ended " + report.callsEnded() + " active calls. Reset " + placedReset
                             + " placed snails and " + report.itemsReset() + " snail items in online players' inventories."));
+        } else if (placedReset > 0) {
+            send(context, s.t(DOT + " " + placedReset + " placed snails reset", "Reset " + placedReset + " placed snails."));
         }
         send(context, s.t(REDO + " every snail registers a new number on its next use",
                 "Every snail registers a new number the next time it is used. Snails in unloaded chunks or containers reset when they are next loaded or used."), C_DIM);
 
-        System.out.println("ADMIN ACTION: " + sourceName(context.getSource()) + " removed all snail numbers (" + removed.size() + " numbers)");
+        System.out.println("ADMIN ACTION: " + sourceName(context.getSource()) + " removed " + what + " (" + removed.size() + " numbers, scope " + scope.label() + ")");
         return 1;
     }
 
@@ -1003,6 +1074,9 @@ public class SnailNumberCommand {
         emit(context, new Line().add(String.valueOf(assigned), C_NUM).add(" assigned" + s.sep(), C_DIM)
                 .add(String.valueOf(available), C_NUM).add(" free" + s.sep(), C_DIM)
                 .add(String.valueOf(total), C_NUM).add(" total", C_DIM));
+        emit(context, new Line().add(s.t(PHONE + " ", "") + registry.getAssignedCount(SnailKind.Scope.PHONE), C_PHONE).add(" phone" + s.sep(), C_DIM)
+                .add(s.t(SCREEN + " ", "") + registry.getAssignedCount(SnailKind.Scope.VISUAL), C_VISUAL).add(" visual", C_DIM)
+                .add("  (the same pool of numbers)", C_DIM));
 
         // Warn if getting full
         if (percentUsed > 90) {

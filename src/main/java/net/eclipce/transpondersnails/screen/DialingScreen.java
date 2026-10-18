@@ -39,7 +39,7 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
         super.init();
 
         // Center the GUI on screen
-        this.leftPos = (this.width - this.imageWidth) / 2;
+        this.leftPos = dialerLeftPos();
         this.topPos = (this.height - this.imageHeight) / 2;
 
         // Create the number display text box
@@ -170,6 +170,27 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
                 -1, // Button number
                 this::onClearButtonPressed
         ));
+
+        initSidePanel();
+    }
+
+    // ---- Hooks for a dialer that has something beside it (VisualDialingScreen). A phone snail uses none of them. ----
+
+    /** Screen x of the dialer's left edge: centered. */
+    protected int dialerLeftPos() {
+        return (this.width - this.imageWidth) / 2;
+    }
+
+    /** Called at the end of init(): add the widgets of whatever is beside the dialer. */
+    protected void initSidePanel() {
+    }
+
+    /** Drawn after the dark background and before the dialer and all widgets. */
+    protected void renderSidePanelBackground(GuiGraphics guiGraphics) {
+    }
+
+    /** Drawn after everything else of the dialer, before its tooltips. */
+    protected void renderSidePanelOverlay(GuiGraphics guiGraphics, int mouseX, int mouseY) {
     }
 
     @Override
@@ -240,12 +261,14 @@ public class DialingScreen extends AbstractContainerScreen<DialingMenu> {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // 1. First: Render the dark background
         this.renderBackground(guiGraphics);
+        renderSidePanelBackground(guiGraphics);
 
         // 2. Second: Render the GUI background (your dial texture)
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         // 3. Third: Render custom labels and info
         renderSnailInfo(guiGraphics);
+        renderSidePanelOverlay(guiGraphics, mouseX, mouseY);
 
         // 4. Fourth: Render tooltips on top of everything
         this.renderTooltip(guiGraphics, mouseX, mouseY);

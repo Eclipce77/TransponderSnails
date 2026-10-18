@@ -12,10 +12,14 @@ import net.eclipce.transpondersnails.entity.client.DenDenMushiRenderer;
 import net.eclipce.transpondersnails.entity.client.HornedDenDenMushiRenderer;
 import net.eclipce.transpondersnails.entity.client.WhiteDenDenMushiRenderer;
 import net.eclipce.transpondersnails.screen.DialingScreen;
+import net.eclipce.transpondersnails.screen.DialingMenu;
 import net.eclipce.transpondersnails.screen.ModMenuTypes;
+import net.eclipce.transpondersnails.visual.client.VisualDialingScreen;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
@@ -31,7 +35,11 @@ public class ClientSetup {
     public static void clientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             // Register the screen for the menu type
-            MenuScreens.register(ModMenuTypes.DIALING_MENU.get(), DialingScreen::new);
+            // A Visual Transponder Snail's dialing GUI has its own screen (with a panel beside it); a phone snail's is unchanged
+            MenuScreens.register(ModMenuTypes.DIALING_MENU.get(),
+                    (DialingMenu menu, Inventory inventory, Component title) -> menu.getVisualPos() != null
+                            ? new VisualDialingScreen(menu, inventory, title)
+                            : new DialingScreen(menu, inventory, title));
         });
 
         ModLoadingContext.get().registerExtensionPoint(

@@ -132,6 +132,11 @@ public class ModConfig {
         // Visual Transponder Snails (video calls)
         public final ForgeConfigSpec.IntValue visualMaxFeedResolution;
         public final ForgeConfigSpec.IntValue visualMaxFeedFps;
+        public final ForgeConfigSpec.IntValue visualMaxFeedViewChunks;
+        public final ForgeConfigSpec.IntValue visualRelayMaxSources;
+        public final ForgeConfigSpec.IntValue visualRelayFps;
+        public final ForgeConfigSpec.IntValue visualRelayMaxResolution;
+        public final ForgeConfigSpec.IntValue visualRelayMaxKbps;
         public final ForgeConfigSpec.IntValue visualMaxConcurrentCalls;
         public final ForgeConfigSpec.IntValue visualMaxScreenSize;
 
@@ -277,7 +282,7 @@ public class ModConfig {
 
             visualMaxFeedResolution = builder
                     .comment("Highest resolution (pixels, square) any video feed may use. Synced to every client.")
-                    .comment("256, 512, 1024 or 2048 (other values are rounded down to one of these).")
+                    .comment("256, 384, 512, 768, 1024, 1536 or 2048 (other values are rounded down to one of these).")
                     .comment("Lower this on servers with many players or weak computers. Default: 1024")
                     .defineInRange("max_feed_resolution", 1024, 256, 2048);
 
@@ -285,8 +290,36 @@ public class ModConfig {
                     .comment("Highest frame rate (frames per second) of any video feed. Synced to every client. Default: 15")
                     .defineInRange("max_feed_fps", 15, 5, 30);
 
+            visualMaxFeedViewChunks = builder
+                    .comment("Furthest a video feed sees, in chunks. Synced to every client. Default: 16")
+                    .comment("After its resolution this is the biggest cost of a video feed on the players' computers: the work grows with the")
+                    .comment("SQUARE of it (8 chunks is a quarter of the work of 16). Lower it on servers with weak computers. It limits what the")
+                    .comment("Visual Transmitter's camera can see; the feeds of the projector snails are shorter than this anyway.")
+                    .defineInRange("max_feed_view_chunks", 16, 4, 32);
+
+            visualRelayMaxSources = builder
+                    .comment("Visual snails work anywhere in the dimension. A camera that a viewer's client has not loaded (it is far away) is drawn by the client of a")
+                    .comment("player who IS near it, and the picture is relayed through the server. This is the most cameras that may be relayed at the same time")
+                    .comment("(each one is a stream of about 5-100 KB/s upwards from that player and to every viewer - only what changes is sent). 0 turns it off: far cameras then show no new picture.")
+                    .comment("Default: 8")
+                    .defineInRange("relay_max_sources", 8, 0, 32);
+
+            visualRelayFps = builder
+                    .comment("Frames a second of a relayed picture. A view where nothing moves is looked at less often by itself. Default: 10")
+                    .defineInRange("relay_fps", 10, 2, 20);
+
+            visualRelayMaxResolution = builder
+                    .comment("The biggest relayed picture (pixels, square). Each viewer asks for what its screen can show, as for a picture drawn locally; this is the limit.")
+                    .comment("Only the tiles that change are sent, so a big picture of a still view costs little. Default: 1024 (the same as a camera snail drawn locally)")
+                    .defineInRange("relay_max_resolution", 1024, 256, 2048);
+
+            visualRelayMaxKbps = builder
+                    .comment("The most a relayed camera may send, in KB per second on average (a busy picture - rain over the whole view - is slowed down to this: the")
+                    .comment("most changed parts are updated first, the rest a little later). Default: 160")
+                    .defineInRange("relay_max_kbps", 160, 16, 1024);
+
             visualMaxConcurrentCalls = builder
-                    .comment("Most video calls that may run at the same time on this server. Default: 64")
+                    .comment("Most video calls that may run at the same time on this server. Every projector that is tuned to a stream counts as one. Default: 64")
                     .defineInRange("max_concurrent_calls", 64, 1, 256);
 
             visualMaxScreenSize = builder
@@ -491,6 +524,11 @@ public class ModConfig {
     private static final int DEFAULT_MAX_ACTIVE_VIDEO_FEEDS = 4;
     private static final int DEFAULT_VISUAL_MAX_FEED_RESOLUTION = 1024;
     private static final int DEFAULT_VISUAL_MAX_FEED_FPS = 15;
+    private static final int DEFAULT_VISUAL_MAX_FEED_VIEW_CHUNKS = 16;
+    private static final int DEFAULT_VISUAL_RELAY_MAX_SOURCES = 8;
+    private static final int DEFAULT_VISUAL_RELAY_FPS = 10;
+    private static final int DEFAULT_VISUAL_RELAY_MAX_RESOLUTION = 1024;
+    private static final int DEFAULT_VISUAL_RELAY_MAX_KBPS = 160;
     private static final int DEFAULT_VISUAL_MAX_CONCURRENT_CALLS = 64;
     private static final int DEFAULT_VISUAL_MAX_SCREEN_SIZE = 20;
 
@@ -524,6 +562,11 @@ public class ModConfig {
     private static volatile int cachedMaxActiveVideoFeeds = DEFAULT_MAX_ACTIVE_VIDEO_FEEDS;
     private static volatile int cachedVisualMaxFeedResolution = DEFAULT_VISUAL_MAX_FEED_RESOLUTION;
     private static volatile int cachedVisualMaxFeedFps = DEFAULT_VISUAL_MAX_FEED_FPS;
+    private static volatile int cachedVisualMaxFeedViewChunks = DEFAULT_VISUAL_MAX_FEED_VIEW_CHUNKS;
+    private static volatile int cachedVisualRelayMaxSources = DEFAULT_VISUAL_RELAY_MAX_SOURCES;
+    private static volatile int cachedVisualRelayFps = DEFAULT_VISUAL_RELAY_FPS;
+    private static volatile int cachedVisualRelayMaxResolution = DEFAULT_VISUAL_RELAY_MAX_RESOLUTION;
+    private static volatile int cachedVisualRelayMaxKbps = DEFAULT_VISUAL_RELAY_MAX_KBPS;
     private static volatile int cachedVisualMaxConcurrentCalls = DEFAULT_VISUAL_MAX_CONCURRENT_CALLS;
     private static volatile int cachedVisualMaxScreenSize = DEFAULT_VISUAL_MAX_SCREEN_SIZE;
 
@@ -585,6 +628,11 @@ public class ModConfig {
             cachedHornedDDMJammingRadius = getValidatedValue(SERVER.hornedDDMJammingRadius.get(), DEFAULT_HORNED_DDM_JAMMING_RADIUS, 1.0, 200.0);
             cachedVisualMaxFeedResolution = (int) getValidatedValue((long) SERVER.visualMaxFeedResolution.get(), (long) DEFAULT_VISUAL_MAX_FEED_RESOLUTION, 256L, 2048L);
             cachedVisualMaxFeedFps = (int) getValidatedValue((long) SERVER.visualMaxFeedFps.get(), (long) DEFAULT_VISUAL_MAX_FEED_FPS, 5L, 30L);
+            cachedVisualMaxFeedViewChunks = (int) getValidatedValue((long) SERVER.visualMaxFeedViewChunks.get(), (long) DEFAULT_VISUAL_MAX_FEED_VIEW_CHUNKS, 4L, 32L);
+            cachedVisualRelayMaxSources = (int) getValidatedValue((long) SERVER.visualRelayMaxSources.get(), (long) DEFAULT_VISUAL_RELAY_MAX_SOURCES, 0L, 32L);
+            cachedVisualRelayFps = (int) getValidatedValue((long) SERVER.visualRelayFps.get(), (long) DEFAULT_VISUAL_RELAY_FPS, 2L, 20L);
+            cachedVisualRelayMaxResolution = (int) getValidatedValue((long) SERVER.visualRelayMaxResolution.get(), (long) DEFAULT_VISUAL_RELAY_MAX_RESOLUTION, 256L, 2048L);
+            cachedVisualRelayMaxKbps = (int) getValidatedValue((long) SERVER.visualRelayMaxKbps.get(), (long) DEFAULT_VISUAL_RELAY_MAX_KBPS, 16L, 1024L);
             cachedVisualMaxConcurrentCalls = (int) getValidatedValue((long) SERVER.visualMaxConcurrentCalls.get(), (long) DEFAULT_VISUAL_MAX_CONCURRENT_CALLS, 1L, 256L);
             cachedVisualMaxScreenSize = (int) getValidatedValue((long) SERVER.visualMaxScreenSize.get(), (long) DEFAULT_VISUAL_MAX_SCREEN_SIZE, 1L, 64L);
             cachedCallInactivityTimeout    = SERVER.callInactivityTimeoutMs.get();
@@ -857,6 +905,31 @@ public class ModConfig {
     /** Server (synced to clients): highest feed frame rate on this server. */
     public static int getVisualMaxFeedFps() {
         return cachedVisualMaxFeedFps;
+    }
+
+    /** Server (synced to clients): the furthest a video feed sees, in chunks. */
+    public static int getVisualMaxFeedViewChunks() {
+        return cachedVisualMaxFeedViewChunks;
+    }
+
+    /** Server: the most cameras relayed at once (0 = relay off). */
+    public static int getVisualRelayMaxSources() {
+        return cachedVisualRelayMaxSources;
+    }
+
+    /** Server: frames a second of a relayed picture. */
+    public static int getVisualRelayFps() {
+        return cachedVisualRelayFps;
+    }
+
+    /** Server: the biggest relayed picture (pixels, square). */
+    public static int getVisualRelayMaxResolution() {
+        return cachedVisualRelayMaxResolution;
+    }
+
+    /** Server: the most a relayed camera may send (KB a second, on average). */
+    public static int getVisualRelayMaxKbps() {
+        return cachedVisualRelayMaxKbps;
     }
 
     /** Server: most video calls running at once. */

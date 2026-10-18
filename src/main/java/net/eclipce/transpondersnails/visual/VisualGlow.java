@@ -22,18 +22,26 @@ public final class VisualGlow {
 
     private VisualGlow() {}
 
+    /** Same, with one value for both: the picture and the capturing come on and go off together. */
+    public static void apply(VisualSnailRole screenRole, VisualSnailRole cameraRole, float ease,
+                             float[] screenFlags, float[] cameraFlags) {
+        apply(screenRole, cameraRole, ease, ease, screenFlags, cameraFlags);
+    }
+
     /**
      * Adds what a live link tells to the flags of its two snails (each {@code float[2]}, 0 = not at all; the larger value is kept).
      *
-     * @param ease how far the picture of this link has faded in, 0..1
+     * @param projectEase  how visible the picture of this link is, 0..1: it fades in, and out again when the call ends
+     * @param captureEase  how far the camera of this link is capturing, 0..1: it comes on with the picture, but when the call ends it is
+     *                     0 at once - the eyes turn off, they do not fade out (see ProjectorTransition.captureEase)
      */
-    public static void apply(VisualSnailRole screenRole, VisualSnailRole cameraRole, float ease,
+    public static void apply(VisualSnailRole screenRole, VisualSnailRole cameraRole, float projectEase, float captureEase,
                              float[] screenFlags, float[] cameraFlags) {
-        screenFlags[PROJECTING] = Math.max(screenFlags[PROJECTING], ease);
-        cameraFlags[CAPTURING] = Math.max(cameraFlags[CAPTURING], ease);
+        screenFlags[PROJECTING] = Math.max(screenFlags[PROJECTING], projectEase);
+        cameraFlags[CAPTURING] = Math.max(cameraFlags[CAPTURING], captureEase);
         if (cameraRole.canReceive()) { // a projector at the other end shows OUR camera too: both ends project and capture
-            cameraFlags[PROJECTING] = Math.max(cameraFlags[PROJECTING], ease);
-            screenFlags[CAPTURING] = Math.max(screenFlags[CAPTURING], ease);
+            cameraFlags[PROJECTING] = Math.max(cameraFlags[PROJECTING], projectEase);
+            screenFlags[CAPTURING] = Math.max(screenFlags[CAPTURING], captureEase);
         }
     }
 

@@ -14,7 +14,7 @@ import java.util.Optional;
  */
 public final class VisualNetwork {
 
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "4"; // 2: streams; 3: relayed video (any distance); 4: tile video (key frames + changed tiles)
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TransponderSnails.MOD_ID, "visual_video"),
@@ -42,5 +42,28 @@ public final class VisualNetwork {
         CHANNEL.registerMessage(id++, VisualConfigUpdatePacket.class,
                 VisualConfigUpdatePacket::encode, VisualConfigUpdatePacket::decode, VisualConfigUpdatePacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        // streams: the tuner at a projector, the status menu of a transmitter
+        CHANNEL.registerMessage(id++, VisualStreamActionPacket.class,
+                VisualStreamActionPacket::encode, VisualStreamActionPacket::decode, VisualStreamActionPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, VisualStreamListPacket.class,
+                VisualStreamListPacket::encode, VisualStreamListPacket::decode, VisualStreamListPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, VisualTransmitterStatusPacket.class,
+                VisualTransmitterStatusPacket::encode, VisualTransmitterStatusPacket::decode, VisualTransmitterStatusPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        // relayed video: a far camera is drawn by the client of a player near it and sent to the viewers through the server
+        CHANNEL.registerMessage(id++, VisualRelayRequestPacket.class,
+                VisualRelayRequestPacket::encode, VisualRelayRequestPacket::decode, VisualRelayRequestPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, VisualFeedRequestPacket.class,
+                VisualFeedRequestPacket::encode, VisualFeedRequestPacket::decode, VisualFeedRequestPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, VisualFrameUploadPacket.class,
+                VisualFrameUploadPacket::encode, VisualFrameUploadPacket::decode, VisualFrameUploadPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, VisualFrameRelayPacket.class,
+                VisualFrameRelayPacket::encode, VisualFrameRelayPacket::decode, VisualFrameRelayPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

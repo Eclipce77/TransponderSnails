@@ -20,6 +20,8 @@ import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 public class DialingMenu extends AbstractContainerMenu {
     private final TransponderSnailBlockEntity blockEntity;
     private final ItemStack snailStack; // For handheld snails
@@ -30,6 +32,11 @@ public class DialingMenu extends AbstractContainerMenu {
 
     // Snail information - these will be synced from server to client
     private int ownSnailNumber = -1; // This snail's number
+
+    // Client side: the position of the Visual Transponder Snail this menu was opened on, or null for a phone snail. The dialing
+    // screen of a visual snail also shows the projector settings (the server sends this in the screen-open data).
+    @Nullable
+    private BlockPos visualPos = null;
     private boolean numberAssigned = false;
     private boolean syncRequested = false; // Track if we've requested sync
 
@@ -98,9 +105,20 @@ public class DialingMenu extends AbstractContainerMenu {
 
         if (isHandheld) {
             return new DialingMenu(containerId, playerInventory, snailStack);
-        } else {
-            return new DialingMenu(containerId, playerInventory);
         }
+
+        DialingMenu menu = new DialingMenu(containerId, playerInventory);
+        // A visual snail adds a flag and its position after the two fields every snail sends (a phone block sends nothing more)
+        if (buf.readableBytes() > 0 && buf.readBoolean()) {
+            menu.visualPos = buf.readBlockPos();
+        }
+        return menu;
+    }
+
+    /** Client side: the Visual Transponder Snail this menu belongs to, or null if it is a phone snail's. */
+    @Nullable
+    public BlockPos getVisualPos() {
+        return visualPos;
     }
 
     /**
@@ -425,7 +443,11 @@ public class DialingMenu extends AbstractContainerMenu {
             // Clear the dialed number after successful call initiation
             clearDialedNumber();
 
-            // Call state will be updated by the call manager through callbacks
+            // Call state will be updated by the call manager through callbacks - except for a visual snail: VisualCallManager has no
+            // callbacks into this menu, so it goes straight back to idle (the player sees the ringing on the snail itself)
+            if (blockEntity != null && blockEntity.isVisualSnail()) {
+                updateCallStateAndSync(CallStateSyncPacket.CallState.IDLE, null, -1, "");
+            }
             serverPlayer.displayClientMessage(Component.literal("Calling snail #" + targetNumber + "...")
                     .withStyle(net.minecraft.ChatFormatting.GREEN),true);
         } else {

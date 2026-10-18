@@ -4,11 +4,14 @@ import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.recipe.ModRecipeTypes;
 import net.eclipce.transpondersnails.recipe.PortableSnailDyeRecipe;
 import net.eclipce.transpondersnails.recipe.ShellDyeRecipe;
+import net.eclipce.transpondersnails.visual.client.VisualConfigScreen;
+import net.eclipce.transpondersnails.visual.client.VisualDialingScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.RegistryAccess;
@@ -36,6 +39,16 @@ public class TransponderSnailsJeiPlugin implements IModPlugin {
     @Override
     public ResourceLocation getPluginUid() {
         return PLUGIN_UID;
+    }
+
+    /**
+     * The Visual Transponder Snail's dialing GUI and the projector settings are not inventories: JEI's item list is not shown on them.
+     * (Only these two screens. The phone snail's dialing GUI is a different class and is left as it was.)
+     */
+    @Override
+    public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        registration.addGuiScreenHandler(VisualDialingScreen.class, screen -> null);
+        registration.addGuiScreenHandler(VisualConfigScreen.class, screen -> null);
     }
 
     /**

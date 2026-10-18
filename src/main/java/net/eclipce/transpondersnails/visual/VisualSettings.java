@@ -20,6 +20,31 @@ public final class VisualSettings {
         return ModConfig.getVisualMaxFeedFps();
     }
 
+    /** The most cameras relayed through the server at once; 0 = relay off (server limit). */
+    public static int relayMaxSources() {
+        return ModConfig.getVisualRelayMaxSources();
+    }
+
+    /** Frames a second of a relayed picture (server setting). */
+    public static int relayFps() {
+        return ModConfig.getVisualRelayFps();
+    }
+
+    /** The biggest relayed picture, pixels each way (server setting). */
+    public static int relayMaxResolution() {
+        return ModConfig.getVisualRelayMaxResolution();
+    }
+
+    /** The most a relayed camera may send, KB a second on average (server setting). */
+    public static int relayMaxKbps() {
+        return ModConfig.getVisualRelayMaxKbps();
+    }
+
+    /** The furthest any feed sees, in chunks (server limit). The cost of a feed grows with the square of this. */
+    public static int maxFeedViewChunks() {
+        return ModConfig.getVisualMaxFeedViewChunks();
+    }
+
     /** Whether resolution / frame rate / view distance adapt automatically (player setting). */
     public static boolean adaptive() {
         return ModConfig.isAdaptiveVideoQuality();

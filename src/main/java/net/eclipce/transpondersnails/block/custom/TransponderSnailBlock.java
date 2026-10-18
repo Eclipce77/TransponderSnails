@@ -252,6 +252,11 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
                 snailBE.loadFromItem(stack);
 
+                // the player who places a visual snail is its owner (a transmitter's stream is called "<owner>'s Stream" until it is named)
+                if (placer instanceof net.minecraft.world.entity.player.Player placingPlayer) {
+                    snailBE.setOwner(placingPlayer);
+                }
+
                 CompoundTag nbt = stack.getTag();
                 int shellColor = 0;
 

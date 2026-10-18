@@ -3,15 +3,15 @@
   "category": "misc",
   "pattern": [
     "   ",
-    "NWN",
+    "TWT",
     " C "
   ],
   "key": {
     "W": {
       "item": "transpondersnails:white_den_den_mushi"
     },
-    "N": {
-      "item": "transpondersnails:copper_nugget"
+    "T": {
+      "item": "minecraft:tripwire_hook"
     },
     "C": {
       "item": "transpondersnails:wire"

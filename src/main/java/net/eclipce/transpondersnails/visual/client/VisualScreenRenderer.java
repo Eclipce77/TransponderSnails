@@ -13,6 +13,7 @@ import net.eclipce.transpondersnails.visual.ProjectorPlacement;
 import net.eclipce.transpondersnails.visual.ProjectorTransition;
 import net.eclipce.transpondersnails.visual.ProjectorSurface;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
+import net.eclipce.transpondersnails.visual.VisualCameraPositions;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualGlow;
 import net.eclipce.transpondersnails.visual.VisualQuality;
@@ -83,8 +84,8 @@ public final class VisualScreenRenderer {
         if (VisualFeedManager.isCapturing()) return; // no screen-in-screen while a feed is being rendered
 
         java.util.Collection<VisualFeedManager.ScreenLink> links = VisualFeedManager.activeLinks();
-        VisualConfigScreen editing = VisualConfigScreen.active(); // the projector settings menu, if it is open
-        if (links.isEmpty() && editing == null) return;
+        VisualSettingsPanel editing = VisualSettingsPanel.active(); // the projector settings (on their own or next to the dialer), if open
+        if (links.isEmpty() && editing == null && VisualCameraPositions.isEmpty()) return;
 
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
@@ -152,7 +153,7 @@ public final class VisualScreenRenderer {
             offBack = snail.getScreenOffsetBack();
         }
         // While the settings menu of THIS snail is open its values apply at once, before the server has confirmed them.
-        VisualConfigScreen editing = VisualConfigScreen.active();
+        VisualSettingsPanel editing = VisualSettingsPanel.active();
         if (editing != null && editing.pos().equals(pos)) {
             size = editing.size();
             offSide = editing.side();
@@ -505,12 +506,25 @@ public final class VisualScreenRenderer {
             VisualSnailRole cameraRole = VisualRoles.of(level.getBlockState(camera).getBlock());
             if (screenRole == null || cameraRole == null) continue;
 
+            long sinceStart = now - link.pictureStartMs;
             long sinceEnd = link.isEnding() ? now - link.endMs : -1L;
-            float ease = (float) ProjectorTransition.visibility(now - link.pictureStartMs, sinceEnd); // the glow comes on and goes off with the picture
-            if (ease <= 0.0F) continue;
-            VisualGlow.apply(screenRole, cameraRole, ease,
+            // The projector part comes on and goes off with the picture (it fades out). The eyes glow for CAPTURING: they come on with the
+            // picture, but when the call ends they just turn off - they do not fade out.
+            float projectEase = (float) ProjectorTransition.visibility(sinceStart, sinceEnd);
+            float captureEase = (float) ProjectorTransition.captureEase(sinceStart, sinceEnd);
+            if (projectEase <= 0.0F && captureEase <= 0.0F) continue;
+            // A stream's camera does not glow because of its viewers: that would show that someone is watching. It glows while it is live (below).
+            VisualGlow.apply(screenRole, cameraRole, projectEase, link.isStream() ? 0.0F : captureEase,
                     GLOW_FLAGS.computeIfAbsent(screen.immutable(), k -> new float[2]),
                     GLOW_FLAGS.computeIfAbsent(camera.immutable(), k -> new float[2]));
+        }
+        // A camera that is live glows its eyes whether or not anybody is watching - from its own block (its model says "in call"), not from a link.
+        for (BlockPos camPos : VisualCameraPositions.all()) {
+            if (!level.isLoaded(camPos)) continue;
+            BlockState camState = level.getBlockState(camPos);
+            if (VisualRoles.of(camState.getBlock()) != VisualSnailRole.CAMERA) continue;
+            if (!camState.hasProperty(TransponderSnailBlock.IN_CALL) || !camState.getValue(TransponderSnailBlock.IN_CALL)) continue;
+            GLOW_FLAGS.computeIfAbsent(camPos, k -> new float[2])[VisualGlow.CAPTURING] = 1.0F;
         }
         if (GLOW_FLAGS.isEmpty()) return;
 
@@ -675,7 +689,7 @@ public final class VisualScreenRenderer {
         return previewType;
     }
 
-    private static void drawPreview(ClientLevel level, VisualConfigScreen editing, Vec3 cam, PoseStack pose,
+    private static void drawPreview(ClientLevel level, VisualSettingsPanel editing, Vec3 cam, PoseStack pose,
                                     MultiBufferSource.BufferSource buffers) {
         BlockPos pos = editing.pos();
         if (!level.isLoaded(pos)) return;

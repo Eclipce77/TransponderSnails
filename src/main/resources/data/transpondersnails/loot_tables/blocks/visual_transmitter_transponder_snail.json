@@ -51,6 +51,31 @@
                   "source": "ColorsInitialized",
                   "target": "BlockEntityTag.ColorsInitialized",
                   "op": "replace"
+                },
+                {
+                  "source": "StreamId",
+                  "target": "BlockEntityTag.StreamId",
+                  "op": "replace"
+                },
+                {
+                  "source": "StreamName",
+                  "target": "BlockEntityTag.StreamName",
+                  "op": "replace"
+                },
+                {
+                  "source": "StreamOwner",
+                  "target": "BlockEntityTag.StreamOwner",
+                  "op": "replace"
+                },
+                {
+                  "source": "StreamOwnerName",
+                  "target": "BlockEntityTag.StreamOwnerName",
+                  "op": "replace"
+                },
+                {
+                  "source": "StreamPresets",
+                  "target": "BlockEntityTag.StreamPresets",
+                  "op": "replace"
                 }
               ]
             }

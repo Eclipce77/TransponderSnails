@@ -36,6 +36,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
@@ -130,10 +131,11 @@ public final class VisualCallManager {
     // =====================================================================================================
 
     /**
-     * Right click on a Visual Snail. (Crouch + right click never gets here: on a projector it opens the settings menu, see
-     * VisualProjectorConfig; there is no reject - a call that is not wanted is simply not answered.)
+     * Right click on a Visual Snail that is in a call or is a camera. A Visual Transponder Snail (projector) that is NOT in a call never
+     * gets here: a click on it opens its dialing GUI and crouch + click its settings (TransponderSnailBlockEntity#handleVisualInteraction);
+     * the call is placed by number (see {@link #dial}). There is no reject - a call that is not wanted is simply not answered.
      * <ul>
-     *   <li>idle: start a call to the nearest idle Visual Snail in range</li>
+     *   <li>idle (only a camera gets here): start a call to the nearest idle Visual Snail in range</li>
      *   <li>ringing (callee): answer; ringing (caller): cancel</li>
      *   <li>connecting / connected: hang up</li>
      * </ul>
@@ -223,7 +225,77 @@ public final class VisualCallManager {
                 break;
         }
 
-        TransponderSnailBlockEntity callee = others.get(result.index());
+        return startSession(player, level, caller, callerRole, others.get(result.index()));
+    }
+
+    /**
+     * Dialing by number, from the dialing GUI of a Visual Transponder Snail (the same GUI as a phone): rings the visual snail that holds
+     * {@code targetNumber}. Only visual snails are dialed here - the caller (TransponderCallManager.initiateCallBySnailNumber) has
+     * already refused a number of the other kind. Tells the player why if the call cannot be made.
+     *
+     * @return true if the call is ringing
+     */
+    public boolean dial(ServerPlayer player, int callerNumber, int targetNumber) {
+        if (api == null) {
+            msg(player, "Voice chat is not available - cannot start a video call!", ChatFormatting.RED);
+            return false;
+        }
+
+        // the snail the player is dialing from: loaded, in the player's level, and within reach of the player
+        TransponderSnailBlockEntity caller = VisualSnailRegistry.findByNumber(callerNumber);
+        if (caller == null || !(caller.getLevel() instanceof ServerLevel level) || level != player.level()
+                || player.distanceToSqr(Vec3.atCenterOf(caller.getBlockPos())) > 64.0) {
+            msg(player, "Could not dial from this snail!", ChatFormatting.RED);
+            return false;
+        }
+
+        GlobalPos callerGp = GlobalPos.of(level.dimension(), caller.getBlockPos());
+        if (snailToCall.containsKey(callerGp)) {
+            msg(player, "This snail is already in a call!", ChatFormatting.RED);
+            return false;
+        }
+
+        TransponderSnailBlockEntity callee = VisualSnailRegistry.findByNumber(targetNumber);
+        if (callee == null) {
+            msg(player, "Snail #" + targetNumber + " is not available!", ChatFormatting.RED);
+            return false;
+        }
+        if (callee.getLevel() != level) {
+            msg(player, "Snail #" + targetNumber + " is in another dimension!", ChatFormatting.RED);
+            return false;
+        }
+
+        VisualSnailRole callerRole = VisualRoles.ofEntity(caller);
+        VisualSnailRole calleeRole = VisualRoles.ofEntity(callee);
+        if (callerRole == null || calleeRole == null || !VisualSnailRole.canCall(callerRole, calleeRole)) {
+            msg(player, "Snail #" + targetNumber + " cannot take this call!", ChatFormatting.RED);
+            return false;
+        }
+
+        // No range limit: like a phone snail, a visual snail can be dialed anywhere in its dimension (the dimension was checked above).
+        BlockPos a = caller.getBlockPos();
+        BlockPos b = callee.getBlockPos();
+
+        if (snailToCall.containsKey(GlobalPos.of(level.dimension(), b))) {
+            soundManager.playBusySoundAtSnail(player, a);
+            msg(player, "Snail #" + targetNumber + " is busy!", ChatFormatting.RED);
+            return false;
+        }
+
+        return startSession(player, level, caller, callerRole, callee);
+    }
+
+    /** Rings {@code callee} for a call from {@code caller}: the session, the snail states, the ring tone. Shared by pairing and dialing. */
+    private boolean startSession(ServerPlayer player, ServerLevel level, TransponderSnailBlockEntity caller,
+                                 VisualSnailRole callerRole, TransponderSnailBlockEntity callee) {
+        // server-wide limit (server config: visual_snails.max_concurrent_calls)
+        if (sessions.size() >= VisualSettings.maxConcurrentCalls()) {
+            msg(player, "This server's limit of " + VisualSettings.maxConcurrentCalls()
+                    + " simultaneous video calls has been reached - try again later.", ChatFormatting.RED);
+            return false;
+        }
+
+        BlockPos callerPos = caller.getBlockPos();
         BlockPos calleePos = callee.getBlockPos();
 
         VisualSnailRole calleeRole = VisualRoles.ofEntity(callee);
@@ -303,6 +375,7 @@ public final class VisualCallManager {
         VisualCallSession session = sessions.get(callId);
         if (session == null || session.getState() == State.RINGING) return;
         if (!session.involves(screenPos) || !session.receivesFromOther(screenPos)) return; // only ends that have a screen report
+        if (session.isStream()) return; // a viewer that cannot get the picture (too far: its area is not loaded there) shows "no signal"; the stream goes on
         if (!player.level().dimension().equals(session.dimension())) return;
         double maxDist = VisualCallConstants.VIDEO_TRACK_RANGE + 16.0;
         if (player.distanceToSqr(screenPos.getX() + 0.5, screenPos.getY() + 0.5, screenPos.getZ() + 0.5) > maxDist * maxDist) return;
@@ -329,10 +402,10 @@ public final class VisualCallManager {
         double[] bScreen = bShows ? screenCenter(level, b) : null;
         for (ServerPlayer p : level.players()) {
             if (aShows && isNear(p, a, aScreen, r2) && session.addViewer(p.getUUID(), a)) {
-                sendControl(p, session.callId(), a, b, true);
+                sendControl(p, session.callId(), a, b, true, session.isStream());
             }
             if (bShows && isNear(p, b, bScreen, r2) && session.addViewer(p.getUUID(), b)) {
-                sendControl(p, session.callId(), b, a, true);
+                sendControl(p, session.callId(), b, a, true, session.isStream());
             }
         }
     }
@@ -363,9 +436,9 @@ public final class VisualCallManager {
         return new double[]{pos.getX() + c[0], pos.getY() + c[1], pos.getZ() + c[2]};
     }
 
-    private static void sendControl(ServerPlayer player, UUID callId, BlockPos screen, BlockPos camera, boolean start) {
+    private static void sendControl(ServerPlayer player, UUID callId, BlockPos screen, BlockPos camera, boolean start, boolean stream) {
         VisualNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new VisualFeedControlPacket(callId, screen, camera, start));
+                new VisualFeedControlPacket(callId, screen, camera, start, stream));
     }
 
     public void onPlayerLeft(UUID playerId) {
@@ -401,6 +474,11 @@ public final class VisualCallManager {
         ServerLevel level = server.getLevel(session.dimension());
         if (level == null) {
             end(session, EndReason.FAILED, "dimension unavailable", null, null);
+            return;
+        }
+
+        if (session.isStream()) {
+            tickStream(level, session);
             return;
         }
 
@@ -464,6 +542,198 @@ public final class VisualCallManager {
     }
 
     // =====================================================================================================
+    // Streams: a Visual Transmitter broadcasts, any number of projectors tune in
+    // =====================================================================================================
+
+    /**
+     * A projector tunes in to the stream of a camera that is broadcasting: a one-way connection, up at once - no ringing, no handshake.
+     * The camera is not marked busy and shows nothing (a camera does not announce who is watching); only the projector changes. A
+     * projector that is tuned to another stream is retuned; one that is in a call is busy.
+     *
+     * @return true if it is tuned in
+     */
+    public boolean tune(ServerPlayer player, TransponderSnailBlockEntity projector, TransponderSnailBlockEntity camera, String streamName) {
+        if (api == null) {
+            msg(player, "Voice chat is not available - cannot receive a stream!", ChatFormatting.RED);
+            return false;
+        }
+        if (!(projector.getLevel() instanceof ServerLevel level) || level != player.level()
+                || player.distanceToSqr(Vec3.atCenterOf(projector.getBlockPos())) > 100.0) {
+            msg(player, "Could not tune in from here!", ChatFormatting.RED);
+            return false;
+        }
+        if (camera.getLevel() != level) {
+            msg(player, "That stream is in another dimension!", ChatFormatting.RED);   // the only limit on the range
+            return false;
+        }
+        if (!camera.isStreaming()) {
+            msg(player, streamName + " is not active.", ChatFormatting.RED);
+            return false;
+        }
+
+        GlobalPos projectorGp = GlobalPos.of(level.dimension(), projector.getBlockPos());
+        UUID existing = snailToCall.get(projectorGp);
+        if (existing != null) {
+            VisualCallSession old = sessions.get(existing);
+            if (old != null && old.isStream()) {
+                if (old.callerPos().equals(camera.getBlockPos())) {
+                    msg(player, "Already tuned to " + streamName + ".", ChatFormatting.YELLOW);
+                    return true;
+                }
+                endStream(old, null); // retune: quietly leave the old stream
+            } else {
+                msg(player, "This snail is in a call!", ChatFormatting.RED);
+                return false;
+            }
+        }
+        if (sessions.size() >= VisualSettings.maxConcurrentCalls()) {
+            msg(player, "This server's limit of " + VisualSettings.maxConcurrentCalls()
+                    + " simultaneous video calls has been reached - try again later.", ChatFormatting.RED);
+            return false;
+        }
+
+        LocationalAudioChannel atProjector = createChannel(level, projector.getBlockPos());
+        if (atProjector == null) {
+            msg(player, "Could not tune in: the audio channel could not be created.", ChatFormatting.RED);
+            return false;
+        }
+
+        VisualCallSession session = new VisualCallSession(UUID.randomUUID(), level.dimension(), camera.getBlockPos(), projector.getBlockPos(),
+                tickCounter, VisualSnailRole.CAMERA, VisualSnailRole.DUPLEX, true);
+        session.setChannels(null, atProjector);   // only the projector has a speaker
+        session.setState(State.CONNECTED);
+        sessions.put(session.callId(), session);
+        snailToCall.put(projectorGp, session.callId());   // the projector is busy; the camera is NOT (it can have any number of viewers)
+
+        projector.setVisualCallState(VisualCallState.CONNECTED);
+        soundManager.playCallConnectedSoundAtSnail(player, projector.getBlockPos());
+        refreshViewers(level, session);
+        msg(player, "Tuned to " + streamName + ".", ChatFormatting.GREEN);
+        return true;
+    }
+
+    private void tickStream(ServerLevel level, VisualCallSession session) {
+        TransponderSnailBlockEntity camera = VisualSnailRegistry.get(session.callerGp());
+        TransponderSnailBlockEntity projector = VisualSnailRegistry.get(session.calleeGp());
+        if (camera == null || camera.isRemoved() || projector == null || projector.isRemoved() || !camera.isStreaming()) {
+            end(session, EndReason.LOST, null, null, null);   // the stream was switched off, or one of the two snails is gone
+            return;
+        }
+        String failure = session.takeFailure();
+        if (failure != null) {
+            fail(session, failure, null);
+            return;
+        }
+        if (tickCounter % VisualCallConstants.VIEWER_REFRESH_TICKS == 0) refreshViewers(level, session);
+        long now = System.currentTimeMillis();
+        projector.setVisualAudioActive(audioActive(session, session.calleePos(), now));
+        camera.setVisualAudioActive(now - session.lastAudioFrom(session.callerPos()) < VisualCallConstants.AUDIO_ACTIVITY_WINDOW_MS);
+    }
+
+    /** One microphone packet, to the speaker of EVERY projector that is tuned to the camera at {@code cameraPos}. */
+    private void sendToStreamViewers(net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension, BlockPos cameraPos, byte[] audio) {
+        for (VisualCallSession s : sessions.values()) {
+            if (!s.isStream() || s.getState() != State.CONNECTED || !s.dimension().equals(dimension) || !s.callerPos().equals(cameraPos)) continue;
+            AudioChannel channel = s.channelAt(s.calleePos());
+            if (channel == null) continue;
+            try {
+                channel.send(audio);
+                s.markAudioAt(s.calleePos());
+                s.markAudioFrom(cameraPos);
+            } catch (Exception e) {
+                int errors = s.recordAudioError();
+                if (errors == 1) LOGGER.warn("VisualCallManager: audio send to a stream viewer failed: {}", e.toString());
+                if (errors >= VisualCallConstants.MAX_AUDIO_SEND_ERRORS) s.flagFailure("audio transmission error"); // that viewer only
+            }
+        }
+    }
+
+    /** Ends every stream session of a camera (the stream was switched off, or the camera is gone). @param message what the viewers are told, or null */
+    public void endStreamsOf(GlobalPos camera, @Nullable String message) {
+        for (VisualCallSession s : sessions.values()) {
+            if (s.isStream() && s.callerGp().equals(camera)) endStream(s, message);
+        }
+    }
+
+    /** A projector leaves the stream it is tuned to (the player double-clicked it in the tuner). */
+    public void disconnectStream(GlobalPos projector, @Nullable ServerPlayer actor) {
+        VisualCallSession s = streamSessionOf(projector);
+        if (s != null) end(s, EndReason.HANG_UP, null, actor, s.calleePos());
+    }
+
+    /**
+     * Whether this player is a viewer of a screen that shows the picture of the snail at {@code camera} (a call or a stream). The relay
+     * only sends a camera's picture to such a player: nobody can watch a camera they are not connected to.
+     */
+    public boolean isViewerOfCamera(UUID player, GlobalPos camera) {
+        for (VisualCallSession s : sessions.values()) {
+            if (s.isEnded() || !s.dimension().equals(camera.dimension())) continue;
+            for (ViewerKey key : s.viewerKeys()) {
+                if (key.player().equals(player) && s.other(key.screen()).equals(camera.pos())) return true;
+            }
+        }
+        return false;
+    }
+
+    /** How many projectors are tuned to the camera right now. */
+    public int viewerCount(GlobalPos camera) {
+        int n = 0;
+        for (VisualCallSession s : sessions.values()) {
+            if (s.isStream() && !s.isEnded() && s.callerGp().equals(camera)) n++;
+        }
+        return n;
+    }
+
+    /** The stream session a projector is tuned in with, or null. */
+    @Nullable
+    public VisualCallSession streamSessionOf(GlobalPos projector) {
+        UUID id = snailToCall.get(projector);
+        VisualCallSession s = id == null ? null : sessions.get(id);
+        return s != null && s.isStream() ? s : null;
+    }
+
+    private static String streamEndMessage(EndReason reason, @Nullable String detail, @Nullable ServerPlayer actor) {
+        if (reason == EndReason.HANG_UP && actor != null) return "Disconnected from the stream.";
+        if (reason == EndReason.FAILED) return "The stream failed: " + (detail == null ? "unknown error" : detail);
+        return "The stream ended.";
+    }
+
+    /**
+     * Ends one viewer's connection to a stream. Only the projector is touched: the camera was never in a call, shows nothing, and goes on
+     * for its other viewers. {@code message} is told to the players near the projector (null = quietly, as when retuning).
+     */
+    private void endStream(VisualCallSession session, @Nullable String message) {
+        if (!session.markEnded()) return;
+
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        sessions.remove(session.callId());
+        snailToCall.remove(session.calleeGp(), session.callId());
+
+        runStep("reset projector", () -> resetSnail(session.calleeGp()));
+        runStep("stop video", () -> {
+            if (server == null) return;
+            for (ViewerKey key : session.viewerKeys()) {
+                ServerPlayer p = server.getPlayerList().getPlayer(key.player());
+                if (p != null) sendControl(p, session.callId(), key.screen(), session.other(key.screen()), false, true);
+            }
+        });
+        session.clearAudio();
+
+        if (message == null || server == null) return;
+        ServerLevel level = server.getLevel(session.dimension());
+        if (level == null) return;
+        runStep("messages", () -> {
+            ServerPlayer anyone = anyPlayer(level, null);
+            if (anyone != null && VisualSnailRegistry.get(session.calleeGp()) != null) {
+                soundManager.playCallDisconnectedSoundAtSnail(anyone, session.calleePos());
+            }
+            for (ServerPlayer near : playersNear(level, session.calleePos(), VoiceChatConstants.getSnailInteractionRange())) {
+                msg(near, message, ChatFormatting.GRAY);
+            }
+        });
+    }
+
+    // =====================================================================================================
     // Audio (called from the Simple Voice Chat thread through SnailAudioRelay)
     // =====================================================================================================
 
@@ -513,6 +783,11 @@ public final class VisualCallManager {
         byte[] audio = relay.processForVisualCall(opus, speaker.getUUID(), gain);
         if (audio == null) return true;
 
+        if (bestSession.isStream()) {
+            sendToStreamViewers(bestSession.dimension(), bestPos, audio);
+            return true;
+        }
+
         BlockPos target = bestSession.other(bestPos);
         AudioChannel channel = bestSession.channelAt(target);
         if (channel == null) return true;
@@ -542,6 +817,7 @@ public final class VisualCallManager {
     /** A snail block was removed / unloaded. The removed snail is already out of the registry. */
     public void onSnailRemoved(TransponderSnailBlockEntity be) {
         if (be.getLevel() == null) return;
+        endStreamsOf(GlobalPos.of(be.getLevel().dimension(), be.getBlockPos()), "The stream ended.");   // a camera that was streaming
         UUID id = snailToCall.get(GlobalPos.of(be.getLevel().dimension(), be.getBlockPos()));
         VisualCallSession session = id == null ? null : sessions.get(id);
         if (session != null) {
@@ -558,6 +834,10 @@ public final class VisualCallManager {
      */
     private void end(VisualCallSession session, EndReason reason, @Nullable String detail,
                      @Nullable ServerPlayer actor, @Nullable BlockPos actorPos) {
+        if (session.isStream()) {
+            endStream(session, streamEndMessage(reason, detail, actor));
+            return;
+        }
         if (!session.markEnded()) return;
 
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -580,7 +860,7 @@ public final class VisualCallManager {
             if (server == null) return;
             for (ViewerKey key : session.viewerKeys()) {
                 ServerPlayer p = server.getPlayerList().getPlayer(key.player());
-                if (p != null) sendControl(p, session.callId(), key.screen(), session.other(key.screen()), false);
+                if (p != null) sendControl(p, session.callId(), key.screen(), session.other(key.screen()), false, false);
             }
         });
 

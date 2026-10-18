@@ -12,25 +12,23 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Server-side registry that manages the assignment and tracking of unique snail numbers.
- * Each Transponder Snail gets assigned a unique 4-digit number (1000-9999) that persists
+ * Each numbered snail gets assigned a unique 4-digit number (1000-9999) that persists
  * across server restarts and is tied to the snail's UUID, not the player.
+ *
+ * There are two kinds of numbered snail (see {@link SnailKind}): Transponder Snails (phones) and Visual Transponder Snails.
+ * They share ONE pool of numbers, so a number is always exactly one snail, and each number remembers which kind it is.
+ * The numbers and their kinds are kept in a {@link SnailNumberTable}; this class adds saving, revocation and the server.
  *
  * FIXED: Immediate save on assignment - numbers persist even if server crashes/is killed
  */
 public class SnailNumberRegistry extends SavedData {
     private static final String DATA_NAME = "transponder_snails_registry";
-    private static final int MIN_SNAIL_NUMBER = 1000;
-    private static final int MAX_SNAIL_NUMBER = 9999;
-    private static final int TOTAL_POSSIBLE_NUMBERS = MAX_SNAIL_NUMBER - MIN_SNAIL_NUMBER + 1; // 9000 total numbers
 
-    // Main mappings
-    private final Map<UUID, Integer> snailToNumber = new HashMap<>(); // UUID -> Snail Number
-    private final Map<Integer, UUID> numberToSnail = new HashMap<>(); // Snail Number -> UUID (reverse lookup)
-    private final Set<Integer> assignedNumbers = new HashSet<>(); // Quick lookup for assigned numbers
+    // The numbers, who holds them and of which kind
+    private final SnailNumberTable table = new SnailNumberTable();
 
     // UUIDs of snails whose number an admin removed (/snailnumber remove). Such a snail must never come
     // back to life with its old identity: items and block entities check this before trusting their
@@ -69,12 +67,22 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
-     * Assigns a snail number to the given UUID if it doesn't already have one
-     * FIXED: Now saves immediately to disk for crash resistance
+     * Assigns a snail number to the given UUID if it doesn't already have one - as a PHONE snail.
      * @param snailUUID The unique identifier of the transponder snail
      * @return The assigned snail number, or -1 if assignment failed
      */
     public synchronized int assignNumberToSnail(@NotNull UUID snailUUID) {
+        return assignNumberToSnail(snailUUID, SnailKind.PHONE);
+    }
+
+    /**
+     * Assigns a snail number of the given kind to the given UUID if it doesn't already have one.
+     * FIXED: Now saves immediately to disk for crash resistance
+     * @param snailUUID The unique identifier of the snail
+     * @param kind      Which kind of snail it is; both kinds draw from the same pool of numbers
+     * @return The assigned snail number (the existing one if it already had one), or -1 if assignment failed
+     */
+    public synchronized int assignNumberToSnail(@NotNull UUID snailUUID, @NotNull SnailKind kind) {
         // A revoked snail may not be re-registered under its old identity - callers must wipe it first
         if (revokedSnails.contains(snailUUID)) {
             System.err.println("SnailNumberRegistry: Refusing to assign a number to revoked snail " + snailUUID);
@@ -82,28 +90,16 @@ public class SnailNumberRegistry extends SavedData {
         }
 
         // Check if this snail already has a number
-        if (snailToNumber.containsKey(snailUUID)) {
-            int existingNumber = snailToNumber.get(snailUUID);
+        int existingNumber = table.numberOf(snailUUID);
+        if (existingNumber != -1) {
             return existingNumber;
         }
 
-        // Check if we've run out of available numbers
-        if (assignedNumbers.size() >= TOTAL_POSSIBLE_NUMBERS) {
-            System.err.println("SnailNumberRegistry: All snail numbers have been assigned! Cannot assign to UUID: " + snailUUID);
-            return -1; // No more numbers available
-        }
-
-        // Generate a new unique number
-        int newNumber = generateUniqueNumber();
+        int newNumber = table.assign(snailUUID, kind);
         if (newNumber == -1) {
-            System.err.println("SnailNumberRegistry: Failed to generate unique number for UUID: " + snailUUID);
+            System.err.println("SnailNumberRegistry: Cannot assign a number to UUID " + snailUUID + " - all snail numbers are in use");
             return -1;
         }
-
-        // Assign the number
-        snailToNumber.put(snailUUID, newNumber);
-        numberToSnail.put(newNumber, snailUUID);
-        assignedNumbers.add(newNumber);
 
         // Mark data as dirty to ensure it saves
         setDirty();
@@ -121,7 +117,7 @@ public class SnailNumberRegistry extends SavedData {
      * @return The assigned number, or -1 if not found
      */
     public int getSnailNumber(@NotNull UUID snailUUID) {
-        return snailToNumber.getOrDefault(snailUUID, -1);
+        return table.numberOf(snailUUID);
     }
 
     /**
@@ -131,7 +127,40 @@ public class SnailNumberRegistry extends SavedData {
      */
     @Nullable
     public UUID getSnailByNumber(int snailNumber) {
-        return numberToSnail.get(snailNumber);
+        return table.uuidOf(snailNumber);
+    }
+
+    /**
+     * Which kind of snail holds this number.
+     * @return PHONE or VISUAL, or null if the number is not assigned
+     */
+    @Nullable
+    public SnailKind getKindOfNumber(int snailNumber) {
+        return table.kindOfNumber(snailNumber);
+    }
+
+    /**
+     * Which kind this snail is.
+     * @return PHONE or VISUAL, or null if the snail has no number
+     */
+    @Nullable
+    public SnailKind getKind(@NotNull UUID snailUUID) {
+        return table.kindOf(snailUUID);
+    }
+
+    /**
+     * Corrects the recorded kind of a snail that has a number (it keeps the number). A placed snail calls this when it checks its
+     * identity, so a number that was recorded with the wrong kind is healed instead of making the snail dialable by the wrong network.
+     * @return True if the kind was changed
+     */
+    public synchronized boolean setKind(@NotNull UUID snailUUID, @NotNull SnailKind kind) {
+        if (!table.setKind(snailUUID, kind)) {
+            return false;
+        }
+        System.out.println("SnailNumberRegistry: Snail " + snailUUID + " (#" + table.numberOf(snailUUID) + ") is now recorded as a " + kind.label() + " snail");
+        setDirty();
+        forceSave();
+        return true;
     }
 
     /**
@@ -140,7 +169,7 @@ public class SnailNumberRegistry extends SavedData {
      * @return True if the number is assigned to a snail
      */
     public boolean isNumberAssigned(int snailNumber) {
-        return assignedNumbers.contains(snailNumber);
+        return table.isAssigned(snailNumber);
     }
 
     /**
@@ -148,7 +177,14 @@ public class SnailNumberRegistry extends SavedData {
      * @return The count of currently assigned numbers
      */
     public int getAssignedCount() {
-        return assignedNumbers.size();
+        return table.size();
+    }
+
+    /**
+     * Gets the number of assigned snail numbers of a scope (all, only phone snails, only visual snails)
+     */
+    public int getAssignedCount(@NotNull SnailKind.Scope scope) {
+        return table.size(scope);
     }
 
     /**
@@ -156,7 +192,7 @@ public class SnailNumberRegistry extends SavedData {
      * @return The count of unassigned numbers
      */
     public int getAvailableCount() {
-        return TOTAL_POSSIBLE_NUMBERS - assignedNumbers.size();
+        return table.available();
     }
 
     /**
@@ -167,10 +203,7 @@ public class SnailNumberRegistry extends SavedData {
      * @return True if a number was removed, false if the UUID wasn't assigned
      */
     public synchronized boolean removeSnailAssignment(@NotNull UUID snailUUID) {
-        Integer number = snailToNumber.remove(snailUUID);
-        if (number != null) {
-            numberToSnail.remove(number);
-            assignedNumbers.remove(number);
+        if (table.remove(snailUUID) != -1) {
             setDirty();
 
             // Save immediately after removal
@@ -186,7 +219,15 @@ public class SnailNumberRegistry extends SavedData {
      * @return snail number -> snail UUID
      */
     public synchronized Map<Integer, UUID> getAllAssignments() {
-        return new TreeMap<>(numberToSnail);
+        return table.snapshot(SnailKind.Scope.ALL);
+    }
+
+    /**
+     * Gets the assignments of a scope (all, only phone snails, only visual snails), sorted by number. The returned map is a copy.
+     * @return snail number -> snail UUID
+     */
+    public synchronized Map<Integer, UUID> getAllAssignments(@NotNull SnailKind.Scope scope) {
+        return table.snapshot(scope);
     }
 
     /**
@@ -198,13 +239,11 @@ public class SnailNumberRegistry extends SavedData {
      * @return The number that was removed, or -1 if the UUID had no number
      */
     public synchronized int revokeSnail(@NotNull UUID snailUUID) {
-        Integer number = snailToNumber.remove(snailUUID);
-        if (number == null) {
+        int number = table.remove(snailUUID);
+        if (number == -1) {
             return -1;
         }
 
-        numberToSnail.remove(number);
-        assignedNumbers.remove(number);
         revokedSnails.add(snailUUID);
 
         setDirty();
@@ -218,12 +257,19 @@ public class SnailNumberRegistry extends SavedData {
      * @return The assignments that were removed (snail number -> snail UUID), sorted by number
      */
     public synchronized Map<Integer, UUID> revokeAllSnails() {
-        Map<Integer, UUID> removed = new TreeMap<>(numberToSnail);
+        return revokeAllSnails(SnailKind.Scope.ALL);
+    }
 
-        revokedSnails.addAll(snailToNumber.keySet());
-        snailToNumber.clear();
-        numberToSnail.clear();
-        assignedNumbers.clear();
+    /**
+     * Removes the numbers of a scope - every number, or only the phone snails', or only the visual snails' - and revokes those snail
+     * identities (see revokeSnail). The other kind is not touched. Saves immediately.
+     *
+     * @param scope Which numbers to remove
+     * @return The assignments that were removed (snail number -> snail UUID), sorted by number
+     */
+    public synchronized Map<Integer, UUID> revokeAllSnails(@NotNull SnailKind.Scope scope) {
+        Map<Integer, UUID> removed = table.removeAll(scope);
+        revokedSnails.addAll(removed.values());
 
         setDirty();
         forceSave();
@@ -244,53 +290,16 @@ public class SnailNumberRegistry extends SavedData {
         return revokedSnails.size();
     }
 
-    /**
-     * Generates a unique snail number that isn't already assigned
-     * @return A unique number between MIN_SNAIL_NUMBER and MAX_SNAIL_NUMBER, or -1 if none available
-     */
-    private int generateUniqueNumber() {
-        // If we're getting close to capacity, use a more systematic approach
-        if (assignedNumbers.size() > TOTAL_POSSIBLE_NUMBERS * 0.8) {
-            // Find the first available number systematically
-            for (int number = MIN_SNAIL_NUMBER; number <= MAX_SNAIL_NUMBER; number++) {
-                if (!assignedNumbers.contains(number)) {
-                    return number;
-                }
-            }
-            return -1; // No numbers available
-        }
-
-        // Use random generation for better distribution when plenty of numbers available
-        int attempts = 0;
-        int maxAttempts = 1000; // Prevent infinite loops
-
-        while (attempts < maxAttempts) {
-            int number = ThreadLocalRandom.current().nextInt(MIN_SNAIL_NUMBER, MAX_SNAIL_NUMBER + 1);
-            if (!assignedNumbers.contains(number)) {
-                return number;
-            }
-            attempts++;
-        }
-
-        // Fallback to systematic search if random fails
-        for (int number = MIN_SNAIL_NUMBER; number <= MAX_SNAIL_NUMBER; number++) {
-            if (!assignedNumbers.contains(number)) {
-                return number;
-            }
-        }
-
-        return -1; // No numbers available
-    }
-
     // SavedData implementation for persistence
     @Override
     public @NotNull CompoundTag save(@NotNull CompoundTag compound) {
-        // Save the UUID -> Number mappings
+        // Save the UUID -> Number mappings, with the kind of each snail
         ListTag assignmentsList = new ListTag();
-        for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet()) {
+        for (SnailNumberTable.Entry entry : table.entries()) {
             CompoundTag assignmentTag = new CompoundTag();
-            assignmentTag.putString("uuid", entry.getKey().toString());
-            assignmentTag.putInt("number", entry.getValue());
+            assignmentTag.putString("uuid", entry.uuid().toString());
+            assignmentTag.putInt("number", entry.number());
+            assignmentTag.putString("kind", entry.kind().name());
             assignmentsList.add(assignmentTag);
         }
         compound.put("assignments", assignmentsList);
@@ -303,8 +312,8 @@ public class SnailNumberRegistry extends SavedData {
         compound.put("revoked", revokedList);
 
         // Save statistics for debugging
-        compound.putInt("total_assigned", assignedNumbers.size());
-        compound.putInt("registry_version", 2); // For future compatibility (2 = adds "revoked")
+        compound.putInt("total_assigned", table.size());
+        compound.putInt("registry_version", 3); // For future compatibility (2 = adds "revoked", 3 = adds the "kind" of each number)
 
         return compound;
     }
@@ -325,25 +334,18 @@ public class SnailNumberRegistry extends SavedData {
                 try {
                     UUID snailUUID = UUID.fromString(assignmentTag.getString("uuid"));
                     int number = assignmentTag.getInt("number");
+                    // Registries saved before visual snails had numbers have no kind: every one of those numbers is a phone
+                    SnailKind kind = SnailKind.fromSaved(assignmentTag.getString("kind"));
 
-                    // Validate the number is in valid range
-                    if (number >= MIN_SNAIL_NUMBER && number <= MAX_SNAIL_NUMBER) {
-                        registry.snailToNumber.put(snailUUID, number);
-                        registry.numberToSnail.put(number, snailUUID);
-                        registry.assignedNumbers.add(number);
-
-                        // Log first few for verification
-                        if (i < 5) {
-                        }
-                    } else {
-                        System.err.println("SnailNumberRegistry: Loaded invalid snail number " + number + " for UUID " + snailUUID + ", skipping");
+                    // Validates the range, and that neither the number nor the snail is already taken
+                    if (!registry.table.load(snailUUID, number, kind)) {
+                        System.err.println("SnailNumberRegistry: Skipped invalid or duplicate snail number " + number + " for UUID " + snailUUID);
                     }
 
                 } catch (IllegalArgumentException e) {
                     System.err.println("SnailNumberRegistry: Failed to load assignment entry at index " + i + ": " + e.getMessage());
                 }
             }
-        } else {
         }
 
         // Load revoked snail identities (absent in registries saved before this feature)
@@ -366,8 +368,8 @@ public class SnailNumberRegistry extends SavedData {
      */
     public void debugPrintState() {
 
-        if (assignedNumbers.size() <= 20) { // Only print details if not too many
-            for (Map.Entry<UUID, Integer> entry : snailToNumber.entrySet());
+        if (table.size() <= 20) { // Only print details if not too many
+            for (SnailNumberTable.Entry entry : table.entries());
         }
     }
 
@@ -378,12 +380,10 @@ public class SnailNumberRegistry extends SavedData {
      * @return The number of assignments that were cleared
      */
     public synchronized int clearAllAssignments() {
-        int clearedCount = assignedNumbers.size();
+        int clearedCount = table.size();
 
         // Clear all mappings
-        snailToNumber.clear();
-        numberToSnail.clear();
-        assignedNumbers.clear();
+        table.clear();
 
         // Mark data as dirty to ensure it saves
         setDirty();
@@ -394,56 +394,47 @@ public class SnailNumberRegistry extends SavedData {
     }
 
     /**
-     * Attempts to restore a snail assignment that was lost during loading
-     * FIXED: Now saves immediately after restoration
+     * Attempts to restore a snail assignment that was lost during loading - as a PHONE snail.
      * This should only be used during world loading/validation
      * @param snailUUID The UUID of the snail to restore
      * @param preferredNumber The number the snail previously had
      * @return The restored number, or -1 if restoration failed
      */
     public synchronized int restoreSnailAssignment(@NotNull UUID snailUUID, int preferredNumber) {
+        return restoreSnailAssignment(snailUUID, preferredNumber, SnailKind.PHONE);
+    }
+
+    /**
+     * Attempts to restore a snail assignment that was lost during loading
+     * FIXED: Now saves immediately after restoration
+     * This should only be used during world loading/validation
+     * @param snailUUID The UUID of the snail to restore
+     * @param preferredNumber The number the snail previously had
+     * @param kind Which kind of snail it is
+     * @return The restored number, or -1 if restoration failed
+     */
+    public synchronized int restoreSnailAssignment(@NotNull UUID snailUUID, int preferredNumber, @NotNull SnailKind kind) {
         if (revokedSnails.contains(snailUUID)) {
             System.err.println("SnailNumberRegistry: Refusing to restore revoked snail " + snailUUID);
             return -1;
         }
 
         // Check if the UUID is already assigned
-        if (snailToNumber.containsKey(snailUUID)) {
-            int existingNumber = snailToNumber.get(snailUUID);
+        int existingNumber = table.numberOf(snailUUID);
+        if (existingNumber != -1) {
             return existingNumber;
         }
 
-        // Check if preferred number is available
-        if (preferredNumber >= MIN_SNAIL_NUMBER && preferredNumber <= MAX_SNAIL_NUMBER) {
-            if (!assignedNumbers.contains(preferredNumber)) {
-                // Preferred number is available, restore it
-                snailToNumber.put(snailUUID, preferredNumber);
-                numberToSnail.put(preferredNumber, snailUUID);
-                assignedNumbers.add(preferredNumber);
-                setDirty();
-
-                forceSave();
-
-                return preferredNumber;
-            } else {
-            }
+        // The old number if it is free, otherwise a new one
+        int number = table.restore(snailUUID, preferredNumber, kind);
+        if (number == -1) {
+            System.err.println("SnailNumberRegistry: Failed to restore assignment for UUID " + snailUUID + " - no numbers available");
+            return -1;
         }
 
-        // Preferred number not available, assign a new one
-        int newNumber = generateUniqueNumber();
-        if (newNumber != -1) {
-            snailToNumber.put(snailUUID, newNumber);
-            numberToSnail.put(newNumber, snailUUID);
-            assignedNumbers.add(newNumber);
-            setDirty();
-
-            forceSave();
-
-            return newNumber;
-        }
-
-        System.err.println("SnailNumberRegistry: Failed to restore assignment for UUID " + snailUUID + " - no numbers available");
-        return -1;
+        setDirty();
+        forceSave();
+        return number;
     }
 
     /**
@@ -496,9 +487,6 @@ public class SnailNumberRegistry extends SavedData {
      * Resets the instance cache - MUST be called when server stops
      */
     public static void resetInstance() {
-        if (instance != null) {
-        } else {
-        }
         instance = null;
     }
 }

@@ -57,6 +57,11 @@ public class SnailNBTHandler {
             if (blockItem.getBlock() == ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()) {
                 return SnailType.BLOCK;
             }
+            // The Visual Transponder Snail (projector) has a number too, so its item carries one (tooltip, find, removal).
+            // The Visual Transmitter (camera) has none.
+            if (blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()) {
+                return SnailType.BLOCK;
+            }
         }
 
         // Check if it's a handheld Transponder Snail item
@@ -70,6 +75,12 @@ public class SnailNBTHandler {
         // Example: if (item instanceof TransponderSnailItem) return SnailType.HANDHELD;
 
         return null; // Not a recognized snail type
+    }
+
+    /** Which kind of number this item's snail holds: the Visual Transponder Snail's is VISUAL, every other snail's is a phone. */
+    private static SnailKind kindOf(@NotNull ItemStack stack) {
+        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() == ModBlocks.VISUAL_TRANSPONDER_SNAIL.get()
+                ? SnailKind.VISUAL : SnailKind.PHONE;
     }
 
     /**
@@ -123,7 +134,7 @@ public class SnailNBTHandler {
         // Try to assign a snail number
         SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
         if (registry != null) {
-            int snailNumber = registry.assignNumberToSnail(newUUID);
+            int snailNumber = registry.assignNumberToSnail(newUUID, kindOf(stack));
 
             if (snailNumber != -1) {
                 // Successfully assigned - store everything
@@ -556,8 +567,9 @@ public class SnailNBTHandler {
             return;
         }
 
-        if (stack.is((ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()))) {
-            return;
+        if (stack.is((ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()))
+                || stack.is(ModItems.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get())) {
+            return; // no number, nothing to register
         }
 
         int snailNumber = getSnailNumber(stack);
@@ -592,8 +604,8 @@ public class SnailNBTHandler {
                 }
             }
         } else {
-            // Snail not activated yet
-            Component inactiveTooltip = Component.literal("Right-click to register")
+            // Snail not activated yet. A visual snail registers when the PLACED snail is used, not the item.
+            Component inactiveTooltip = Component.literal(kindOf(stack) == SnailKind.VISUAL ? "Place it, then right-click to register" : "Right-click to register")
                     .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
             tooltip.add(inactiveTooltip);
         }

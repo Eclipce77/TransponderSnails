@@ -45,6 +45,12 @@ public final class VisualCallSession {
     private final long createdTick;
     private final VisualSnailRole callerRole;
     private final VisualSnailRole calleeRole;
+    /**
+     * A stream session: a Visual Transmitter (the "caller", always a camera) that is broadcasting, and ONE projector (the "callee") that
+     * has tuned in. There is no ringing and no handshake, the camera never shows that anyone is watching, and several of these share
+     * one camera (one per viewer).
+     */
+    private final boolean stream;
 
     private volatile State state = State.RINGING;
     private volatile long connectingSinceTick;
@@ -66,6 +72,12 @@ public final class VisualCallSession {
 
     public VisualCallSession(UUID callId, ResourceKey<Level> dimension, BlockPos callerPos, BlockPos calleePos, long createdTick,
                              VisualSnailRole callerRole, VisualSnailRole calleeRole) {
+        this(callId, dimension, callerPos, calleePos, createdTick, callerRole, calleeRole, false);
+    }
+
+    public VisualCallSession(UUID callId, ResourceKey<Level> dimension, BlockPos callerPos, BlockPos calleePos, long createdTick,
+                             VisualSnailRole callerRole, VisualSnailRole calleeRole, boolean stream) {
+        this.stream = stream;
         this.callId = callId;
         this.dimension = dimension;
         this.callerPos = callerPos.immutable();
@@ -95,6 +107,8 @@ public final class VisualCallSession {
     // ---------------- identity ----------------
 
     public UUID callId() { return callId; }
+    /** True for a stream session (a camera broadcasting to one tuned projector). */
+    public boolean isStream() { return stream; }
     public ResourceKey<Level> dimension() { return dimension; }
     public BlockPos callerPos() { return callerPos; }
     public BlockPos calleePos() { return calleePos; }

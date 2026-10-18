@@ -12,11 +12,19 @@ public final class VisualQuality {
 
     private VisualQuality() {}
 
-    /** Resolutions a feed is rendered at (square). Powers of two so a resize is always a clean step. */
-    public static final int[] TIERS = {256, 512, 1024, 2048};
+    /**
+     * Resolutions a feed is rendered at (square): the powers of two and a step in between each (x1.5). The cost of a feed grows with the
+     * square of its resolution, so with only powers of two a screen that needs a little more than 1024 pixels is rendered at 2048 - four
+     * times the work for a few pixels more. The halfway tiers (384, 768, 1536) make that 2.25 times.
+     */
+    public static final int[] TIERS = {256, 384, 512, 768, 1024, 1536, 2048};
 
-    /** Feed pixels per screen pixel that we aim for. 1.0 = exactly as sharp as the viewer's display can show. */
-    public static final double SUPERSAMPLE = 1.0;
+    /**
+     * Feed pixels per screen pixel that we aim for. 1.0 = exactly as sharp as the viewer's display can show. A little under that is not
+     * visible (the picture is filtered, has a soft edge and a vignette) but is a lot cheaper when close to a big screen on a large display:
+     * 0.85 is 28% fewer pixels. Put it back to 1.0 for the sharpest possible picture.
+     */
+    public static final double SUPERSAMPLE = 0.85;
 
     /** Lowest frame rate a distant feed is throttled to. */
     public static final int MIN_FPS = 5;
@@ -79,6 +87,7 @@ public final class VisualQuality {
         int cap;
         if (resolution <= 256) cap = 8;
         else if (resolution <= 512) cap = 12;
+        else if (resolution <= 768) cap = 14;
         else cap = Integer.MAX_VALUE;
         return Math.max(2, Math.min(maxRadiusChunks, cap));
     }

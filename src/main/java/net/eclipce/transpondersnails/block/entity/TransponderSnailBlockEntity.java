@@ -9,6 +9,11 @@ import net.eclipce.transpondersnails.voice.server.CallSession;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualCallState;
+import net.eclipce.transpondersnails.visual.VisualInteraction;
+import net.eclipce.transpondersnails.visual.StreamPresets;
+import net.eclipce.transpondersnails.visual.VisualCameraPositions;
+import net.eclipce.transpondersnails.visual.VisualStreamNames;
+import net.eclipce.transpondersnails.visual.server.VisualStreamManager;
 import net.eclipce.transpondersnails.visual.VisualRoles;
 import net.eclipce.transpondersnails.visual.VisualScreenConfig;
 import net.eclipce.transpondersnails.visual.VisualSettings;
@@ -19,12 +24,16 @@ import net.eclipce.transpondersnails.visual.server.VisualSnailRegistry;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.ModBlocks;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
+import net.eclipce.transpondersnails.data.SnailKind;
 import net.eclipce.transpondersnails.data.SnailNumberRegistry;
 import net.eclipce.transpondersnails.network.ModPackets;
 import net.eclipce.transpondersnails.network.packets.SnailNumberSyncPacket;
 import net.eclipce.transpondersnails.network.packets.CallStateSyncPacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +52,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -96,17 +106,29 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     private static final ResourceLocation UV_MASK_TEXTURE =
             new ResourceLocation("transpondersnails:block/transpondersnail/snail/transponder_snail_uv_mask");
 
-    // Whether this snail participates in the Snail Number / calling system at all. False for the
-    // Visual and Amplified Transponder Snail - they are never assigned a number, never register
-    // with the call manager, and never open the dialing GUI.
+    // Whether this snail has a Snail Number: true for the phone snails and for the Visual Transponder Snail (the projector, which
+    // draws from the same pool but is a different KIND, see SnailKind); false for the Visual Transmitter (camera) and the Amplified
+    // Transponder Snail. Only phone snails register with the (phone) call manager; visual snails never do.
     private final boolean hasSnailNumber;
 
     // ---- Visual Transponder Snail (video calls) ----
-    // True only for the placed Visual Transponder Snail. It has no snail number: VisualCallManager pairs it with the
-    // nearest idle Visual Snail within range. The call state is NOT persisted (calls only exist in memory).
+    // True for both placed visual snails. The projector has a snail number of the VISUAL kind and is dialed with the same dialing GUI as a
+    // phone (VisualCallManager#dial); the camera has no number and VisualCallManager pairs it with the nearest idle projector in range.
+    // The call state is NOT persisted (calls only exist in memory).
     private final boolean isVisualSnail;
     private volatile VisualCallState visualCallState = VisualCallState.IDLE;
     private volatile boolean visualAudioActive = false;
+
+    // ---- streams ----
+    // A Visual Transmitter (camera) broadcasts a STREAM; a Visual Transponder Snail (projector) tunes to one and keeps three presets.
+    private UUID streamId;                       // camera: the stable identity of its stream (it stays when the stream is off, so presets can find it)
+    private String streamName = "";              // camera: the name its owner gave it; blank = "<owner>'s Stream"
+    private UUID ownerId;                        // who placed it last
+    private String ownerName = "";
+    private volatile boolean streaming = false;  // camera: on air right now. Not saved: after a restart every stream is off.
+    private final StreamPresets presets = new StreamPresets(); // projector: its three saved streams
+    /** Game time of the last click that switched the stream on or off (so a hammered button does not toggle it every tick). */
+    public long lastStreamToggleTick = -100L;
     // Projector settings (changed in the settings menu). Persisted and synced to clients.
     // PREFERRED side length (in blocks) of the square the video is projected as. What is actually shown is this size held inside the
     // zoom range for the distance to the screen (see ProjectorZoom), so it is only a preference.
@@ -123,14 +145,21 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         Block block = pBlockState.getBlock();
         // Both visual snails - the projector (Visual Transponder Snail) and the camera (Visual Transmitter Transponder Snail) -
-        // are recognised by their registry name (see VisualRoles). Neither has a snail number.
-        this.isVisualSnail = VisualRoles.of(block) != null;
-        this.hasSnailNumber = !this.isVisualSnail && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get();
+        // are recognised by their registry name (see VisualRoles). The projector has a number (of its own kind), the camera has none.
+        VisualSnailRole role = VisualRoles.of(block);
+        this.isVisualSnail = role != null;
+        this.hasSnailNumber = role == VisualSnailRole.DUPLEX
+                || (role == null && block != ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
+    }
+
+    /** Which kind of number this snail holds: the projector's is VISUAL, every other numbered snail is a phone. */
+    private SnailKind snailKind() {
+        return isVisualSnail ? SnailKind.VISUAL : SnailKind.PHONE;
     }
 
     /**
-     * Whether this snail block participates in the Snail Number / calling system.
-     * False for the Visual and Amplified Transponder Snail, which are not dialable.
+     * Whether this snail block has a Snail Number and is dialable: the phone snails and the Visual Transponder Snail (projector).
+     * False for the Visual Transmitter (camera) and the Amplified Transponder Snail.
      */
     public boolean hasSnailNumber() {
         return hasSnailNumber;
@@ -189,6 +218,75 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         return visualCallState;
     }
 
+    // ---------------- streams ----------------
+
+    /** The id of this camera's stream; made the first time it is asked for. */
+    public UUID getOrCreateStreamId() {
+        if (streamId == null) {
+            streamId = UUID.randomUUID();
+            setChanged();
+        }
+        return streamId;
+    }
+
+    public String getStreamName() {
+        return streamName;
+    }
+
+    /** Names the stream (blank = back to "<owner>'s Stream"). */
+    public void setStreamName(String name) {
+        String clean = VisualStreamNames.sanitize(name);
+        if (clean.equals(streamName)) return;
+        streamName = clean;
+        setChanged();
+    }
+
+    /** What the stream is called: its own name, or "Steve's Stream". */
+    public String getStreamDisplayName() {
+        return VisualStreamNames.displayName(streamName, ownerName);
+    }
+
+    @Nullable
+    public UUID getOwnerId() {
+        return ownerId;
+    }
+
+    public String getOwnerName() {
+        return ownerName;
+    }
+
+    /** The player who placed this snail is its owner (a visual snail only; the owner names a stream). */
+    public void setOwner(Player player) {
+        if (!isVisualSnail || player == null) return;
+        ownerId = player.getUUID();
+        ownerName = VisualStreamNames.sanitize(player.getGameProfile().getName());
+        setChanged();
+    }
+
+    /** For a snail that has no owner yet (placed before owners existed): the player who first uses it becomes its owner. */
+    public void setOwnerIfAbsent(Player player) {
+        if (ownerId == null) setOwner(player);
+    }
+
+    public boolean isStreaming() {
+        return streaming;
+    }
+
+    /**
+     * Switches the stream on or off (server thread, VisualStreamManager). The eyes go to the "in call" model while it is live, whether or
+     * not anybody is watching: the camera never shows who is.
+     */
+    public void setStreaming(boolean on) {
+        if (!isVisualSnail || this.streaming == on) return;
+        this.streaming = on;
+        setVisualCallState(on ? VisualCallState.CONNECTED : VisualCallState.IDLE);
+    }
+
+    /** A projector's three saved streams. */
+    public StreamPresets getPresets() {
+        return presets;
+    }
+
     /** Called by VisualCallManager (server thread). Refreshes the idle / sound / call / active model. */
     public void setVisualCallState(VisualCallState state) {
         if (!isVisualSnail) {
@@ -237,11 +335,32 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Sneak + right click while idle cycles the projected screen size; everything else goes to VisualCallManager.
      */
     private InteractionResult handleVisualInteraction(ServerPlayer player, boolean isSneaking) {
-        // Crouch + right click ALWAYS opens the projector settings (screen size and position) - whatever a call is doing, and
-        // without needing the voice chat. Only the projector has a screen; the camera snail has nothing to configure.
-        if (isSneaking && VisualRoles.ofEntity(this) == VisualSnailRole.DUPLEX) {
-            VisualProjectorConfig.open(player, this);
-            return InteractionResult.SUCCESS;
+        // The projector works like a phone snail: it gets its number the first time it is used, and right click opens the same dialing GUI.
+        // The camera has no number and no GUI: a click starts / stops its stream, crouch + click opens its status menu. See VisualInteraction
+        // for the whole table: crouch + right click on an IDLE projector is the ONLY way to the projector settings.
+        boolean projector = VisualRoles.ofEntity(this) == VisualSnailRole.DUPLEX;
+        boolean inCall = false;
+        if (projector) {
+            ensureSnailNumberAssigned(player);
+            VisualCallManager calls = VisualCallManager.peek();
+            inCall = calls != null && level != null && calls.isInCall(GlobalPos.of(level.dimension(), worldPosition));
+        }
+
+        switch (VisualInteraction.decide(projector, isSneaking, inCall)) {
+            case OPEN_SETTINGS:
+                VisualProjectorConfig.open(player, this);
+                return InteractionResult.SUCCESS;
+            case OPEN_DIALER:
+                openVisualDialing(player);
+                return InteractionResult.SUCCESS;
+            case OPEN_STATUS:
+                VisualStreamManager.openStatus(player, this);
+                return InteractionResult.SUCCESS;
+            case STREAM_TOGGLE:
+                VisualStreamManager.toggle(player, this);
+                return InteractionResult.SUCCESS;
+            default:
+                break; // a call: answered, hung up, or placed by the camera
         }
 
         VisualCallManager manager = VisualCallManager.get();
@@ -255,6 +374,20 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         }
 
         return manager.onInteract(player, this);
+    }
+
+    /**
+     * Opens the dialing GUI for this visual snail. The client does not otherwise learn which block opened the menu, so it is sent along:
+     * the same two fields a handheld phone sends, then (new) a flag and the position, which tells the client to open the visual snail's
+     * version of the dialing screen (VisualDialingScreen).
+     */
+    private void openVisualDialing(ServerPlayer player) {
+        NetworkHooks.openScreen(player, this, buf -> {
+            buf.writeBoolean(false);              // not a handheld snail
+            buf.writeItem(ItemStack.EMPTY);
+            buf.writeBoolean(true);               // a visual snail: the client opens VisualDialingScreen
+            buf.writeBlockPos(worldPosition);
+        });
     }
 
     /** Registers this placed Visual Snail so it can be found as a call partner (server side, on load). */
@@ -1033,6 +1166,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             setChanged();
         }
 
+        if (level.isClientSide && isVisualSnail && VisualRoles.ofEntity(this) == VisualSnailRole.CAMERA) {
+            VisualCameraPositions.add(worldPosition); // so the renderer can light the eyes of a camera that is live (see VisualCameraPositions)
+        }
+
         if (!level.isClientSide && !isUnloading) {
 
             // Calls only exist in memory - never resurrect call state that was saved to disk
@@ -1128,6 +1265,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
         isUnloading = true;
         processedPositions.remove(worldPosition);
+        if (level.isClientSide) {
+            VisualCameraPositions.remove(worldPosition);
+        }
 
         if (!level.isClientSide) {
 
@@ -1152,7 +1292,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             }
 
             // End any active calls
-            if (activeCallId != null && isCallManagerAvailable()) {
+            if (!isVisualSnail && activeCallId != null && isCallManagerAvailable()) {
                 TransponderCallManager callManager = getCallManager();
                 callManager.endCallBySnailNumber(assignedSnailNumber);
             }
@@ -1201,11 +1341,12 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (snailUUID != null && assignedSnailNumber != -1 && initialized) {
             UUID registryUUID = registry.getSnailByNumber(assignedSnailNumber);
             if (registryUUID != null && registryUUID.equals(snailUUID)) {
-                // Data is valid
+                // Data is valid - and the number is recorded as the right kind (heals a number recorded with the wrong one)
+                registry.setKind(snailUUID, snailKind());
                 restored = true;
             } else {
                 // Data mismatch - try to restore
-                int restoredNumber = registry.assignNumberToSnail(snailUUID);
+                int restoredNumber = registry.assignNumberToSnail(snailUUID, snailKind());
                 if (restoredNumber != -1) {
                     this.assignedSnailNumber = restoredNumber;
                     this.initialized = true;
@@ -1225,7 +1366,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 restored = true;
             } else {
                 // UUID not in registry - try to assign new number
-                int restoredNumber = registry.assignNumberToSnail(snailUUID);
+                int restoredNumber = registry.assignNumberToSnail(snailUUID, snailKind());
                 if (restoredNumber != -1) {
                     this.assignedSnailNumber = restoredNumber;
                     this.initialized = true;
@@ -1274,6 +1415,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             if (registry != null) {
                 UUID registryUUID = registry.getSnailByNumber(assignedSnailNumber);
                 if (registryUUID != null && registryUUID.equals(snailUUID)) {
+                    registry.setKind(snailUUID, snailKind());
                     // Number is still valid - just sync to client
                     if (player instanceof ServerPlayer serverPlayer) {
                         ModPackets.sendToPlayer(new SnailNumberSyncPacket(assignedSnailNumber), serverPlayer);
@@ -1281,7 +1423,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                     return;
                 } else {
                     // Number is no longer valid - attempt restoration
-                    int restoredNumber = registry.assignNumberToSnail(snailUUID);
+                    int restoredNumber = registry.assignNumberToSnail(snailUUID, snailKind());
                     if (restoredNumber != -1) {
                         this.assignedSnailNumber = restoredNumber;
                         setChanged();
@@ -1289,7 +1431,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
                         if (player instanceof ServerPlayer serverPlayer) {
                             ModPackets.sendToPlayer(new SnailNumberSyncPacket(restoredNumber), serverPlayer);
-                            Component message = Component.literal("Your Transponder Snail number has been restored to #" + restoredNumber)
+                            Component message = Component.literal("Your " + snailKind().displayName() + " number has been restored to #" + restoredNumber)
                                     .withStyle(net.minecraft.ChatFormatting.GREEN);
                             serverPlayer.sendSystemMessage(message);
                         }
@@ -1312,11 +1454,13 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
             SnailNumberRegistry registry = SnailNumberRegistry.getInstance();
             if (registry != null) {
-                int newNumber = registry.assignNumberToSnail(snailUUID);
+                int newNumber = registry.assignNumberToSnail(snailUUID, snailKind());
                 if (newNumber != -1) {
                     this.assignedSnailNumber = newNumber;
                     this.initialized = true;
-                    initializeSnailColors();
+                    if (!isVisualSnail) {
+                        initializeSnailColors(); // a visual snail keeps the colors it already has
+                    }
                     setChanged();
 
                     // Update blockstate with initial shell color
@@ -1330,7 +1474,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
 
                     // Send congratulations message
                     if (player instanceof ServerPlayer serverPlayer) {
-                        Component message = Component.literal("Your Transponder Snail has been assigned number #" + assignedSnailNumber)
+                        Component message = Component.literal("Your " + snailKind().displayName() + " has been assigned number #" + assignedSnailNumber)
                                 .withStyle(net.minecraft.ChatFormatting.GREEN);
                         serverPlayer.sendSystemMessage(message);
 
@@ -1354,7 +1498,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Register this snail block with the call manager for location tracking
      */
     private void registerWithCallManager() {
-        if (!isCallManagerAvailable() || !hasAssignedNumber() || isUnloading) {
+        // Visual snails are not part of the phone call manager: a phone must never be able to ring one
+        if (isVisualSnail || !isCallManagerAvailable() || !hasAssignedNumber() || isUnloading) {
             return;
         }
 
@@ -1368,7 +1513,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
      * Unregister this snail block from the call manager
      */
     public void unregisterFromCallManager() {
-        if (!isCallManagerAvailable() || !hasAssignedNumber()) {
+        if (isVisualSnail || !isCallManagerAvailable() || !hasAssignedNumber()) {
             return;
         }
 
@@ -1456,7 +1601,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         // Call existing saveToItem logic
         unregisterFromCallManager();
 
-        if (activeCallId != null && isCallManagerAvailable()) {
+        if (!isVisualSnail && activeCallId != null && isCallManagerAvailable()) {
             TransponderCallManager callManager = getCallManager();
             callManager.endCallBySnailNumber(assignedSnailNumber);
         }
@@ -1783,6 +1928,24 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         tag.putFloat("VisualScreenOffsetSide", screenOffsetSide);
         tag.putFloat("VisualScreenOffsetUp", screenOffsetUp);
         tag.putFloat("VisualScreenOffsetBack", screenOffsetBack);
+
+        if (isVisualSnail) { // streams: the camera's identity and name, the owner, the projector's presets (the loot table copies these to the item)
+            if (streamId != null) tag.putUUID("StreamId", streamId);
+            tag.putString("StreamName", streamName);
+            if (ownerId != null) tag.putUUID("StreamOwner", ownerId);
+            tag.putString("StreamOwnerName", ownerName);
+            ListTag list = new ListTag();
+            for (int slot = 0; slot < StreamPresets.SLOTS; slot++) {
+                StreamPresets.Preset preset = presets.get(slot);
+                if (preset == null) continue;
+                CompoundTag entry = new CompoundTag();
+                entry.putInt("Slot", slot);
+                entry.putUUID("Id", preset.id());
+                entry.putString("Name", preset.name());
+                list.add(entry);
+            }
+            tag.put("StreamPresets", list);
+        }
     }
 
     @Override
@@ -1850,6 +2013,21 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         this.hasAmbientSound = tag.getBoolean("HasAmbientSound");
         this.inActiveCall = tag.getBoolean("InActiveCall");
         this.audioReady = tag.getBoolean("AudioReady"); // Add this line
+
+        if (isVisualSnail) {
+            this.streamId = tag.hasUUID("StreamId") ? tag.getUUID("StreamId") : null;
+            this.streamName = VisualStreamNames.sanitize(tag.getString("StreamName"));
+            this.ownerId = tag.hasUUID("StreamOwner") ? tag.getUUID("StreamOwner") : null;
+            this.ownerName = VisualStreamNames.sanitize(tag.getString("StreamOwnerName"));
+            this.presets.clearAll();
+            if (tag.contains("StreamPresets", Tag.TAG_LIST)) {
+                ListTag list = tag.getList("StreamPresets", Tag.TAG_COMPOUND);
+                for (int i = 0; i < list.size(); i++) {
+                    CompoundTag entry = list.getCompound(i);
+                    if (entry.hasUUID("Id")) this.presets.set(entry.getInt("Slot"), entry.getUUID("Id"), entry.getString("Name"));
+                }
+            }
+        }
 
         if (tag.contains("VisualScreenSize")) {
             this.screenSize = VisualScreenConfig.clampSize(tag.getInt("VisualScreenSize"), VisualSettings.maxScreenSize());

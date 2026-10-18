@@ -1,6 +1,8 @@
 package net.eclipce.transpondersnails.visual.client;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import net.eclipce.transpondersnails.visual.TileCodec;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -72,6 +74,12 @@ final class VisualFeed {
     volatile long lastTouchedMs = 0L;
     int okFrames = 0;
     boolean failed = false;
+
+    // ---- relayed video: the camera is too far away to be drawn here, so its picture arrives over the network ----
+    /** True while this feed shows relayed frames instead of capturing (the camera's surroundings are not loaded on this client). */
+    boolean remote = false;
+    /** When this client last asked the server to relay the picture. */
+    long lastRelayRequestMs = 0L;
 
     /** Sections rendered for this camera (vanilla renderer path only). Rebuilt periodically. */
     List<LevelRenderer.RenderChunkInfo> sections = new ArrayList<>();
@@ -147,6 +155,65 @@ final class VisualFeed {
 
     boolean hasFrame() {
         return target != null && okFrames > 0 && !failed;
+    }
+
+    /**
+     * Shows what arrived over the network: the changed tiles (or, the first time and after a size change, the whole picture) go into the
+     * same render target a capture would draw into, so the screen cannot tell the difference. Only the tiles that changed are uploaded to
+     * the GPU, as a few strips (neighbouring tiles of a row together).
+     */
+    void acceptRemote(int uniqueId, TileCodec.Update update) {
+        int n = update.size();
+        if (!TileCodec.validSize(n)) return;
+        if (target != null && resolution != n) releaseGl();       // a different size: a new target (the decoder always sends the whole picture next)
+        boolean created = target == null;
+        resolution = n;
+        allocate(uniqueId);
+        if (created && !update.full()) return;                    // a new target needs the whole picture first
+
+        RenderSystem.bindTexture(target.getColorTextureId());
+        if (update.full()) {
+            uploadStrip(update.pixels(), 0, n, n, 0, 0);
+        } else {
+            int tilesPerRow = n / TileCodec.TILE;
+            int[] tiles = update.tiles();
+            int i = 0;
+            while (i < tiles.length) {
+                int row = tiles[i] / tilesPerRow;
+                int j = i + 1;
+                while (j < tiles.length && tiles[j] == tiles[j - 1] + 1 && tiles[j] / tilesPerRow == row) j++;   // a run of neighbours in one row
+                uploadTiles(update.pixels(), i, j - i, (tiles[i] % tilesPerRow) * TileCodec.TILE, row * TileCodec.TILE);
+                i = j;
+            }
+        }
+        okFrames++;
+    }
+
+    private static int toAbgr(int argb) {
+        return (argb & 0xFF00FF00) | ((argb >> 16) & 0xFF) | ((argb & 0xFF) << 16);
+    }
+
+    /** Uploads {@code count} tiles that sit next to each other in a row (tile {@code first} of the update's pixels onwards) at (x, y). */
+    private static void uploadTiles(int[] pixels, int first, int count, int x, int y) {
+        int w = count * TileCodec.TILE;
+        NativeImage image = new NativeImage(NativeImage.Format.RGBA, w, TileCodec.TILE, false);
+        for (int t = 0; t < count; t++) {
+            for (int py = 0; py < TileCodec.TILE; py++) {
+                int src = ((first + t) * TileCodec.TILE + py) * TileCodec.TILE;
+                for (int px = 0; px < TileCodec.TILE; px++) image.setPixelRGBA(t * TileCodec.TILE + px, py, toAbgr(pixels[src + px]));
+            }
+        }
+        // blur false = nearest, clamp true = clamp to edge: what a render target's texture has; the image closes itself
+        image.upload(0, x, y, 0, 0, w, TileCodec.TILE, false, true, false, true);
+    }
+
+    /** Uploads a whole picture of {@code w} x {@code h} pixels (row after row in {@code pixels}) at (x, y). */
+    private static void uploadStrip(int[] pixels, int offset, int w, int h, int x, int y) {
+        NativeImage image = new NativeImage(NativeImage.Format.RGBA, w, h, false);
+        for (int py = 0; py < h; py++) {
+            for (int px = 0; px < w; px++) image.setPixelRGBA(px, py, toAbgr(pixels[offset + py * w + px]));
+        }
+        image.upload(0, x, y, 0, 0, w, h, false, true, false, true);
     }
 
     RenderType renderType() {

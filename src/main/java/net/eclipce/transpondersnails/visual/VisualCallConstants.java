@@ -15,8 +15,10 @@ public final class VisualCallConstants {
     public static final String CAMERA_SNAIL_ID = "visual_transmitter_transponder_snail";
 
     // ---------------- Matching ----------------
-    /** Two Visual Snails auto-connect when they are within this many blocks (center to center, same dimension). */
+    /** Two Visual Snails auto-connect when they are within this many blocks (centre to centre, same dimension). */
     public static final double CALL_RANGE = 20.0;
+    // Visual snails have NO range limit: a call or a stream works anywhere in the dimension, like a phone snail. A camera that is loaded on the
+    // viewer's client is drawn there (VisualFeedManager); one that is not is drawn by the client of a player near it and relayed (VisualRelayManager).
 
     // ---------------- Screen ("projector") ----------------
     public static final int SCREEN_MIN_SIZE = 1;
@@ -62,7 +64,7 @@ public final class VisualCallConstants {
     public static final int PROJECTOR_ZOOM_RANGE = 4;
     /** With no surface behind the snail the screen can be pushed this many blocks further back - never towards the snail. */
     public static final double SCREEN_BACK_MAX = 3.0;
-    /** Color multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
+    /** Colour multiplier of the projected picture (0-255 per channel). 255,255,255 = untouched. A slight green-blue
      *  monitor tint keeps the screen distinguishable from the world around it. */
     public static final int FEED_TINT_R = 215;
     public static final int FEED_TINT_G = 255;
@@ -156,8 +158,8 @@ public final class VisualCallConstants {
     /** The TOP part of the projector - the lens that "throws" the picture - is slightly brighter than the rest of it. */
     public static final int GLOW_PROJECTOR_TOP_LIGHT = 14;
     /**
-     * Where the light ray starts: the center of the top part of the projector (element 9 of visual_transponder_snail.json), in model
-     * pixels (0-16) for a snail facing north. tools/generate_glow_models.py prints this center; update it if the model changes.
+     * Where the light ray starts: the centre of the top part of the projector (element 9 of visual_transponder_snail.json), in model
+     * pixels (0-16) for a snail facing north. tools/generate_glow_models.py prints this centre; update it if the model changes.
      */
     public static final double PROJECTOR_LENS_X = 8.0;
     public static final double PROJECTOR_LENS_Y = 11.75;

@@ -21,12 +21,15 @@ public final class VisualFeedControlPacket {
     private final BlockPos screenPos;
     private final BlockPos cameraPos;
     private final boolean start;
+    /** A stream (a Visual Transmitter's broadcast): the client shows "no signal" if the camera's area is not loaded, instead of failing. */
+    private final boolean stream;
 
-    public VisualFeedControlPacket(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start) {
+    public VisualFeedControlPacket(UUID callId, BlockPos screenPos, BlockPos cameraPos, boolean start, boolean stream) {
         this.callId = callId;
         this.screenPos = screenPos;
         this.cameraPos = cameraPos;
         this.start = start;
+        this.stream = stream;
     }
 
     public static void encode(VisualFeedControlPacket msg, FriendlyByteBuf buf) {
@@ -34,17 +37,18 @@ public final class VisualFeedControlPacket {
         buf.writeBlockPos(msg.screenPos);
         buf.writeBlockPos(msg.cameraPos);
         buf.writeBoolean(msg.start);
+        buf.writeBoolean(msg.stream);
     }
 
     public static VisualFeedControlPacket decode(FriendlyByteBuf buf) {
-        return new VisualFeedControlPacket(buf.readUUID(), buf.readBlockPos(), buf.readBlockPos(), buf.readBoolean());
+        return new VisualFeedControlPacket(buf.readUUID(), buf.readBlockPos(), buf.readBlockPos(), buf.readBoolean(), buf.readBoolean());
     }
 
     public static void handle(VisualFeedControlPacket msg, Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                        VisualClientPackets.handleControl(msg.callId, msg.screenPos, msg.cameraPos, msg.start)));
+                        VisualClientPackets.handleControl(msg.callId, msg.screenPos, msg.cameraPos, msg.start, msg.stream)));
         context.setPacketHandled(true);
     }
 }

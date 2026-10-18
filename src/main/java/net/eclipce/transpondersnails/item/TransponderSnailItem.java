@@ -74,6 +74,12 @@ public class TransponderSnailItem extends BlockItem {
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
         super.inventoryTick(stack, level, entity, slotId, isSelected);
 
+        // Only a phone snail is a handheld snail. A Visual Transponder Snail item may carry a number now, but it must never be
+        // registered as a handheld phone: a phone could ring it in the player's hand.
+        if (isNumberlessSnail(stack)) {
+            return;
+        }
+
         if (!level.isClientSide && entity instanceof ServerPlayer player) {
             int snailNumber = SnailNBTHandler.getSnailNumber(stack);
             if (snailNumber != -1) {
@@ -245,9 +251,9 @@ public class TransponderSnailItem extends BlockItem {
         ItemStack stack = player.getItemInHand(hand);
 
         if (isNumberlessSnail(stack)) {
-            // Visual/Amplified Transponder Snail: no Snail Number, no calling system, no dialing
-            // GUI. Let the interaction fall through instead of assigning an identity or opening
-            // DialingMenu - useOn() (placement) is unaffected since it never reaches this method.
+            // Visual/Amplified Transponder Snail: not a handheld phone - no handheld calling and no dialing GUI from the item (the
+            // Visual Transponder Snail is dialed once it is PLACED). Let the interaction fall through instead of assigning an
+            // identity or opening DialingMenu - useOn() (placement) is unaffected since it never reaches this method.
             return InteractionResultHolder.pass(stack);
         }
 
@@ -375,9 +381,9 @@ public class TransponderSnailItem extends BlockItem {
     }
 
     /**
-     * The Visual Transponder Snail, the Visual Transmitter Transponder Snail and the Amplified Transponder Snail have no Snail Number and take no part in the
-     * calling system - see TransponderSnailBlockEntity.hasSnailNumber for the placed-block side
-     * of this same restriction.
+     * The Visual Transponder Snail, the Visual Transmitter Transponder Snail and the Amplified Transponder Snail are not handheld phones:
+     * the item does not call, ring or open the dialing GUI (the Visual Transponder Snail and the phone snails have a Snail Number, but
+     * only a PLACED snail is dialed; see TransponderSnailBlockEntity.hasSnailNumber for the placed-block side).
      */
     private static boolean isNumberlessSnail(ItemStack stack) {
         return stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()
@@ -442,7 +448,7 @@ public class TransponderSnailItem extends BlockItem {
 
     @Override
     public boolean onDroppedByPlayer(ItemStack item, Player player) {
-        if (!player.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
+        if (!isNumberlessSnail(item) && !player.level().isClientSide && player instanceof ServerPlayer serverPlayer) {
             int snailNumber = SnailNBTHandler.getSnailNumber(item);
             TransponderCallManager callManager = TransponderSnails.getCallManager();
 
