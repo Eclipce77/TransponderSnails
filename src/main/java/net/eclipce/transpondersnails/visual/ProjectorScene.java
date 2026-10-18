@@ -105,7 +105,7 @@ public final class ProjectorScene {
         }
     }
 
-    /** The step, in block indices (i along c, j along a, k along b), to the neighbour on the other side of a face. */
+    /** The step, in block indices (i along c, j along a, k along b), to the neighbor on the other side of a face. */
     public static int[] faceIndexStep(int face) {
         switch (face) {
             case FACE_PLUS_A: return new int[]{0, 1, 0};
@@ -258,13 +258,13 @@ public final class ProjectorScene {
     // The projector's own model
     // =================================================================================================
 
-    /** The colour of a part of a texture: ARGB averaged over the uv rectangle (u0, v0)-(u1, v1) in the sprite's own 0..1; alpha 0 = nothing there. */
+    /** The color of a part of a texture: ARGB averaged over the uv rectangle (u0, v0)-(u1, v1) in the sprite's own 0..1; alpha 0 = nothing there. */
     @FunctionalInterface
     public interface ColorSampler {
         int sample(double u0, double v0, double u1, double v1);
     }
 
-    /** A small piece of a face, coloured: four corners as diagram {a, b, c}, its colour, and the outward normal as a diagram unit vector. */
+    /** A small piece of a face, colored: four corners as diagram {a, b, c}, its color, and the outward normal as a diagram unit vector. */
     public record Cell(double[][] corners, int argb, double[] normal) { }
 
     /** The direction the light comes from when shading a face, as diagram {a, b, c}: above, a little to the front. */
@@ -281,8 +281,8 @@ public final class ProjectorScene {
     }
 
     /**
-     * Cuts one quad of a baked block model into coloured cells, so a face keeps some of its detail: the quad is split into up to 4 x 4
-     * cells (one per few texels), each coloured by averaging the part of the texture it covers. Cells that are transparent are left out.
+     * Cuts one quad of a baked block model into colored cells, so a face keeps some of its detail: the quad is split into up to 4 x 4
+     * cells (one per few texels), each colored by averaging the part of the texture it covers. Cells that are transparent are left out.
      *
      * @param pos       the four corners {x, y, z} local to the snail's block (world axes), counter-clockwise seen from outside
      * @param uv        the four {u, v} of those corners, in the sprite's own 0..1
