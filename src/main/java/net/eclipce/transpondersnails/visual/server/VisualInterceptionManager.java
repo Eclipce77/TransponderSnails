@@ -66,6 +66,8 @@ public final class VisualInterceptionManager {
     private static final int DISPLAY_REFRESH_TICKS = 10;
     private static final int SLOW_TICKS = 20;
 
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
     private enum Phase { SEARCHING, ACTIVE }
 
     private static final class Session {
@@ -401,6 +403,8 @@ public final class VisualInterceptionManager {
             s.targetCamera = null;
             s.static0 = VisualTapManager.isProtected(level, call.callerPos());
             s.static1 = VisualTapManager.isProtected(level, call.calleePos());
+            LOGGER.info("VisualInterceptionManager: tapping the call between {} and {}: the ends are {} / {}", call.callerPos(), call.calleePos(),
+                    s.static0 ? "protected (static)" : "open", s.static1 ? "protected (static)" : "open");
         } else {
             VisualStreamManager.Info found = null;
             for (VisualStreamManager.Info info : VisualStreamManager.activeStreams(level)) if (info.id().toString().equals(s.targetId)) found = info;
@@ -457,19 +461,17 @@ public final class VisualInterceptionManager {
     private static void refreshProtection(Session s, ServerLevel level, ServerPlayer player) {
         VisualCallSession call = VisualCallManager.peek() == null ? null : VisualCallManager.peek().sessionById(UUID.fromString(s.targetId));
         if (call == null) return;
-        boolean p0 = VisualTapManager.isProtected(level, call.callerPos());
-        boolean p1 = VisualTapManager.isProtected(level, call.calleePos());
+        BlockPos white0 = VisualTapManager.protectingWhite(level, call.callerPos());
+        BlockPos white1 = VisualTapManager.protectingWhite(level, call.calleePos());
+        boolean p0 = white0 != null;
+        boolean p1 = white1 != null;
         WhiteSnailProtectionManager white = WhiteSnailProtectionManager.getInstance();
-        for (BlockPos end : new BlockPos[]{call.callerPos(), call.calleePos()}) {
-            boolean protectedNow = end.equals(call.callerPos()) ? p0 : p1;
-            BlockPos whitePos = protectedNow ? white.getProtectingWhiteSnail(level, end) : null;
+        for (BlockPos whitePos : new BlockPos[]{white0, white1}) {
             if (whitePos != null && s.blockedWhite.add(whitePos)) white.onInterceptionBlocked(level, whitePos, s.player);
         }
         // a white snail that no longer protects either end is not blocking any more
         for (BlockPos whitePos : new ArrayList<>(s.blockedWhite)) {
-            boolean stillThere = (p0 && whitePos.equals(white.getProtectingWhiteSnail(level, call.callerPos())))
-                    || (p1 && whitePos.equals(white.getProtectingWhiteSnail(level, call.calleePos())));
-            if (!stillThere) {
+            if (!whitePos.equals(white0) && !whitePos.equals(white1)) {
                 s.blockedWhite.remove(whitePos);
                 white.onInterceptionEnded(level, whitePos, s.player);
             }
@@ -477,6 +479,8 @@ public final class VisualInterceptionManager {
         if (p0 != s.static0 || p1 != s.static1) {
             s.static0 = p0;
             s.static1 = p1;
+            LOGGER.info("VisualInterceptionManager: the call's two ends are now {} / {} (static = protected by a White Transponder Snail)",
+                    p0 ? "static" : "picture", p1 ? "static" : "picture");
             refreshViewers(s, level, true);     // the halves change in place on the clients; the picture stays
         }
     }

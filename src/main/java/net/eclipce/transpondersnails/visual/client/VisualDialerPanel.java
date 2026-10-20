@@ -60,6 +60,8 @@ public class VisualDialerPanel {
     private static final int ICON_H = 12;
 
     private static final int ROW_HEIGHT = 14;
+    /** The name of a PRIVATE stream (invite only): orange, to tell it from a public one. */
+    private static final int PRIVATE_COLOR = 0xFFA030;
     private static final int SCROLLBAR_WIDTH = 4;
     private static final int POLL_TICKS = 20;
 
@@ -167,6 +169,11 @@ public class VisualDialerPanel {
         return "a stream";
     }
 
+    private boolean isPrivateStream(UUID id) {
+        for (VisualStreamListPacket.Stream s : streams) if (s.id().equals(id)) return s.isPrivate();
+        return false;
+    }
+
     private boolean isTuned(@Nullable UUID id) {
         return id != null && id.equals(tuned);
     }
@@ -222,7 +229,7 @@ public class VisualDialerPanel {
         VisualStreamListPacket.Preset p = presets[slot];
         if (selectedId != null && !selectedFromPreset) {
             VisualNetwork.CHANNEL.sendToServer(VisualStreamActionPacket.preset(pos, slot, selectedId));
-            presets[slot] = new VisualStreamListPacket.Preset(true, selectedId, selectedName, true); // at once; the server confirms
+            presets[slot] = new VisualStreamListPacket.Preset(true, selectedId, selectedName, true, isPrivateStream(selectedId)); // at once; the server confirms
             deselect();
             boxClicks.click(now, -1);   // the click that saved is not the first half of a double click
             return;
@@ -385,7 +392,7 @@ public class VisualDialerPanel {
 
                     int nameX = x + 22;
                     drawText(g, font, s.name(), nameX, textRight - 2 - nameX, ry + 3,
-                            selected ? 0xFFFFFF : connected ? 0xA8F0A8 : 0xE0E0E0, true, false);
+                            s.isPrivate() ? PRIVATE_COLOR : selected ? 0xFFFFFF : connected ? 0xA8F0A8 : 0xE0E0E0, true, false);
                 }
                 if (bar) {
                     int[] thumb = StreamListMath.thumb(y + 1, h - 2, n, vis, scroll);
@@ -499,7 +506,7 @@ public class VisualDialerPanel {
                 drawText(g, font, "Empty", x + 4, w - 8, y + (h - 8) / 2, 0xFF707070, true, true);
                 return;
             }
-            int color = !p.active() ? 0xFF8A8A8A : isTuned(p.id()) ? 0xFFA8F0A8 : 0xFFFFFFFF;
+            int color = !p.active() ? 0xFF8A8A8A : p.isPrivate() ? 0xFF000000 | PRIVATE_COLOR : isTuned(p.id()) ? 0xFFA8F0A8 : 0xFFFFFFFF;
             drawText(g, font, p.active() ? p.name() : p.name() + " (off air)", x + 6, w - 12, y + (h - 8) / 2, color, true, true);
         }
 

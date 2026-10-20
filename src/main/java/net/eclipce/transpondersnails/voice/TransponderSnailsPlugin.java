@@ -68,6 +68,10 @@ public class TransponderSnailsPlugin implements VoicechatPlugin {
         // Set the call manager in the main mod class
         TransponderSnails.setCallManager(callManager);
 
+        // The White Snail protection manager needs the call manager to re-evaluate protection when wires change. It was never given one, which
+        // is what "WhiteSnailProtectionManager: Cannot re-evaluate - callManager not set!" in the log meant.
+        net.eclipce.transpondersnails.voice.server.WhiteSnailProtectionManager.getInstance().setCallManager(callManager);
+
         // Amplified Transponder Snail (megaphone) system
         AmplifiedSnailManager.initialize(api);
 

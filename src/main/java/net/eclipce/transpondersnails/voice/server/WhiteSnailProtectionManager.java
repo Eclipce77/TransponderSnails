@@ -259,6 +259,30 @@ public class WhiteSnailProtectionManager {
     }
 
     /**
+     * A visual call: the White Snail at {@code whiteSnailPos} protects the visual snail at {@code protectedSnailPos}. Unlike
+     * {@link #onCallProtectionStarted} this is TOLD which white snail it is (the visual snails find it with their own wire trace), so it does
+     * not depend on this manager's trace or its cache.
+     */
+    public void onVisualProtectionStarted(ServerLevel level, BlockPos protectedSnailPos, BlockPos whiteSnailPos) {
+        if (level == null || protectedSnailPos == null || whiteSnailPos == null) return;
+        activeProtections.computeIfAbsent(whiteSnailPos, k -> ConcurrentHashMap.newKeySet()).add(protectedSnailPos);
+        whiteSnailLevels.put(whiteSnailPos, level);
+        updateWhiteSnailVisualState(level, whiteSnailPos);
+        WhiteTransponderSnailBlock.updateWireConnections(level, whiteSnailPos);
+    }
+
+    /** A visual call ended, or its snail is no longer protected by that white snail. */
+    public void onVisualProtectionEnded(ServerLevel level, BlockPos protectedSnailPos, BlockPos whiteSnailPos) {
+        if (level == null || protectedSnailPos == null || whiteSnailPos == null) return;
+        Set<BlockPos> protections = activeProtections.get(whiteSnailPos);
+        if (protections != null) {
+            protections.remove(protectedSnailPos);
+            if (protections.isEmpty()) activeProtections.remove(whiteSnailPos);
+        }
+        updateWhiteSnailVisualState(level, whiteSnailPos);
+    }
+
+    /**
      * Called when a call ends or participant disconnects.
      * Updates the White Snail's visual state.
      *

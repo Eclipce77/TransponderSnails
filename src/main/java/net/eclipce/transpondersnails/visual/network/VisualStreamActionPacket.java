@@ -30,7 +30,13 @@ public final class VisualStreamActionPacket {
         /** Status menu: send me the status of the transmitter at pos. */
         STATUS,
         /** Status menu: name the stream of the transmitter at pos {@code text}. */
-        RENAME
+        RENAME,
+        /** Status menu: make the stream of the transmitter at pos private ({@code slot} 1) or public (0). */
+        SET_PRIVATE,
+        /** Status menu: invite the snail number {@code slot} to the stream of the transmitter at pos. */
+        INVITE,
+        /** Status menu: take the snail number {@code slot} off the invite list of the stream of the transmitter at pos. */
+        UNINVITE
     }
 
     private final Action action;
@@ -54,6 +60,9 @@ public final class VisualStreamActionPacket {
     public static VisualStreamActionPacket clearPreset(BlockPos pos, int slot) { return new VisualStreamActionPacket(Action.CLEAR_PRESET, pos, null, slot, ""); }
     public static VisualStreamActionPacket disconnect(BlockPos pos) { return new VisualStreamActionPacket(Action.DISCONNECT, pos, null, 0, ""); }
     public static VisualStreamActionPacket status(BlockPos pos) { return new VisualStreamActionPacket(Action.STATUS, pos, null, 0, ""); }
+    public static VisualStreamActionPacket setPrivate(BlockPos pos, boolean on) { return new VisualStreamActionPacket(Action.SET_PRIVATE, pos, null, on ? 1 : 0, ""); }
+    public static VisualStreamActionPacket invite(BlockPos pos, int number) { return new VisualStreamActionPacket(Action.INVITE, pos, null, number, ""); }
+    public static VisualStreamActionPacket uninvite(BlockPos pos, int number) { return new VisualStreamActionPacket(Action.UNINVITE, pos, null, number, ""); }
     public static VisualStreamActionPacket rename(BlockPos pos, String name) { return new VisualStreamActionPacket(Action.RENAME, pos, null, 0, name); }
 
     public static void encode(VisualStreamActionPacket msg, FriendlyByteBuf buf) {

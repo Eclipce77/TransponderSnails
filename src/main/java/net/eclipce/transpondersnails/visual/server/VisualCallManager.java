@@ -681,6 +681,18 @@ public final class VisualCallManager {
         return api;
     }
 
+    /**
+     * Disconnects the projectors tuned to a stream that {@code mustLeave} picks (a stream that became private, or a number that was taken off its
+     * invite list). They are told {@code message}; the others stay.
+     */
+    public void endStreamViewersWhere(GlobalPos camera, java.util.function.Predicate<TransponderSnailBlockEntity> mustLeave, String message) {
+        for (VisualCallSession s : new ArrayList<>(sessions.values())) {
+            if (!s.isStream() || !s.callerGp().equals(camera)) continue;
+            TransponderSnailBlockEntity projector = VisualSnailRegistry.get(s.calleeGp());
+            if (projector == null || mustLeave.test(projector)) endStream(s, message);
+        }
+    }
+
     /** A copy of the running sessions (calls and stream connections), for whoever needs to look at them. */
     public List<VisualCallSession> callsSnapshot() {
         return new ArrayList<>(sessions.values());

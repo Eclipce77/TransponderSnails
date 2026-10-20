@@ -1,6 +1,7 @@
 package net.eclipce.transpondersnails.visual.server;
 
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
+import net.eclipce.transpondersnails.visual.StreamAccess;
 import net.eclipce.transpondersnails.visual.StreamPresets;
 import net.eclipce.transpondersnails.visual.VisualRoles;
 import net.eclipce.transpondersnails.visual.VisualSnailRole;
@@ -43,7 +44,7 @@ public final class VisualStreamManager {
     private static final long TOGGLE_COOLDOWN_TICKS = 10L;
 
     /** A stream that is on air. */
-    public record Info(UUID id, String name, String owner, GlobalPos pos) { }
+    public record Info(UUID id, String name, String owner, GlobalPos pos, boolean isPrivate) { }
 
     private static void msg(ServerPlayer player, String text, ChatFormatting color) {
         player.displayClientMessage(Component.literal(text).withStyle(color), true);
@@ -55,10 +56,24 @@ public final class VisualStreamManager {
 
     /** The streams that are on air in a dimension, by name. */
     public static List<Info> activeStreams(ServerLevel level) {
+        return collect(level, be -> true);
+    }
+
+    /**
+     * The streams the snail with this number may see: every public one, and the private ones that invited it. This is what a tuner is shown
+     * (and all it may tune to). {@link #activeStreams} is every stream - a Black Transponder Snail's tap is not stopped by a guest list.
+     */
+    public static List<Info> streamsVisibleTo(ServerLevel level, int snailNumber) {
+        return collect(level, be -> be.canSeeStream(snailNumber));
+    }
+
+    private static List<Info> collect(ServerLevel level, java.util.function.Predicate<TransponderSnailBlockEntity> filter) {
         List<Info> out = new ArrayList<>();
         for (TransponderSnailBlockEntity be : VisualSnailRegistry.all()) {
             if (be.isRemoved() || be.getLevel() != level || !be.isStreaming() || VisualRoles.ofEntity(be) != VisualSnailRole.CAMERA) continue;
-            out.add(new Info(be.getOrCreateStreamId(), be.getStreamDisplayName(), be.getOwnerName(), GlobalPos.of(level.dimension(), be.getBlockPos())));
+            if (!filter.test(be)) continue;
+            out.add(new Info(be.getOrCreateStreamId(), be.getStreamDisplayName(), be.getOwnerName(), GlobalPos.of(level.dimension(), be.getBlockPos()),
+                    be.isStreamPrivate()));
         }
         out.sort((a, b) -> {
             int c = VisualStreamNames.compare(a.name(), b.name());
@@ -136,7 +151,59 @@ public final class VisualStreamManager {
             viewers = calls.viewerCount(GlobalPos.of(camera.getLevel().dimension(), camera.getBlockPos()));
         }
         VisualNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new VisualTransmitterStatusPacket(camera.getBlockPos(), open,
-                camera.isStreaming(), viewers, camera.getStreamName(), VisualStreamNames.displayName("", camera.getOwnerName()), canRename(player, camera)));
+                camera.isStreaming(), viewers, camera.getStreamName(), VisualStreamNames.displayName("", camera.getOwnerName()), canRename(player, camera),
+                camera.isStreamPrivate(), camera.getStreamInvites()));
+    }
+
+    // ---- private streams: the owner (or an op) makes a stream invite only and keeps its guest list ----
+
+    /** Disconnects the projectors that are tuned to this stream but may not see it (it became private, or their number was taken off the list). */
+    private static void enforceAccess(TransponderSnailBlockEntity camera) {
+        VisualCallManager calls = VisualCallManager.peek();
+        if (calls == null || !(camera.getLevel() instanceof ServerLevel level)) return;
+        calls.endStreamViewersWhere(GlobalPos.of(level.dimension(), camera.getBlockPos()),
+                projector -> !camera.canSeeStream(projector.getSnailNumber()), "The stream is now private.");
+    }
+
+    private static boolean mayManage(ServerPlayer player, TransponderSnailBlockEntity camera) {
+        if (canRename(player, camera)) return true;
+        msg(player, "Only the owner can change this stream.", ChatFormatting.RED);
+        return false;
+    }
+
+    private static void setPrivate(ServerPlayer player, TransponderSnailBlockEntity camera, boolean on) {
+        if (mayManage(player, camera)) {
+            camera.setStreamPrivate(on);
+            if (on) enforceAccess(camera);
+            msg(player, on ? "Stream is now private: invite only." : "Stream is now public.", on ? ChatFormatting.GOLD : ChatFormatting.GREEN);
+        }
+        sendStatus(player, camera, false);
+    }
+
+    private static void invite(ServerPlayer player, TransponderSnailBlockEntity camera, int number) {
+        if (mayManage(player, camera)) {
+            if (!StreamAccess.validNumber(number)) {
+                msg(player, "Enter a four-digit snail number.", ChatFormatting.RED);
+            } else if (net.eclipce.transpondersnails.data.SnailNumberRegistry.getInstance().getKindOfNumber(number) != net.eclipce.transpondersnails.data.SnailKind.VISUAL) {
+                msg(player, "No Visual Transponder Snail has the number #" + number + ".", ChatFormatting.RED);   // only a visual snail can watch a stream
+            } else {
+                switch (camera.inviteNumber(number)) {
+                    case ADDED -> msg(player, "Invited #" + number + ".", ChatFormatting.GREEN);
+                    case ALREADY_INVITED -> msg(player, "#" + number + " is already invited.", ChatFormatting.YELLOW);
+                    case FULL -> msg(player, "The invite list is full (" + StreamAccess.MAX_INVITES + ").", ChatFormatting.RED);
+                    case INVALID_NUMBER -> msg(player, "Enter a four-digit snail number.", ChatFormatting.RED);
+                }
+            }
+        }
+        sendStatus(player, camera, false);
+    }
+
+    private static void uninvite(ServerPlayer player, TransponderSnailBlockEntity camera, int number) {
+        if (mayManage(player, camera) && camera.uninviteNumber(number)) {
+            enforceAccess(camera);   // a snail that is watching and is no longer invited is disconnected at once
+            msg(player, "Removed #" + number + ".", ChatFormatting.GRAY);
+        }
+        sendStatus(player, camera, false);
     }
 
     private static void rename(ServerPlayer player, TransponderSnailBlockEntity camera, String text) {
@@ -155,12 +222,12 @@ public final class VisualStreamManager {
     /** Sends the streams that are on air, the projector's presets and what it is tuned to. */
     public static void sendList(ServerPlayer player, TransponderSnailBlockEntity projector) {
         ServerLevel level = player.serverLevel();
-        List<Info> active = activeStreams(level);
+        List<Info> active = streamsVisibleTo(level, projector.getSnailNumber());   // a private stream is not even listed for a snail that is not invited
         Map<UUID, Info> byId = new HashMap<>();
         List<VisualStreamListPacket.Stream> streams = new ArrayList<>();
         for (Info info : active) {
             byId.put(info.id(), info);
-            streams.add(new VisualStreamListPacket.Stream(info.id(), info.name(), info.owner())); // no viewer count: only the transmitter shows that
+            streams.add(new VisualStreamListPacket.Stream(info.id(), info.name(), info.owner(), info.isPrivate())); // no viewer count: only the transmitter shows that
         }
 
         StreamPresets saved = projector.getPresets();
@@ -174,7 +241,7 @@ public final class VisualStreamManager {
             }
             Info info = byId.get(preset.id());
             if (info != null && saved.rename(preset.id(), info.name())) renamed = true; // a stream that was renamed is renamed in the preset
-            presets.add(new VisualStreamListPacket.Preset(true, preset.id(), info != null ? info.name() : preset.name(), info != null));
+            presets.add(new VisualStreamListPacket.Preset(true, preset.id(), info != null ? info.name() : preset.name(), info != null, info != null && info.isPrivate()));
         }
         if (renamed) projector.setChanged();
 
@@ -196,6 +263,7 @@ public final class VisualStreamManager {
             return;
         }
         TransponderSnailBlockEntity camera = findStreamAnywhere(id);
+        if (camera != null && !camera.canSeeStream(projector.getSnailNumber())) camera = null;   // private, and this snail is not invited
         if (camera == null) {
             StreamPresets.Preset saved = projector.getPresets().slotOf(id) >= 0 ? projector.getPresets().get(projector.getPresets().slotOf(id)) : null;
             msg(player, (saved == null || saved.name().isEmpty() ? "That stream" : saved.name()) + " is not active.", ChatFormatting.RED);
@@ -210,7 +278,7 @@ public final class VisualStreamManager {
     private static void setPreset(ServerPlayer player, TransponderSnailBlockEntity projector, int slot, UUID id) {
         if (!StreamPresets.validSlot(slot)) return;
         Info found = null;
-        for (Info info : activeStreams(player.serverLevel())) {
+        for (Info info : streamsVisibleTo(player.serverLevel(), projector.getSnailNumber())) {
             if (info.id().equals(id)) found = info;
         }
         if (found == null) {
@@ -271,6 +339,18 @@ public final class VisualStreamManager {
             case RENAME -> {
                 TransponderSnailBlockEntity camera = snailAt(player, pos, VisualSnailRole.CAMERA);
                 if (camera != null) rename(player, camera, text);
+            }
+            case SET_PRIVATE -> {
+                TransponderSnailBlockEntity camera = snailAt(player, pos, VisualSnailRole.CAMERA);
+                if (camera != null) setPrivate(player, camera, slot != 0);
+            }
+            case INVITE -> {
+                TransponderSnailBlockEntity camera = snailAt(player, pos, VisualSnailRole.CAMERA);
+                if (camera != null) invite(player, camera, slot);
+            }
+            case UNINVITE -> {
+                TransponderSnailBlockEntity camera = snailAt(player, pos, VisualSnailRole.CAMERA);
+                if (camera != null) uninvite(player, camera, slot);
             }
         }
     }

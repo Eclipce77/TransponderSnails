@@ -58,6 +58,7 @@ public enum VisualSnailRole {
             if (role.registryPath.equals(registryPath)) return role;
         }
         if (VisualCallConstants.DUPLEX_TRANSMITTER_SNAIL_ID.equals(registryPath)) return DUPLEX; // the projector with a transmitter is a projector
+        if (VisualCallConstants.CAMERA_TRANSMITTER_SNAIL_ID.equals(registryPath)) return CAMERA;  // and the camera with a transmitter is a camera
         return null;
     }
 

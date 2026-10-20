@@ -23,8 +23,13 @@ public final class VisualTransmitterStatusPacket {
     private final String customName;
     private final String defaultName;
     private final boolean canRename;
+    private final boolean isPrivate;
+    private final java.util.List<Integer> invites;
 
-    public VisualTransmitterStatusPacket(BlockPos pos, boolean open, boolean active, int viewers, String customName, String defaultName, boolean canRename) {
+    public VisualTransmitterStatusPacket(BlockPos pos, boolean open, boolean active, int viewers, String customName, String defaultName, boolean canRename,
+                                         boolean isPrivate, java.util.List<Integer> invites) {
+        this.isPrivate = isPrivate;
+        this.invites = invites;
         this.pos = pos;
         this.open = open;
         this.active = active;
@@ -42,18 +47,32 @@ public final class VisualTransmitterStatusPacket {
         buf.writeUtf(msg.customName, 64);
         buf.writeUtf(msg.defaultName, 64);
         buf.writeBoolean(msg.canRename);
+        buf.writeBoolean(msg.isPrivate);
+        buf.writeVarInt(msg.invites.size());
+        for (int number : msg.invites) buf.writeVarInt(number);
     }
 
     public static VisualTransmitterStatusPacket decode(FriendlyByteBuf buf) {
-        return new VisualTransmitterStatusPacket(buf.readBlockPos(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(),
-                buf.readUtf(64), buf.readUtf(64), buf.readBoolean());
+        BlockPos pos = buf.readBlockPos();
+        boolean open = buf.readBoolean();
+        boolean active = buf.readBoolean();
+        int viewers = buf.readVarInt();
+        String custom = buf.readUtf(64);
+        String defaultName = buf.readUtf(64);
+        boolean canRename = buf.readBoolean();
+        boolean isPrivate = buf.readBoolean();
+        int count = Math.min(buf.readVarInt(), 64);
+        java.util.List<Integer> invites = new java.util.ArrayList<>(count);
+        for (int i = 0; i < count; i++) invites.add(buf.readVarInt());
+        return new VisualTransmitterStatusPacket(pos, open, active, viewers, custom, defaultName, canRename, isPrivate, invites);
     }
 
     public static void handle(VisualTransmitterStatusPacket msg, Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                        VisualClientPackets.handleTransmitterStatus(msg.pos, msg.open, msg.active, msg.viewers, msg.customName, msg.defaultName, msg.canRename)));
+                        VisualClientPackets.handleTransmitterStatus(msg.pos, msg.open, msg.active, msg.viewers, msg.customName, msg.defaultName, msg.canRename,
+                                msg.isPrivate, msg.invites)));
         context.setPacketHandled(true);
     }
 }

@@ -570,7 +570,8 @@ public class SnailNBTHandler {
         }
 
         if (stack.is((ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get()))
-                || stack.is(ModItems.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get())) {
+                || stack.is(ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get())
+                || stack.is(ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get())) {
             return; // no number, nothing to register
         }
 

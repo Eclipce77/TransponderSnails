@@ -22,7 +22,13 @@ public final class VisualCallConstants {
     public static final double PROTECTED_STATIC_AMOUNT = 0.95;
     public static final String DUPLEX_TRANSMITTER_SNAIL_ID = "visual_transponder_snail_transmitter";
     /** Visual Transmitter Transponder Snail: a camera. Films and picks up sound, shows nothing and plays nothing. */
-    public static final String CAMERA_SNAIL_ID = "visual_transmitter_transponder_snail";
+    /**
+     * The Visual Transmission Transponder Snail (the camera; formerly "Visual Transmitter Transponder Snail"). The glow models of BOTH variants are
+     * named after this id ({@code visual_transmission_transponder_snail_glow_eyes_*}), because they are the same role.
+     */
+    public static final String CAMERA_SNAIL_ID = "visual_transmission_transponder_snail";
+    /** The Visual Transmission Transponder Snail WITH a Transmitter: the same camera. */
+    public static final String CAMERA_TRANSMITTER_SNAIL_ID = "visual_transmission_transponder_snail_transmitter";
 
     // ---------------- Matching ----------------
     /** Two Visual Snails auto-connect when they are within this many blocks (centre to centre, same dimension). */

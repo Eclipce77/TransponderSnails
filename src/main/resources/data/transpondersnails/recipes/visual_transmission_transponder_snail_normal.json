@@ -1,0 +1,23 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    " VC",
+    " D ",
+    "   "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:den_den_mushi"
+    },
+    "C": {
+      "item": "transpondersnails:wire"
+    },
+    "V": {
+      "item": "transpondersnails:visual_transmitter"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:visual_transmission_transponder_snail"
+  }
+}

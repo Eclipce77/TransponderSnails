@@ -23,7 +23,8 @@ public class ModBlockEntities {
                             ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get(),
                             ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(),
                             ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
-                            ModBlocks.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get(),
+                            ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get(),
+                            ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                             ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get()).build(null));
 
     public static final RegistryObject<BlockEntityType<TransponderSnailBlockEntity>> TRANSPONDER_SNAIL_TRANSMITTER_BE =

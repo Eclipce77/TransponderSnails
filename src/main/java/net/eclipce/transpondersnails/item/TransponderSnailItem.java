@@ -388,7 +388,8 @@ public class TransponderSnailItem extends BlockItem {
     private static boolean isNumberlessSnail(ItemStack stack) {
         return stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL.get()
                 || stack.getItem() == ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get()
-                || stack.getItem() == ModItems.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get()
+                || stack.getItem() == ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get()
+                || stack.getItem() == ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get()
                 || stack.getItem() == ModItems.AMPLIFIED_TRANSPONDER_SNAIL.get();
     }
 

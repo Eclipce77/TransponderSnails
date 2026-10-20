@@ -46,7 +46,12 @@ public class ModBlocks {
     public static final RegistryObject<Block> VISUAL_TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("visual_transponder_snail_transmitter",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
-    public static final RegistryObject<Block> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = BLOCKS.register("visual_transmitter_transponder_snail",
+    // The Visual Transmission Transponder Snail (the camera, which streams) and the one WITH a Transmitter. They were one block,
+    // "visual_transmitter_transponder_snail", which is now the one with the Transmitter (see LegacyIdRemapper).
+    public static final RegistryObject<Block> VISUAL_TRANSMISSION_TRANSPONDER_SNAIL = BLOCKS.register("visual_transmission_transponder_snail",
+            () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
+
+    public static final RegistryObject<Block> VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER = BLOCKS.register("visual_transmission_transponder_snail_transmitter",
             () -> new TransponderSnailBlock(BlockBehaviour.Properties.copy(Blocks.BRAIN_CORAL).sound(SoundType.CORAL_BLOCK)));
 
     // Megaphone snail. AmplifiedTransponderSnailBlock passes hasShell = false to TransponderSnailBlock

@@ -21,11 +21,11 @@ import java.util.function.Supplier;
 public final class VisualStreamListPacket {
 
     /** An active stream. */
-    public record Stream(UUID id, String name, String owner) { }
+    public record Stream(UUID id, String name, String owner, boolean isPrivate) { }
 
     /** One of the three preset boxes; {@code present} false = empty. {@code active}: the stream it holds is on air right now. */
-    public record Preset(boolean present, UUID id, String name, boolean active) {
-        public static Preset empty() { return new Preset(false, new UUID(0L, 0L), "", false); }
+    public record Preset(boolean present, UUID id, String name, boolean active, boolean isPrivate) {
+        public static Preset empty() { return new Preset(false, new UUID(0L, 0L), "", false, false); }
     }
 
     private final BlockPos pos;
@@ -50,6 +50,7 @@ public final class VisualStreamListPacket {
             buf.writeUUID(s.id());
             buf.writeUtf(s.name(), 64);
             buf.writeUtf(s.owner(), 64);
+            buf.writeBoolean(s.isPrivate());
         }
         buf.writeVarInt(msg.presets.size());
         for (Preset p : msg.presets) {
@@ -58,6 +59,7 @@ public final class VisualStreamListPacket {
                 buf.writeUUID(p.id());
                 buf.writeUtf(p.name(), 64);
                 buf.writeBoolean(p.active());
+                buf.writeBoolean(p.isPrivate());
             }
         }
     }
@@ -67,11 +69,11 @@ public final class VisualStreamListPacket {
         UUID tuned = buf.readBoolean() ? buf.readUUID() : null;
         int n = buf.readVarInt();
         List<Stream> streams = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) streams.add(new Stream(buf.readUUID(), buf.readUtf(64), buf.readUtf(64)));
+        for (int i = 0; i < n; i++) streams.add(new Stream(buf.readUUID(), buf.readUtf(64), buf.readUtf(64), buf.readBoolean()));
         int m = buf.readVarInt();
         List<Preset> presets = new ArrayList<>(m);
         for (int i = 0; i < m; i++) {
-            presets.add(buf.readBoolean() ? new Preset(true, buf.readUUID(), buf.readUtf(64), buf.readBoolean()) : Preset.empty());
+            presets.add(buf.readBoolean() ? new Preset(true, buf.readUUID(), buf.readUtf(64), buf.readBoolean(), buf.readBoolean()) : Preset.empty());
         }
         return new VisualStreamListPacket(pos, tuned, streams, presets);
     }

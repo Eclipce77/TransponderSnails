@@ -38,8 +38,9 @@ public final class VisualClientPackets {
     }
 
     /** The status of a transmitter; opens its menu if the server says so. */
-    public static void handleTransmitterStatus(BlockPos pos, boolean open, boolean active, int viewers, String customName, String defaultName, boolean canRename) {
-        VisualStreamClient.receiveStatus(pos, active, viewers, customName, defaultName, canRename);
+    public static void handleTransmitterStatus(BlockPos pos, boolean open, boolean active, int viewers, String customName, String defaultName, boolean canRename,
+                                               boolean isPrivate, List<Integer> invites) {
+        VisualStreamClient.receiveStatus(pos, active, viewers, customName, defaultName, canRename, isPrivate, invites);
         Minecraft mc = Minecraft.getInstance();
         if (open && !(mc.screen instanceof VisualTransmitterScreen current && current.pos().equals(pos))) {
             mc.setScreen(new VisualTransmitterScreen(pos));

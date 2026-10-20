@@ -23,7 +23,8 @@ public final class VisualStreamClient {
                            List<VisualStreamListPacket.Preset> presets, long version) { }
 
     /** The status of the transmitter at {@code pos}. */
-    public record Status(BlockPos pos, boolean active, int viewers, String customName, String defaultName, boolean canRename, long version) { }
+    public record Status(BlockPos pos, boolean active, int viewers, String customName, String defaultName, boolean canRename,
+                         boolean isPrivate, List<Integer> invites, long version) { }
 
     private static ListData list;
     private static Status status;
@@ -33,8 +34,9 @@ public final class VisualStreamClient {
         list = new ListData(pos.immutable(), tuned, List.copyOf(streams), List.copyOf(presets), ++counter);
     }
 
-    static void receiveStatus(BlockPos pos, boolean active, int viewers, String customName, String defaultName, boolean canRename) {
-        status = new Status(pos.immutable(), active, viewers, customName, defaultName, canRename, ++counter);
+    static void receiveStatus(BlockPos pos, boolean active, int viewers, String customName, String defaultName, boolean canRename,
+                              boolean isPrivate, List<Integer> invites) {
+        status = new Status(pos.immutable(), active, viewers, customName, defaultName, canRename, isPrivate, List.copyOf(invites), ++counter);
     }
 
     /** The latest list for the projector at pos, or null if there is none yet. */

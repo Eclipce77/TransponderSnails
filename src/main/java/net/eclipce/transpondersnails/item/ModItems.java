@@ -88,8 +88,12 @@ public class ModItems {
             () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                     new Item.Properties().stacksTo(1)));
 
-    public static final RegistryObject<Item> VISUAL_TRANSMITTER_TRANSPONDER_SNAIL = ITEMS.register("visual_transmitter_transponder_snail",
-            () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSMITTER_TRANSPONDER_SNAIL.get(),
+    public static final RegistryObject<Item> VISUAL_TRANSMISSION_TRANSPONDER_SNAIL = ITEMS.register("visual_transmission_transponder_snail",
+            () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get(),
+                    new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER = ITEMS.register("visual_transmission_transponder_snail_transmitter",
+            () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> AMPLIFIED_TRANSPONDER_SNAIL = ITEMS.register("amplified_transponder_snail",

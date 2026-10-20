@@ -123,6 +123,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     // ---- streams ----
     // A Visual Transmitter (camera) broadcasts a STREAM; a Visual Transponder Snail (projector) tunes to one and keeps three presets.
     private UUID streamId;                       // camera: the stable identity of its stream (it stays when the stream is off, so presets can find it)
+    private boolean streamPrivate = false;       // camera: invite only (a PRIVATE stream)
+    private final java.util.List<Integer> streamInvites = new java.util.ArrayList<>();   // camera: the snail numbers invited to a private stream
     private String streamName = "";              // camera: the name its owner gave it; blank = "<owner>'s Stream"
     private UUID ownerId;                        // who placed it last
     private String ownerName = "";
@@ -240,6 +242,39 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         if (clean.equals(streamName)) return;
         streamName = clean;
         setChanged();
+    }
+
+    /** Is this stream invite only? */
+    public boolean isStreamPrivate() {
+        return streamPrivate;
+    }
+
+    public void setStreamPrivate(boolean on) {
+        if (streamPrivate == on) return;
+        streamPrivate = on;
+        setChanged();
+    }
+
+    /** The numbers invited to a private stream, in the order they were invited. */
+    public java.util.List<Integer> getStreamInvites() {
+        return java.util.Collections.unmodifiableList(streamInvites);
+    }
+
+    public net.eclipce.transpondersnails.visual.StreamAccess.InviteResult inviteNumber(int number) {
+        net.eclipce.transpondersnails.visual.StreamAccess.InviteResult result = net.eclipce.transpondersnails.visual.StreamAccess.add(streamInvites, number);
+        if (result == net.eclipce.transpondersnails.visual.StreamAccess.InviteResult.ADDED) setChanged();
+        return result;
+    }
+
+    public boolean uninviteNumber(int number) {
+        boolean removed = net.eclipce.transpondersnails.visual.StreamAccess.remove(streamInvites, number);
+        if (removed) setChanged();
+        return removed;
+    }
+
+    /** May the snail with this number see (and tune to) this stream? Always for a public one; for a private one only if it is invited. */
+    public boolean canSeeStream(int snailNumber) {
+        return net.eclipce.transpondersnails.visual.StreamAccess.canSee(streamPrivate, streamInvites, snailNumber);
     }
 
     /** What the stream is called: its own name, or "Steve's Stream". */
@@ -1952,6 +1987,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 list.add(entry);
             }
             tag.put("StreamPresets", list);
+            tag.putBoolean("StreamPrivate", streamPrivate);
+            tag.putIntArray("StreamInvites", streamInvites.stream().mapToInt(Integer::intValue).toArray());
         }
     }
 
@@ -2026,6 +2063,9 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             this.streamName = VisualStreamNames.sanitize(tag.getString("StreamName"));
             this.ownerId = tag.hasUUID("StreamOwner") ? tag.getUUID("StreamOwner") : null;
             this.ownerName = VisualStreamNames.sanitize(tag.getString("StreamOwnerName"));
+            this.streamPrivate = tag.getBoolean("StreamPrivate");
+            this.streamInvites.clear();
+            for (int number : tag.getIntArray("StreamInvites")) net.eclipce.transpondersnails.visual.StreamAccess.add(this.streamInvites, number);
             this.presets.clearAll();
             if (tag.contains("StreamPresets", Tag.TAG_LIST)) {
                 ListTag list = tag.getList("StreamPresets", Tag.TAG_COMPOUND);

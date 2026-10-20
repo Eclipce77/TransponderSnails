@@ -1,6 +1,8 @@
 package net.eclipce.transpondersnails.visual.server;
 
+import com.mojang.logging.LogUtils;
 import net.eclipce.transpondersnails.block.ModBlocks;
+import net.eclipce.transpondersnails.block.custom.WhiteTransponderSnailBlock;
 import net.eclipce.transpondersnails.block.custom.WireBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.visual.WireTrace;
@@ -10,6 +12,8 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -35,16 +39,20 @@ public final class VisualTapManager {
     private VisualTapManager() {}
 
     /** Like the mod's other wire traces: a trace looks at no more than this many blocks. */
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final int MAX_VISITED = WireBlock.MAX_WIRE_RANGE * WireBlock.MAX_WIRE_RANGE;
     private static final long CACHE_MS = 1000L;
 
     private record Cached(long version, long atMs, boolean tapped) { }
 
+    private record CachedWhite(long version, long atMs, @Nullable BlockPos white) { }
+
     private static final Map<GlobalPos, Cached> TAPPED_CACHE = new HashMap<>();
+    private static final Map<GlobalPos, CachedWhite> WHITE_CACHE = new HashMap<>();
     private static long wireVersion = 0L;
 
-    /** Ends of connected visual calls that have been reported to the white snail as protected. */
-    private static final Set<GlobalPos> REPORTED_PROTECTED = new HashSet<>();
+    /** Ends of connected visual calls that have been reported to the white snail as protected, and by which white snail. */
+    private static final Map<GlobalPos, BlockPos> REPORTED_PROTECTED = new HashMap<>();
 
     // =====================================================================================================
     // What is what
@@ -139,23 +147,53 @@ public final class VisualTapManager {
     // Protection: telling the white snail about visual calls (it lights up like it does for a phone call)
     // =====================================================================================================
 
-    /** The white snail is told whether this end of a connected visual call is protected by it. */
-    public static void syncProtection(ServerLevel level, GlobalPos end, boolean inConnectedCall) {
-        boolean protectedNow = inConnectedCall && isProtected(level, end.pos());
-        boolean was = REPORTED_PROTECTED.contains(end);
-        WhiteSnailProtectionManager white = WhiteSnailProtectionManager.getInstance();
-        if (protectedNow && !was) {
-            REPORTED_PROTECTED.add(end);
-            white.onCallProtectionStarted(level, end.pos());
-        } else if (!protectedNow && was) {
-            REPORTED_PROTECTED.remove(end);
-            white.onCallProtectionEnded(level, end.pos());
+    /**
+     * The White Transponder Snail a visual snail (with a transmitter) is wired to, or null. Found with the SAME wire trace the black snail's
+     * tap uses (not the white snail manager's own trace and cache), so the two always agree about what is wired to what. If several, the nearest.
+     */
+    @Nullable
+    public static BlockPos protectingWhite(@Nullable Level level, @Nullable BlockPos snail) {
+        if (level == null || snail == null || level.isClientSide || !isTapCapable(level, snail)) return null;
+        GlobalPos key = GlobalPos.of(level.dimension(), snail);
+        long now = System.currentTimeMillis();
+        CachedWhite cached = WHITE_CACHE.get(key);
+        if (cached != null && cached.version() == wireVersion && now - cached.atMs() < CACHE_MS) return cached.white();
+        BlockPos best = null;
+        double bestSq = Double.MAX_VALUE;
+        for (WireTrace.Pos p : WireTrace.findTargets(pos(snail), q -> level.isLoaded(blockPos(q)) && isWire(level, q),
+                q -> level.isLoaded(blockPos(q)) && level.getBlockState(blockPos(q)).getBlock() instanceof WhiteTransponderSnailBlock, MAX_VISITED)) {
+            BlockPos candidate = blockPos(p);
+            double d = candidate.distSqr(snail);
+            if (d < bestSq || (d == bestSq && best != null && candidate.asLong() < best.asLong())) {
+                bestSq = d;
+                best = candidate;
+            }
         }
+        WHITE_CACHE.put(key, new CachedWhite(wireVersion, now, best));
+        return best;
     }
 
     /** Is this visual snail wired to a White Transponder Snail? (Only a snail with a transmitter can be.) */
     public static boolean isProtected(Level level, BlockPos snail) {
-        return isTapCapable(level, snail) && WhiteSnailProtectionManager.getInstance().isParticipantProtected(level, snail);
+        return protectingWhite(level, snail) != null;
+    }
+
+    /** The white snail is told whether this end of a connected visual call is protected by it (and the state of the white snail follows). */
+    public static void syncProtection(ServerLevel level, GlobalPos end, boolean inConnectedCall) {
+        BlockPos whiteNow = inConnectedCall ? protectingWhite(level, end.pos()) : null;
+        BlockPos whiteBefore = REPORTED_PROTECTED.get(end);
+        if (java.util.Objects.equals(whiteNow, whiteBefore)) return;
+        WhiteSnailProtectionManager white = WhiteSnailProtectionManager.getInstance();
+        if (whiteBefore != null) {
+            REPORTED_PROTECTED.remove(end);
+            white.onVisualProtectionEnded(level, end.pos(), whiteBefore);
+            LOGGER.info("VisualTapManager: the visual snail at {} is no longer protected by the White Transponder Snail at {}", end.pos(), whiteBefore);
+        }
+        if (whiteNow != null) {
+            REPORTED_PROTECTED.put(end, whiteNow);
+            white.onVisualProtectionStarted(level, end.pos(), whiteNow);
+            LOGGER.info("VisualTapManager: the visual snail at {} is protected by the White Transponder Snail at {}", end.pos(), whiteNow);
+        }
     }
 
     private static void syncAllProtection(ServerLevel level, VisualCallManager calls) {
@@ -167,7 +205,7 @@ public final class VisualTapManager {
             connectedEnds.add(s.calleeGp());
         }
         for (GlobalPos end : connectedEnds) syncProtection(level, end, true);
-        for (GlobalPos end : new ArrayList<>(REPORTED_PROTECTED)) {
+        for (GlobalPos end : new ArrayList<>(REPORTED_PROTECTED.keySet())) {
             if (end.dimension().equals(level.dimension()) && !connectedEnds.contains(end)) syncProtection(level, end, false);
         }
     }
@@ -180,6 +218,7 @@ public final class VisualTapManager {
 
     public static void clear() {
         TAPPED_CACHE.clear();
+        WHITE_CACHE.clear();
         REPORTED_PROTECTED.clear();
         wireVersion = 0L;
     }
