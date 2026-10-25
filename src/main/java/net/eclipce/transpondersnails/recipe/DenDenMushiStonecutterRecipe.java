@@ -157,6 +157,18 @@ public class DenDenMushiStonecutterRecipe extends StonecutterRecipe {
         }
 
         // White Transponder Snail → White Den Den Mushi (shell color only — no body color)
+        // The camera snails (Visual Transmission Transponder Snail, with and without a Transmitter) and the Horned Transponder Snail hand on their colours too,
+        // so that a recipe written for them keeps the body colour instead of making a colourless Den Den Mushi.
+        if (!input.isEmpty() && (input.getItem() == ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get()
+                || input.getItem() == ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get()
+                || input.getItem() == ModItems.HORNED_TRANSPONDER_SNAIL.get())) {
+            int[] colours = RecipeColors.read(input);
+            if (colours != null) {
+                DenDenMushiItem.setColors(result, colours[0], colours[1]);
+                DenDenMushiItem.setCaptured(result, true);
+            }
+        }
+
         if (!input.isEmpty() && input.getItem() == net.eclipce.transpondersnails.item.ModItems.WHITE_TRANSPONDER_SNAIL.get()) {
             // Override result to be WHITE_DEN_DEN_MUSHI
             result = new ItemStack(net.eclipce.transpondersnails.item.ModItems.WHITE_DEN_DEN_MUSHI.get());
@@ -195,12 +207,30 @@ public class DenDenMushiStonecutterRecipe extends StonecutterRecipe {
 
         @Override
         public @NotNull DenDenMushiStonecutterRecipe fromJson(@NotNull ResourceLocation recipeId, @NotNull JsonObject json) {
-            // Use the standard SingleItemRecipe parser (same as stonecutter)
-            String group = json.has("group") ? json.get("group").getAsString() : "";
-            Ingredient ingredient = Ingredient.fromJson(json.get("ingredient"));
-            ItemStack result = net.minecraft.world.item.crafting.ShapedRecipe.itemStackFromJson(json.getAsJsonObject("result"));
-
-            return new DenDenMushiStonecutterRecipe(recipeId, group, ingredient, result);
+            // The same shape as the vanilla stonecutter recipe, and it accepts BOTH ways of writing the result:
+            //   "result": { "item": "namespace:item", "count": 1 }      (an object, like a crafting recipe)
+            //   "result": "namespace:item", "count": 1                    (a string with the count beside it, like vanilla stonecutting)
+            // Anything malformed is reported as a JSON error, which the recipe manager logs and skips; any other exception (a ClassCastException, say)
+            // is not caught by it and would stop the recipes - and so the world - from loading at all.
+            try {
+                String group = json.has("group") ? json.get("group").getAsString() : "";
+                Ingredient ingredient = Ingredient.fromJson(json.get("ingredient"));
+                com.google.gson.JsonElement resultJson = json.get("result");
+                ItemStack result;
+                if (resultJson != null && resultJson.isJsonObject()) {
+                    result = net.minecraft.world.item.crafting.ShapedRecipe.itemStackFromJson(resultJson.getAsJsonObject());
+                } else if (resultJson != null && resultJson.isJsonPrimitive()) {
+                    ResourceLocation itemId = new ResourceLocation(resultJson.getAsString());
+                    net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(itemId)
+                            .orElseThrow(() -> new com.google.gson.JsonSyntaxException("Unknown item '" + itemId + "' in recipe " + recipeId));
+                    result = new ItemStack(item, net.minecraft.util.GsonHelper.getAsInt(json, "count", 1));
+                } else {
+                    throw new com.google.gson.JsonSyntaxException("Recipe " + recipeId + " needs a \"result\" (an item id, or an object with an item)");
+                }
+                return new DenDenMushiStonecutterRecipe(recipeId, group, ingredient, result);
+            } catch (ClassCastException | IllegalStateException | NullPointerException | net.minecraft.ResourceLocationException e) {
+                throw new com.google.gson.JsonSyntaxException("Malformed Den Den Mushi stonecutting recipe " + recipeId + ": " + e.getMessage(), e);
+            }
         }
 
         @Override

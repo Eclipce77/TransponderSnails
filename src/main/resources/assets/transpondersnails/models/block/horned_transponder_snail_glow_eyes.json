@@ -1,0 +1,78 @@
+{
+  "credit": "the eyes of the Horned Transponder Snail: the front face of each eye, with the eye's own texture (drawn red while it is switched on)",
+  "texture_size": [
+    64,
+    64
+  ],
+  "ambientocclusion": false,
+  "textures": {
+    "eyes": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_eyes",
+    "particle": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_eyes"
+  },
+  "elements": [
+    {
+      "from": [
+        5,
+        7,
+        2.94
+      ],
+      "to": [
+        7,
+        9,
+        3.94
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          6,
+          7,
+          4
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            9.75,
+            10,
+            10.25,
+            10.5
+          ],
+          "texture": "#eyes"
+        }
+      }
+    },
+    {
+      "from": [
+        9,
+        7,
+        2.94
+      ],
+      "to": [
+        11,
+        9,
+        3.94
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          10,
+          7,
+          4
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            10.25,
+            0.25,
+            10.75,
+            0.75
+          ],
+          "texture": "#eyes"
+        }
+      }
+    }
+  ]
+}

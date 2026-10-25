@@ -28,6 +28,7 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModItems.HORNED_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());

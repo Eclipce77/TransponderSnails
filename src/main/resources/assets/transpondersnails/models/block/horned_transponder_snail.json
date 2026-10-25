@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "transpondersnails:block/horned_transponder_snail",
+    "particle": "transpondersnails:block/horned_transponder_snail"
+  }
+}

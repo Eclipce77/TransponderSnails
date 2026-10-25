@@ -23,7 +23,12 @@ public final class LegacyIdRemapper {
     @SubscribeEvent
     public static void onMissingMappings(MissingMappingsEvent event) {
         for (MissingMappingsEvent.Mapping<Block> mapping : event.getMappings(ForgeRegistries.Keys.BLOCKS, TransponderSnails.MOD_ID)) {
-            if (LegacyIds.current(mapping.getKey().getPath()) != null) mapping.remap(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
+            String path = mapping.getKey().getPath();
+            if (LegacyIds.NEW_HORNED_BLOCK.equals(LegacyIds.currentBlock(path))) {
+                mapping.remap(ModBlocks.HORNED_TRANSPONDER_SNAIL.get());                                    // a placed jammer: now the Horned Transponder Snail (switched off)
+            } else if (LegacyIds.currentBlock(path) != null) {
+                mapping.remap(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
+            }
         }
         for (MissingMappingsEvent.Mapping<Item> mapping : event.getMappings(ForgeRegistries.Keys.ITEMS, TransponderSnails.MOD_ID)) {
             if (LegacyIds.current(mapping.getKey().getPath()) != null) mapping.remap(ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());

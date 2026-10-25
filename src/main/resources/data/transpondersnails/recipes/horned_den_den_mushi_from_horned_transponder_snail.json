@@ -1,0 +1,8 @@
+{
+  "type": "transpondersnails:den_den_mushi_stonecutting",
+  "ingredient": {
+    "item": "transpondersnails:horned_transponder_snail"
+  },
+  "result": "transpondersnails:horned_den_den_mushi",
+  "count": 1
+}

@@ -175,7 +175,8 @@ public class SnailAudioRelay {
             // Filter / attenuate ONCE per packet and share the result with every recipient.
             // (Previously the decode -> filter -> encode step ran once per recipient on the same frame,
             // which advanced the speaker's codec and filter state several times per frame.)
-            byte[] audio = processAudio(opusData, speaker.getUUID(), gain);
+            float jam = (float) HornedDDMJammerManager.getInstance().levelForCall(callSession.getCallId()); // how jammed this call is (smoothed)
+            byte[] audio = processAudio(opusData, speaker.getUUID(), gain, jam);
             if (audio == null) return;
 
             // Get transmitting position (null for handheld)
@@ -319,12 +320,13 @@ public class SnailAudioRelay {
      *         (the audio is dropped rather than sent at full volume)
      */
     @Nullable
-    private byte[] processAudio(byte[] opusData, UUID speakerId, float gain) {
+    private byte[] processAudio(byte[] opusData, UUID speakerId, float gain, float jam) {
         boolean filterEnabled = ModConfig.isPhoneFilterEnabled();
         boolean attenuate = gain < ATTENUATION_THRESHOLD;
+        boolean jammed = jam > 0.001f;   // a jammer is filling this call with static
 
-        if (!filterEnabled && !attenuate) {
-            return opusData;
+        if (!filterEnabled && !attenuate && !jammed) {
+            return opusData;                       // the untouched fast path: nothing is decoded when nothing is jamming
         }
 
         try {
@@ -365,6 +367,12 @@ public class SnailAudioRelay {
                 }
             }
 
+            // JAMMING: the voice is faded down and static faded up by the jam level (see JamMix). It is applied ONCE per frame, here, so every
+            // recipient - the other end of the call, a Black Transponder Snail tapping it - hears the same thing.
+            if (jammed) {
+                net.eclipce.transpondersnails.jam.JamMix.apply(pcmSamples, jam, java.util.concurrent.ThreadLocalRandom.current());
+            }
+
             // Encode using speaker's dedicated encoder
             byte[] processedOpus = encoder.encode(pcmSamples);
 
@@ -390,7 +398,13 @@ public class SnailAudioRelay {
      */
     @Nullable
     public byte[] processForVisualCall(byte[] opusData, UUID speakerId, float gain) {
-        return processAudio(opusData, speakerId, gain);
+        return processAudio(opusData, speakerId, gain, 0.0f);
+    }
+
+    /** The same, with a jammer filling the call with static ({@code jam}: 0 = none, 1 = all static). */
+    @Nullable
+    public byte[] processForVisualCall(byte[] opusData, UUID speakerId, float gain, float jam) {
+        return processAudio(opusData, speakerId, gain, jam);
     }
 
     /**

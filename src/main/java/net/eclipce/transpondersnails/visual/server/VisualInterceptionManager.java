@@ -15,6 +15,7 @@ import net.eclipce.transpondersnails.visual.network.VisualFeedControlPacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.server.BlackSnailStateSyncHelper;
+import net.eclipce.transpondersnails.voice.server.HornedDDMJammerManager;
 import net.eclipce.transpondersnails.voice.server.InterceptionHelper;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.eclipce.transpondersnails.voice.server.WhiteSnailProtectionManager;
@@ -95,6 +96,8 @@ public final class VisualInterceptionManager {
         volatile long lastAudioMs;
         boolean reportedActive;
         long outOfRangeSince = -1L;
+        double lastJamSent = 0.0;
+        int jamTicks = 1000;
 
         Session(UUID player, GlobalPos black, GlobalPos display, double range) {
             this.player = player;
@@ -360,6 +363,22 @@ public final class VisualInterceptionManager {
         if (tickCounter % DISPLAY_REFRESH_TICKS == 0) {
             if (s.kind == Kind.CALL) refreshProtection(s, level, player);
             refreshViewers(s, level, false);
+        }
+
+        // a jammer dissolves what the display shows into static, by the amount the call (or stream) is jammed
+        HornedDDMJammerManager jammer = HornedDDMJammerManager.getInstance();
+        double jam = s.kind == Kind.CALL ? jammer.levelForCall(UUID.fromString(s.targetId))
+                : s.targetCamera == null ? 0.0 : jammer.levelForStream(s.targetCamera);
+        s.jamTicks++;
+        if (net.eclipce.transpondersnails.jam.JamMath.shouldSend(s.lastJamSent, jam, s.jamTicks, 20)) {
+            s.lastJamSent = jam;
+            s.jamTicks = 0;
+            net.eclipce.transpondersnails.visual.network.VisualJamPacket packet = new net.eclipce.transpondersnails.visual.network.VisualJamPacket(
+                    s.displayId, net.eclipce.transpondersnails.jam.JamMath.quantize(jam));
+            for (UUID viewerId : s.viewers) {
+                ServerPlayer viewer = level.getServer().getPlayerList().getPlayer(viewerId);
+                if (viewer != null) VisualNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer), packet);
+            }
         }
     }
 

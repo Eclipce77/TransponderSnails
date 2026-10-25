@@ -35,7 +35,8 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
         ItemStack denDenMushi = ItemStack.EMPTY;
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack stack = container.getItem(i);
-            if (stack.getItem() == ModItems.DEN_DEN_MUSHI.get()) {
+            // a Den Den Mushi, or a Horned one (the colour source of a Horned Transponder Snail)
+            if (stack.getItem() == ModItems.DEN_DEN_MUSHI.get() || stack.getItem() == ModItems.HORNED_DEN_DEN_MUSHI.get()) {
                 denDenMushi = stack;
                 break;
             }
@@ -56,6 +57,20 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
             blockEntityTag.putInt("ShellColor", shellColor);
             blockEntityTag.putBoolean("ColorsInitialized", true);
             nbt.put("BlockEntityTag", blockEntityTag);
+        }
+
+        // An UPGRADE of a snail that is made from no Den Den Mushi (a Transponder Snail + a Transmitter): the new snail IS the old one with a transmitter,
+        // so it keeps the old one's colours - body and shell - instead of coming out colourless (it used to, and was given a new random body when placed).
+        if (denDenMushi.isEmpty() || !DenDenMushiItem.isCaptured(denDenMushi)) {
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                ItemStack stack = container.getItem(i);
+                if (stack.getItem() instanceof net.eclipce.transpondersnails.item.TransponderSnailItem
+                        || stack.getItem() instanceof net.eclipce.transpondersnails.item.HornedTransponderSnailItem) {
+                    int[] colours = RecipeColors.read(stack);
+                    if (colours != null) RecipeColors.writeBlockItem(result, colours[0], colours[1]);
+                    break;
+                }
+            }
         }
 
         // An UPGRADE (a Visual Transponder Snail + a Transmitter): the new snail IS the old one with a transmitter, so it keeps what makes it

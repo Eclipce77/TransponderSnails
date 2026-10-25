@@ -66,6 +66,21 @@ public class ModItemProperties {
                 }
         );
 
+        // Horned Den Den Mushi - eyes_closed picks the closed-eye variants of its model. Only the placed Horned Transponder Snail's block renderer sets it (while
+        // the snail is switched off); every Horned Den Den Mushi ITEM keeps its eyes open, as before.
+        ItemProperties.register(
+                ModItems.HORNED_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "eyes_closed"),
+                (stack, level, entity, seed) -> stack.getTag() != null && stack.getTag().getBoolean("EyesClosed") ? 1.0f : 0.0f
+        );
+
+        // Horned Transponder Snail - the same model and scale, the colour read the way snails keep it
+        ItemProperties.register(
+                ModItems.HORNED_TRANSPONDER_SNAIL.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, level, entity, seed) -> HornedTransponderSnailItem.getShellColor(stack) * 0.1f
+        );
+
     }
 
     /**

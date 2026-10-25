@@ -25,13 +25,6 @@ public class ModEntities {
                     .clientTrackingRange(10)
                     .build("den_den_mushi"));
 
-    // White Den Den Mushi (FIXED: uses WhiteDenDenMushiEntity type)
-    public static final RegistryObject<EntityType<WhiteDenDenMushiEntity>> WHITE_DEN_DEN_MUSHI =
-            ENTITY_TYPES.register("white_den_den_mushi", () -> EntityType.Builder.of(WhiteDenDenMushiEntity::new, MobCategory.CREATURE)
-                    .sized(0.77f, 0.77f)
-                    .clientTrackingRange(10)
-                    .build("white_den_den_mushi"));
-
     // ---- Horned Den Den Mushi ----
     public static final RegistryObject<EntityType<HornedDenDenMushiEntity>> HORNED_DEN_DEN_MUSHI =
             ENTITY_TYPES.register("horned_den_den_mushi",
@@ -66,6 +59,13 @@ public class ModEntities {
                             .build("black_transponder_snail")
             );
 
+    // White Den Den Mushi (FIXED: uses WhiteDenDenMushiEntity type)
+    public static final RegistryObject<EntityType<WhiteDenDenMushiEntity>> WHITE_DEN_DEN_MUSHI =
+            ENTITY_TYPES.register("white_den_den_mushi", () -> EntityType.Builder.of(WhiteDenDenMushiEntity::new, MobCategory.CREATURE)
+                    .sized(0.77f, 0.77f)
+                    .clientTrackingRange(10)
+                    .build("white_den_den_mushi"));
+
     public static void register(IEventBus eventBus) {
         ENTITY_TYPES.register(eventBus);
     }
@@ -73,10 +73,10 @@ public class ModEntities {
     @SubscribeEvent
     public static void onAttributeCreate(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
-        event.put(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.HORNED_DEN_DEN_MUSHI.get(), HornedDenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
         event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailEntity.createAttributes().build());
+        event.put(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiEntity.createAttributes().build());
     }
 
     /**
@@ -92,15 +92,6 @@ public class ModEntities {
                 SpawnPlacements.Type.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 DenDenMushiSpawnConditions::checkDenDenMushiSpawnRules,
-                SpawnPlacementRegisterEvent.Operation.REPLACE
-        );
-
-        // White Den Den Mushi - spawns on surface (same as regular)
-        event.register(
-                ModEntities.WHITE_DEN_DEN_MUSHI.get(),
-                SpawnPlacements.Type.ON_GROUND,
-                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                WhiteDenDenMushiSpawnConditions::checkWhiteDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
 
@@ -127,6 +118,15 @@ public class ModEntities {
                 SpawnPlacements.Type.IN_WATER,
                 Heightmap.Types.OCEAN_FLOOR,
                 BlackTransponderSnailSpawnConditions::checkBabyBlackTransponderSnailSpawnRules,
+                SpawnPlacementRegisterEvent.Operation.REPLACE
+        );
+
+        // White Den Den Mushi - spawns on surface (same as regular)
+        event.register(
+                ModEntities.WHITE_DEN_DEN_MUSHI.get(),
+                SpawnPlacements.Type.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                WhiteDenDenMushiSpawnConditions::checkWhiteDenDenMushiSpawnRules,
                 SpawnPlacementRegisterEvent.Operation.REPLACE
         );
     }

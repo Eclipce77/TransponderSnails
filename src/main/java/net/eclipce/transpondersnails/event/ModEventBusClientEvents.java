@@ -229,6 +229,44 @@ public class ModEventBusClientEvents {
                         return 0.0f; // Default white
                     });
 
+            // The same for the camera snails (Visual Transmission Transponder Snail, with and without a Transmitter): their item models use the very same
+            // shell_color overrides, which showed nothing because the predicate was never registered for them.
+            ItemProperties.register(ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        CompoundTag nbt = stack.getTag();
+                        if (nbt != null) {
+                            if (nbt.contains("shell_color")) {
+                                return nbt.getInt("shell_color") / 100.0f;
+                            }
+                            if (nbt.contains("BlockEntityTag")) {
+                                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                                if (beTag.contains("ShellColor")) {
+                                    return beTag.getInt("ShellColor") / 100.0f;
+                                }
+                            }
+                        }
+                        return 0.0f; // Default white
+                    });
+
+            ItemProperties.register(ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get(),
+                    new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                    (stack, world, entity, seed) -> {
+                        CompoundTag nbt = stack.getTag();
+                        if (nbt != null) {
+                            if (nbt.contains("shell_color")) {
+                                return nbt.getInt("shell_color") / 100.0f;
+                            }
+                            if (nbt.contains("BlockEntityTag")) {
+                                CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+                                if (beTag.contains("ShellColor")) {
+                                    return beTag.getInt("ShellColor") / 100.0f;
+                                }
+                            }
+                        }
+                        return 0.0f; // Default white
+                    });
+
             // The same for the Visual Transponder Snail with a Transmitter.
             ItemProperties.register(ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                     new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
@@ -355,6 +393,14 @@ public class ModEventBusClientEvents {
             return -1;
         }, ModItems.HORNED_DEN_DEN_MUSHI.get());
 
+        // The Horned Transponder Snail item: the body tint (tintIndex 0) of the colour it CARRIES (body_color / BodyColor / the block entity data) - and no tint at all
+        // while it carries none, like every other snail: one from the creative menu is shown plain, and its colour is drawn when it is placed.
+        event.register((stack, tintIndex) -> {
+            if (tintIndex != 0 || !(stack.getItem() instanceof net.eclipce.transpondersnails.item.HornedTransponderSnailItem)) return -1;
+            Integer carried = net.eclipce.transpondersnails.item.HornedTransponderSnailItem.carriedBodyColor(stack);
+            return carried != null ? carried : -1;
+        }, ModItems.HORNED_TRANSPONDER_SNAIL.get());
+
         // White Transponder Snail block item — tints shell faces at tintIndex 0
         // Reads "shell_color" from item NBT (set by dye recipe / break drop),
         // or falls back to BlockEntityTag.ShellColor (for placed-then-broken items).
@@ -399,7 +445,9 @@ public class ModEventBusClientEvents {
                 }
             }
             return -1;
-        }, ModItems.VISUAL_TRANSPONDER_SNAIL.get(), ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get());
+        }, ModItems.VISUAL_TRANSPONDER_SNAIL.get(), ModItems.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
+                // the camera snails (Visual Transmission Transponder Snail, with and without a Transmitter) carry the very same body tint
+                ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get(), ModItems.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
 
         // Amplified Transponder Snail item — body color only (tintIndex 0); no compatible shell
         event.register((stack, tintIndex) -> {
@@ -460,7 +508,7 @@ public class ModEventBusClientEvents {
                 }
             }
             return -1;
-        }, ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get());
+        }, ModBlocks.HORNED_TRANSPONDER_SNAIL.get());
 
         // White Transponder Snail block — shell color stored in BE, not blockstate.
         // Converts DyeColor id (0-15) to RGB for the tintIndex 0 shell faces.
@@ -488,7 +536,9 @@ public class ModEventBusClientEvents {
                 }
             }
             return -1;
-        }, ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(), ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get());
+        }, ModBlocks.VISUAL_TRANSPONDER_SNAIL.get(), ModBlocks.VISUAL_TRANSPONDER_SNAIL_TRANSMITTER.get(),
+                // the camera snails (Visual Transmission Transponder Snail, with and without a Transmitter) carry the very same body tint
+                ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL.get(), ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
 
         // Amplified Transponder Snail block — body color only (tintIndex 0); no compatible shell
         event.register((state, level, pos, tintIndex) -> {

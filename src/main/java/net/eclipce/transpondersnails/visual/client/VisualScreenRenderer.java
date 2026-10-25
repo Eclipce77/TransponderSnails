@@ -259,16 +259,19 @@ public final class VisualScreenRenderer {
             Matrix4f matrix = pose.last().pose();
 
             if (split) {
-                drawSplit(buffers, matrix, c, size, link, feed, feed2, screenVisible, alpha, staticAmount, ease, washout, now, r, g, b, a);
+                drawSplit(buffers, matrix, c, size, link, feed, feed2, screenVisible, alpha, staticAmount, link.jam(), ease, washout, now, r, g, b, a);
             } else if (pictureReady) {
-                if (alpha > 0.0F) {
+                float jam = link.jam(); // a jammer: the picture dissolves into static
+                int pictureAlpha = jam > 0.0F ? Math.round(a * (1.0F - jam)) : a;
+                if (alpha > 0.0F && pictureAlpha > 0) {
                     RenderType type = feed.renderType();
-                    drawPicture(buffers.getBuffer(type), matrix, c, size, r, g, b, a, 0.0F, 0.0F, 1.0F);
+                    drawPicture(buffers.getBuffer(type), matrix, c, size, r, g, b, pictureAlpha, 0.0F, 0.0F, 1.0F);
                     buffers.endBatch(type); // the picture first, then the static over it, then the light on top of both
                 }
-                if (staticAmount > 0.0) {
+                double staticNow = Math.max(staticAmount, jam * VisualCallConstants.PROTECTED_STATIC_AMOUNT * ease);
+                if (staticNow > 0.0) {
                     float[] window = VisualStaticTexture.window(now); // fresh noise every few hundredths of a second
-                    int staticAlpha = Math.round(Math.min(1.0F, (float) (VisualCallConstants.FEED_OPACITY * staticAmount * washout)) * 255.0F);
+                    int staticAlpha = Math.round(Math.min(1.0F, (float) (VisualCallConstants.FEED_OPACITY * staticNow * washout)) * 255.0F);
                     RenderType staticType = VisualStaticTexture.renderType();
                     drawPicture(buffers.getBuffer(staticType), matrix, c, size, r, g, b, staticAlpha, window[0], window[1], VisualStaticTexture.WINDOW);
                     buffers.endBatch(staticType);
@@ -350,7 +353,7 @@ public final class VisualScreenRenderer {
 
     private static void drawSplit(MultiBufferSource.BufferSource buffers, Matrix4f matrix, double[][] c, int size,
                                   VisualFeedManager.ScreenLink link, @Nullable VisualFeed feed1, @Nullable VisualFeed feed2, boolean visible,
-                                  float alpha, double staticAmount, float ease, float washout, long now, int r, int g, int b, int a) {
+                                  float alpha, double staticAmount, float jam, float ease, float washout, long now, int r, int g, int b, int a) {
         if (!visible) return;
         VisualFeed[] feeds = {feed1, feed2};
         float[] window = VisualStaticTexture.window(now); // fresh noise every few hundredths of a second
@@ -360,13 +363,15 @@ public final class VisualScreenRenderer {
             boolean isStatic = link.isStatic(half);
             VisualFeed feed = feeds[half];
             boolean ready = !isStatic && feed != null && feed.hasFrame();
-            if (ready && alpha > 0.0F) {
+            int pictureAlpha = jam > 0.0F ? Math.round(a * (1.0F - jam)) : a;   // a jammer: the picture dissolves into static
+            if (ready && alpha > 0.0F && pictureAlpha > 0) {
                 RenderType type = feed.renderType();
-                drawPictureRegion(buffers.getBuffer(type), matrix, c, size, r, g, b, a, where, crop.u0(), crop.v0(), crop.u1(), crop.v1());
+                drawPictureRegion(buffers.getBuffer(type), matrix, c, size, r, g, b, pictureAlpha, where, crop.u0(), crop.v0(), crop.u1(), crop.v1());
                 buffers.endBatch(type);
             }
             // static: the snow of the projector turning on and off over a picture; steady over a protected end (it fades in and out with the screen)
-            double amount = isStatic ? Math.max(staticAmount, VisualCallConstants.PROTECTED_STATIC_AMOUNT) * ease : (ready ? staticAmount : 0.0);
+            double amount = isStatic ? Math.max(staticAmount, VisualCallConstants.PROTECTED_STATIC_AMOUNT) * ease
+                    : (ready ? Math.max(staticAmount, jam * VisualCallConstants.PROTECTED_STATIC_AMOUNT * ease) : 0.0);
             if (amount > 0.0) {
                 int staticAlpha = Math.round(Math.min(1.0F, (float) (VisualCallConstants.FEED_OPACITY * amount * washout)) * 255.0F);
                 RenderType staticType = VisualStaticTexture.renderType();

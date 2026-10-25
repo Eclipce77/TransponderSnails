@@ -1,7 +1,5 @@
 package net.eclipce.transpondersnails.item;
 
-import net.eclipce.transpondersnails.block.ModBlocks;
-import net.eclipce.transpondersnails.block.custom.HornedDenDenMushiBlock;
 import net.eclipce.transpondersnails.block.entity.HornedDenDenMushiBlockEntity;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.custom.DenDenMushiEntity;
@@ -36,7 +34,7 @@ import java.util.List;
  *                         (used by HornedDenDenMushiBlock.getDrops)
  *   - useOn             → two modes:
  *                           Normal right-click   → spawn HornedDenDenMushiEntity
- *                           Sneak + right-click  → place HornedDenDenMushiBlock (jammer)
+ *                           (the jammer block is the separate Horned Transponder Snail)
  *   - appendHoverText   → shows the correct name and placement tips in the tooltip
  */
 public class HornedDenDenMushiItem extends DenDenMushiItem {
@@ -90,7 +88,7 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
     // useOn
     //
     //  Normal right-click  → spawns HornedDenDenMushiEntity  (existing behaviour)
-    //  Sneak + right-click → places HornedDenDenMushiBlock   (jammer)
+    //  (the jammer block is the separate Horned Transponder Snail item)
     // -----------------------------------------------------------------------
 
     @Override
@@ -109,16 +107,7 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
 
         if (!canPlace) return InteractionResult.PASS;
 
-        // ── Branch: sneak → place jammer block ────────────────────────────
-        if (player != null && player.isShiftKeyDown()) {
-            if (!level.isClientSide) {
-                placeJammerBlock(context, level, target, player);
-            }
-            // sidedSuccess: SUCCESS on server, CONSUME on client (triggers arm swing)
-            return InteractionResult.sidedSuccess(level.isClientSide);
-        }
-
-        // ── Branch: normal → spawn entity ──────────────────────────────────
+        // ── Spawn the creature (the jammer BLOCK is its own item now: the Horned Transponder Snail) ──
         if (!level.isClientSide) {
             spawnEntity(context, level, target, player);
         }
@@ -128,63 +117,6 @@ public class HornedDenDenMushiItem extends DenDenMushiItem {
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
-
-    /**
-     * Places the HornedDenDenMushiBlock, writes shell/body colours to its
-     * block entity, and consumes one item from the player's stack.
-     */
-    private void placeJammerBlock(UseOnContext context, Level level,
-                                  BlockPos target, Player player) {
-        Direction facing  = context.getHorizontalDirection().getOpposite();
-        int shellColorId  = getShellColor(context.getItemInHand());
-
-        // Build the block state with FACING and SHELL_COLOR set
-        BlockState state = ModBlocks.HORNED_DEN_DEN_MUSHI_BLOCK.get()
-                .defaultBlockState()
-                .setValue(HornedDenDenMushiBlock.FACING, facing)
-                .setValue(HornedDenDenMushiBlock.SHELL_COLOR, shellColorId);
-
-        // Place the block (flags=3: notify neighbours + send to clients)
-        level.setBlock(target, state, 3);
-
-        // Write colour data into the freshly created block entity
-        if (level.getBlockEntity(target) instanceof HornedDenDenMushiBlockEntity be) {
-            be.setShellColor(shellColorId);
-            be.setBodyColor(getBodyColor(context.getItemInHand()));
-            // syncToClient() is called inside the setters above
-        }
-
-        // SNAIL_CONNECTED plays for all nearby players — audible confirmation of jammer activation
-        level.playSound(
-                null,
-                target.getX(), target.getY(), target.getZ(),
-                net.eclipce.transpondersnails.sound.ModSounds.SNAIL_CONNECTED.get(),
-                SoundSource.BLOCKS,
-                1.0f,
-                1.0f
-        );
-
-        // Barely audible static hum to nearby players — signals active jamming
-        double staticRange = 16.0;
-        for (Player nearby : level.getEntitiesOfClass(
-                Player.class,
-                new net.minecraft.world.phys.AABB(
-                        target.getX() - staticRange, target.getY() - staticRange, target.getZ() - staticRange,
-                        target.getX() + staticRange, target.getY() + staticRange, target.getZ() + staticRange))) {
-            level.playSound(
-                    nearby,
-                    target.getX(), target.getY(), target.getZ(),
-                    net.eclipce.transpondersnails.sound.ModSounds.LOOPING_STATIC.get(),
-                    SoundSource.BLOCKS,
-                    0.06f,   // barely audible
-                    1.0f
-            );
-        }
-
-        if (!player.isCreative()) {
-            context.getItemInHand().shrink(1);
-        }
-    }
 
     /**
      * Spawns a HornedDenDenMushiEntity at the target position and consumes

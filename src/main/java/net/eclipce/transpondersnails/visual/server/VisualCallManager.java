@@ -23,6 +23,7 @@ import net.eclipce.transpondersnails.visual.server.VisualCallSession.State;
 import net.eclipce.transpondersnails.visual.server.VisualCallSession.ViewerKey;
 import net.eclipce.transpondersnails.voice.VoiceChatConstants;
 import net.eclipce.transpondersnails.voice.server.CallSoundManager;
+import net.eclipce.transpondersnails.voice.server.HornedDDMJammerManager;
 import net.eclipce.transpondersnails.voice.server.SnailAudioRelay;
 import net.eclipce.transpondersnails.voice.server.TransponderCallManager;
 import net.minecraft.ChatFormatting;
@@ -844,7 +845,12 @@ public final class VisualCallManager {
         if (opus == null || opus.length == 0) return true;
 
         float gain = (float) (1.0 - bestDist / range);
-        byte[] audio = relay.processForVisualCall(opus, speaker.getUUID(), gain);
+        // a jammer fills a call - or a stream, at its camera - with static, by the same amount for everybody who hears it
+        HornedDDMJammerManager jammer = HornedDDMJammerManager.getInstance();
+        double jam = tapCamera != null ? jammer.levelForStream(tapCamera)
+                : bestSession.isStream() ? jammer.levelForStream(GlobalPos.of(bestSession.dimension(), bestPos))
+                : jammer.levelForCall(bestSession.callId());
+        byte[] audio = relay.processForVisualCall(opus, speaker.getUUID(), gain, (float) jam);
         if (audio == null) return true;
 
         if (tapCamera != null) {                       // a tapped stream nobody has tuned in to

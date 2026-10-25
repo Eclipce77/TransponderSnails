@@ -66,6 +66,10 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
     public static final IntegerProperty SHELL_COLOR =
             IntegerProperty.create("shell_color", 0, 15);
 
+    /** Switched on: it jams (and its eyes flash red). A right click switches it. */
+    public static final net.minecraft.world.level.block.state.properties.BooleanProperty ACTIVE =
+            net.minecraft.world.level.block.state.properties.BooleanProperty.create("active");
+
     // =================== VOXEL SHAPES ===================
     // One shape per horizontal facing — rotated to match the item model orientation.
     // Base (NORTH): Block.box(4, 0, 0.5, 12, 10.5, 14)
@@ -86,6 +90,7 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
                 this.stateDefinition.any()
                         .setValue(FACING, Direction.NORTH)
                         .setValue(SHELL_COLOR, 0)
+                        .setValue(ACTIVE, false)
         );
     }
 
@@ -93,7 +98,7 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, SHELL_COLOR);
+        builder.add(FACING, SHELL_COLOR, ACTIVE);
     }
 
     /**
@@ -106,7 +111,20 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         return this.defaultBlockState()
                 .setValue(FACING, context.getHorizontalDirection().getOpposite())
-                .setValue(SHELL_COLOR, 0); // Overridden by useOn after placement
+                .setValue(SHELL_COLOR, net.eclipce.transpondersnails.item.HornedTransponderSnailItem.getShellColor(context.getItemInHand()))
+                .setValue(ACTIVE, false);   // placed switched off: a right click turns it on
+    }
+
+    /** The colours of the item go into the block entity (a stack without block entity data - the creative menu's - has them in its own keys). */
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof HornedDenDenMushiBlockEntity be) {
+            be.setShellColor(net.eclipce.transpondersnails.item.HornedTransponderSnailItem.getShellColor(stack));
+            // The colour the item carries, else a new random pastel for THIS block - drawn here, never written onto the stack, so that every snail placed
+            // from one creative stack (which is never used up) gets its own colour, exactly like the numbered Transponder Snails.
+            be.setBodyColor(net.eclipce.transpondersnails.item.HornedTransponderSnailItem.bodyColorForPlacement(stack, new java.util.Random()));
+        }
     }
 
     // =================== SHAPE ===================
@@ -165,7 +183,16 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
 
-        return InteractionResult.PASS;
+        // Anything else - an empty hand, a tool - switches it on or off. (A player who crouches with an item in hand places that item instead.)
+        if (!level.isClientSide) {
+            boolean on = !state.getValue(ACTIVE);
+            level.setBlock(pos, state.setValue(ACTIVE, on), 3);
+            if (on && level.getBlockEntity(pos) instanceof HornedDenDenMushiBlockEntity be) be.updateAntennaConnection();   // count the tower now
+            level.playSound(null, pos, net.eclipce.transpondersnails.sound.ModSounds.SNAIL_CONNECTED.get(), SoundSource.BLOCKS, 0.7F, on ? 1.0F : 0.6F);
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal(on ? "Jamming Activated" : "Jammer Deactivated")
+                    .withStyle(on ? net.minecraft.ChatFormatting.RED : ChatFormatting.DARK_GREEN), true);
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
     // =================== RENDERING ===================
@@ -211,16 +238,19 @@ public class HornedDenDenMushiBlock extends Block implements EntityBlock {
 
         BlockEntity be = pBuilder.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
         if (be instanceof HornedDenDenMushiBlockEntity hornedBE) {
-            return List.of(
-                    HornedDenDenMushiItem.createFromColors(
-                            hornedBE.getShellColor(),
-                            hornedBE.getBodyColor()
-                    )
-            );
+            return List.of(net.eclipce.transpondersnails.item.HornedTransponderSnailItem.create(hornedBE.getShellColor(), hornedBE.getBodyColor()));
         }
-        // Fallback: drop a plain (white, default body) item
-        return List.of(new net.minecraft.world.item.ItemStack(
-                ModItems.HORNED_DEN_DEN_MUSHI.get()));
+        // Fallback: drop a plain (white, default body) one
+        return List.of(new net.minecraft.world.item.ItemStack(ModItems.HORNED_TRANSPONDER_SNAIL.get()));
+    }
+
+    /** Pick block (middle click) gives one with this one's colours. */
+    @Override
+    public net.minecraft.world.item.ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        if (level.getBlockEntity(pos) instanceof HornedDenDenMushiBlockEntity be) {
+            return net.eclipce.transpondersnails.item.HornedTransponderSnailItem.create(be.getShellColor(), be.getBodyColor());
+        }
+        return new net.minecraft.world.item.ItemStack(ModItems.HORNED_TRANSPONDER_SNAIL.get());
     }
 
     // =================== BREAK PARTICLES ===================

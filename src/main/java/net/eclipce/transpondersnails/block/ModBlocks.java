@@ -95,7 +95,7 @@ public class ModBlocks {
      * - strength(0.5F) so it can be broken easily (same as TransponderSnailBlock).
      * - pushReaction(DESTROY) so pistons don't move it (they break it and drop the item).
      */
-    public static final RegistryObject<Block> HORNED_DEN_DEN_MUSHI_BLOCK = BLOCKS.register("horned_den_den_mushi_block",
+    public static final RegistryObject<Block> HORNED_TRANSPONDER_SNAIL = BLOCKS.register("horned_transponder_snail",
             () -> new HornedDenDenMushiBlock(BlockBehaviour.Properties.of()
                     .strength(0.5F)
                     .sound(SoundType.CORAL_BLOCK)

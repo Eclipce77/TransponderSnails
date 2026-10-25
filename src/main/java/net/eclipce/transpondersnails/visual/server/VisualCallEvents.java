@@ -18,13 +18,18 @@ public final class VisualCallEvents {
         if (event.phase != TickEvent.Phase.END) return;
         VisualCallManager manager = VisualCallManager.peek();
         if (manager != null) manager.tick();
-        VisualRelayManager.tick(net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer());
-        VisualInterceptionManager.tick(net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer());
+        net.minecraft.server.MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        net.eclipce.transpondersnails.voice.server.HornedDDMJammerManager.getInstance().tick(server);   // jam levels first: everything below reads them
+        VisualJamSync.tick(server);
+        VisualRelayManager.tick(server);
+        VisualInterceptionManager.tick(server);
     }
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         VisualInterceptionManager.clear();
+        VisualJamSync.clear();
+        net.eclipce.transpondersnails.voice.server.HornedDDMJammerManager.getInstance().clear();
         VisualCallManager.discard();
         VisualSnailRegistry.clear();
         VisualRelayManager.clear();

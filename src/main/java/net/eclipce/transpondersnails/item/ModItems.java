@@ -100,6 +100,10 @@ public class ModItems {
             () -> new AmplifiedTransponderSnailItem(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get(),
                     new Item.Properties().stacksTo(1)));
 
+    /** The jammer block, as an item: it is placed (and picked up again) with its colours. */
+    public static final RegistryObject<Item> HORNED_TRANSPONDER_SNAIL = ITEMS.register("horned_transponder_snail",
+            () -> new HornedTransponderSnailItem(ModBlocks.HORNED_TRANSPONDER_SNAIL.get(), new Item.Properties().stacksTo(1)));
+
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL = ITEMS.register("black_transponder_snail",
             () -> new BlackTransponderSnailItem(
                     ModBlocks.BLACK_TRANSPONDER_SNAIL_BLOCK.get(),

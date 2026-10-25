@@ -128,6 +128,10 @@ public class ModConfig {
 
         // Horned Den Den Mushi jamming settings
         public final ForgeConfigSpec.DoubleValue hornedDDMJammingRadius;
+        public final ForgeConfigSpec.DoubleValue hornedJammingRangePerRod;
+        public final ForgeConfigSpec.DoubleValue hornedJammingMaxRange;
+        public final ForgeConfigSpec.DoubleValue hornedEntityJammingRadius;
+        public final ForgeConfigSpec.DoubleValue hornedJammingFadeSeconds;
 
         // Visual Transponder Snails (video calls)
         public final ForgeConfigSpec.IntValue visualMaxFeedResolution;
@@ -261,16 +265,34 @@ public class ModConfig {
             builder.pop();
 
             // Horned Den Den Mushi Jamming Settings
-            builder.comment("Horned Den Den Mushi Jamming Settings")
-                    .comment("Configure the jamming sphere of the placed Horned Den Den Mushi block")
+            builder.comment("Horned Transponder Snail / Horned Den Den Mushi Jamming Settings")
+                    .comment("Jamming does not cut a call off: it fills it with static, more the nearer a snail or player is to the jammer")
+                    .comment("(0% at the edge of the range, 50% half way, 100% within a block). It fades in and out, never suddenly. A call is")
+                    .comment("jammed as much as its most jammed end, and whoever is tapping it hears the same. Video calls and streams too.")
                     .push("horned_den_den_mushi");
 
             hornedDDMJammingRadius = builder
-                    .comment("Radius in blocks of the jamming sphere")
-                    .comment("Any transponder snail call with a participant (player or block) inside")
-                    .comment("this sphere will be blocked or terminated.")
-                    .comment("Default: 20 blocks — gives a 20-block spherical jamming area.")
+                    .comment("Range in blocks of a switched-on Horned Transponder Snail with no lightning rod tower")
+                    .comment("Default: 20 blocks")
                     .defineInRange("jamming_radius", 20.0, 1.0, 200.0);
+
+            hornedJammingRangePerRod = builder
+                    .comment("How many blocks each lightning rod of a tower (wired to the Horned Transponder Snail, counted like a Black Transponder")
+                    .comment("Snail's tower) adds to its range, up to jamming_max_range. Default: 5")
+                    .defineInRange("jamming_range_per_rod", 5.0, 0.0, 100.0);
+
+            hornedJammingMaxRange = builder
+                    .comment("The furthest a Horned Transponder Snail with a tower can jam, in blocks. Default: 120")
+                    .defineInRange("jamming_max_range", 120.0, 1.0, 1000.0);
+
+            hornedEntityJammingRadius = builder
+                    .comment("Range in blocks of the Horned Den Den Mushi (the creature): it jams passively wherever it walks. Default: 5")
+                    .defineInRange("entity_jamming_radius", 5.0, 1.0, 100.0);
+
+            hornedJammingFadeSeconds = builder
+                    .comment("How long jamming takes to go from none to total (or back) when a call enters or leaves a jammer's range, or a jammer is")
+                    .comment("switched on or off. Default: 2 seconds")
+                    .defineInRange("jamming_fade_seconds", 2.0, 0.1, 30.0);
 
             builder.pop();
 
@@ -517,6 +539,10 @@ public class ModConfig {
     private static final double DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE = 400.0;
 
     private static final double DEFAULT_HORNED_DDM_JAMMING_RADIUS = 20.0;
+    private static final double DEFAULT_HORNED_JAMMING_RANGE_PER_ROD = 5.0;
+    private static final double DEFAULT_HORNED_JAMMING_MAX_RANGE = 120.0;
+    private static final double DEFAULT_HORNED_ENTITY_JAMMING_RADIUS = 5.0;
+    private static final double DEFAULT_HORNED_JAMMING_FADE_SECONDS = 2.0;
 
     // Visual snail (video call) defaults
     private static final boolean DEFAULT_ADAPTIVE_VIDEO_QUALITY = true;
@@ -555,6 +581,10 @@ public class ModConfig {
     private static double cachedAdultBlackSnailMaxRange = DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE;
 
     private static double cachedHornedDDMJammingRadius = DEFAULT_HORNED_DDM_JAMMING_RADIUS;
+    private static double cachedHornedJammingRangePerRod = DEFAULT_HORNED_JAMMING_RANGE_PER_ROD;
+    private static double cachedHornedJammingMaxRange = DEFAULT_HORNED_JAMMING_MAX_RANGE;
+    private static double cachedHornedEntityJammingRadius = DEFAULT_HORNED_ENTITY_JAMMING_RADIUS;
+    private static double cachedHornedJammingFadeSeconds = DEFAULT_HORNED_JAMMING_FADE_SECONDS;
 
     // Cache for visual snail (video call) values - read every frame / every packet, so they are plain primitives
     private static volatile boolean cachedAdaptiveVideoQuality = DEFAULT_ADAPTIVE_VIDEO_QUALITY;
@@ -626,6 +656,10 @@ public class ModConfig {
             cachedAdultBlackSnailMinRange = getValidatedValue(SERVER.adultBlackSnailMinRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MIN_RANGE, 50.0, 500.0);
             cachedAdultBlackSnailMaxRange = getValidatedValue(SERVER.adultBlackSnailMaxRange.get(), DEFAULT_ADULT_BLACK_SNAIL_MAX_RANGE, 100.0, 1000.0);
             cachedHornedDDMJammingRadius = getValidatedValue(SERVER.hornedDDMJammingRadius.get(), DEFAULT_HORNED_DDM_JAMMING_RADIUS, 1.0, 200.0);
+            cachedHornedJammingRangePerRod = getValidatedValue(SERVER.hornedJammingRangePerRod.get(), DEFAULT_HORNED_JAMMING_RANGE_PER_ROD, 0.0, 100.0);
+            cachedHornedJammingMaxRange = getValidatedValue(SERVER.hornedJammingMaxRange.get(), DEFAULT_HORNED_JAMMING_MAX_RANGE, 1.0, 1000.0);
+            cachedHornedEntityJammingRadius = getValidatedValue(SERVER.hornedEntityJammingRadius.get(), DEFAULT_HORNED_ENTITY_JAMMING_RADIUS, 1.0, 100.0);
+            cachedHornedJammingFadeSeconds = getValidatedValue(SERVER.hornedJammingFadeSeconds.get(), DEFAULT_HORNED_JAMMING_FADE_SECONDS, 0.1, 30.0);
             cachedVisualMaxFeedResolution = (int) getValidatedValue((long) SERVER.visualMaxFeedResolution.get(), (long) DEFAULT_VISUAL_MAX_FEED_RESOLUTION, 256L, 2048L);
             cachedVisualMaxFeedFps = (int) getValidatedValue((long) SERVER.visualMaxFeedFps.get(), (long) DEFAULT_VISUAL_MAX_FEED_FPS, 5L, 30L);
             cachedVisualMaxFeedViewChunks = (int) getValidatedValue((long) SERVER.visualMaxFeedViewChunks.get(), (long) DEFAULT_VISUAL_MAX_FEED_VIEW_CHUNKS, 4L, 32L);
@@ -854,6 +888,26 @@ public class ModConfig {
             return DEFAULT_HORNED_DDM_JAMMING_RADIUS;
         }
         return cachedHornedDDMJammingRadius;
+    }
+
+    /** Blocks each lightning rod adds to a Horned Transponder Snail's jamming range. */
+    public static double getHornedJammingRangePerRod() {
+        return cachedHornedJammingRangePerRod;
+    }
+
+    /** The furthest a Horned Transponder Snail with a tower can jam (blocks). */
+    public static double getHornedJammingMaxRange() {
+        return cachedHornedJammingMaxRange;
+    }
+
+    /** The passive jamming radius of the Horned Den Den Mushi creature (blocks). */
+    public static double getHornedEntityJammingRadius() {
+        return cachedHornedEntityJammingRadius;
+    }
+
+    /** Seconds a full swing of the jam (none to total) takes. */
+    public static double getHornedJammingFadeSeconds() {
+        return cachedHornedJammingFadeSeconds;
     }
 
     // ---- Visual snail (video call) settings ----

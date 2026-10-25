@@ -1,0 +1,23 @@
+{
+  "type": "transpondersnails:transponder_snail_crafting",
+  "category": "misc",
+  "pattern": [
+    "   ",
+    "NDN",
+    " W "
+  ],
+  "key": {
+    "D": {
+      "item": "transpondersnails:horned_den_den_mushi"
+    },
+    "N": {
+      "item": "transpondersnails:copper_nugget"
+    },
+    "W": {
+      "item": "transpondersnails:wire"
+    }
+  },
+  "result": {
+    "item": "transpondersnails:horned_transponder_snail"
+  }
+}

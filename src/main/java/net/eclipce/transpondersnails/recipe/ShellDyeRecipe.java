@@ -105,6 +105,7 @@ public class ShellDyeRecipe extends CustomRecipe {
                 || item instanceof WhiteDenDenMushiItem
                 || item instanceof TransponderSnailItem
                 || item instanceof net.eclipce.transpondersnails.item.HornedDenDenMushiItem
+                || item instanceof net.eclipce.transpondersnails.item.HornedTransponderSnailItem
                 || item instanceof BlockItem blockItem && (
                 blockItem.getBlock() == net.eclipce.transpondersnails.block.ModBlocks.TRANSPONDER_SNAIL.get()
                         || blockItem.getBlock() == net.eclipce.transpondersnails.block.ModBlocks.TRANSPONDER_SNAIL_TRANSMITTER.get()
@@ -151,6 +152,14 @@ public class ShellDyeRecipe extends CustomRecipe {
             CompoundTag nbt = stack.getOrCreateTag();
             // Preserve BodyColor; only update ShellColor
             nbt.putInt("ShellColor", colorId);
+        }
+        // Horned Transponder Snail block item — lowercase key + BlockEntityTag for placement (the body colour is kept)
+        else if (item instanceof net.eclipce.transpondersnails.item.HornedTransponderSnailItem) {
+            CompoundTag nbt = stack.getOrCreateTag();
+            nbt.putInt("shell_color", colorId);
+            CompoundTag beTag = nbt.getCompound("BlockEntityTag");
+            beTag.putInt("ShellColor", colorId);
+            nbt.put("BlockEntityTag", beTag);
         }
         // Black Transponder Snail — lowercase key to match SHELL_COLOR_TAG
         else if (item instanceof BlackTransponderSnailItem) {

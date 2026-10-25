@@ -1,8 +1,9 @@
 {
-  "type": "minecraft:stonecutting",
+  "type": "transpondersnails:den_den_mushi_stonecutting",
   "ingredient": {
     "item": "transpondersnails:transponder_snail"
   },
-  "result": "transpondersnails:den_den_mushi",
-  "count": 1
+  "result": {
+    "item": "transpondersnails:den_den_mushi"
+  }
 }

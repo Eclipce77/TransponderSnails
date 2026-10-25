@@ -74,6 +74,9 @@ public class HornedDenDenMushiBlockEntityRenderer
         CompoundTag nbt = renderStack.getOrCreateTag();
         nbt.putInt("ShellColor", shellColorId);
         nbt.putInt("BodyColor",  bodyColor);
+        // Eyes: closed while it is switched off (like the other snails when idle), open when it is on. The model picks the variant from this.
+        boolean active = state.getValue(HornedDenDenMushiBlock.ACTIVE);
+        nbt.putBoolean("EyesClosed", !active);
 
         // ── 3. Transforms ─────────────────────────────────────────────────────
         poseStack.pushPose();
@@ -124,7 +127,50 @@ public class HornedDenDenMushiBlockEntityRenderer
                 0                           // Seed (unused for item models)
         );
 
+        // The eyes flash red while it is switched on, like the Visual Snail's eyes light up in a call: only the FRONT of each eye, drawn with the eye's
+        // own texture tinted red (the white of the eye goes red, the black pupil stays black). The red is faded IN over the normal eye and back OUT
+        // again - one slow pulse every 1.6 seconds. At the bottom of the pulse the eye looks completely normal (nothing is drawn), at the top it is
+        // fully red; it never goes dark. It also eases in and out as the snail is switched on and off.
+        float glow = blockEntity.stepEyeGlow(active);   // 0 the moment it is switched off: the eyes close, and no red is left on them
+        if (glow > 0.01F) {
+            net.minecraft.client.resources.model.BakedModel eyes = net.eclipce.transpondersnails.client.HornedGlowModels.eyes();
+            if (eyes != null) {
+                long time = blockEntity.getLevel() != null ? blockEntity.getLevel().getGameTime() : 0L;
+                float pulse = 0.5F - 0.5F * (float) Math.cos((time + partialTick) * (2.0 * Math.PI / 32.0));   // 0 (a normal eye) .. 1 (fully red) .. 0
+                float alpha = glow * pulse;
+                if (alpha > 0.004F) {
+                    poseStack.pushPose();
+                    poseStack.translate(-0.5, -0.5, -0.5);   // the frame the item model itself is drawn in
+                    com.mojang.blaze3d.vertex.VertexConsumer vc = bufferSource.getBuffer(net.minecraft.client.renderer.Sheets.translucentCullBlockSheet());
+                    com.mojang.blaze3d.vertex.PoseStack.Pose last = poseStack.last();
+                    net.minecraft.util.RandomSource random = net.minecraft.util.RandomSource.create(42L);
+                    for (Direction side : Direction.values()) {
+                        for (net.minecraft.client.renderer.block.model.BakedQuad quad : eyes.getQuads(null, side, random)) putEyeQuad(vc, last, quad, alpha);
+                    }
+                    for (net.minecraft.client.renderer.block.model.BakedQuad quad : eyes.getQuads(null, null, random)) putEyeQuad(vc, last, quad, alpha);
+                    poseStack.popPose();
+                }
+            }
+        }
+
         poseStack.popPose();
+    }
+
+    /** One quad of the red eye: the eye's own texture, red, full bright, with the given opacity (so that it can fade in over the normal eye). */
+    private static void putEyeQuad(com.mojang.blaze3d.vertex.VertexConsumer vc, com.mojang.blaze3d.vertex.PoseStack.Pose pose,
+                                   net.minecraft.client.renderer.block.model.BakedQuad quad, float alpha) {
+        int[] data = quad.getVertices();                       // 4 vertices of 8 ints: x y z, colour, u v, light, normal
+        net.minecraft.core.Vec3i normal = quad.getDirection().getNormal();
+        for (int i = 0; i < 4; i++) {
+            int o = i * 8;
+            vc.vertex(pose.pose(), Float.intBitsToFloat(data[o]), Float.intBitsToFloat(data[o + 1]), Float.intBitsToFloat(data[o + 2]))
+                    .color(1.0F, 0.10F, 0.10F, alpha)
+                    .uv(Float.intBitsToFloat(data[o + 4]), Float.intBitsToFloat(data[o + 5]))
+                    .overlayCoords(OverlayTexture.NO_OVERLAY)
+                    .uv2(net.minecraft.client.renderer.LightTexture.FULL_BRIGHT)
+                    .normal(pose.normal(), normal.getX(), normal.getY(), normal.getZ())
+                    .endVertex();
+        }
     }
 
     @Override

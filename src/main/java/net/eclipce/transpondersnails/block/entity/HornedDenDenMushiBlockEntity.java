@@ -33,6 +33,13 @@ public class HornedDenDenMushiBlockEntity extends BlockEntity {
     private int shellColor = 0;   // DyeColor id, default white
     private int bodyColor  = 0;   // RGB int, default 0
 
+    // The lightning rod tower wired to it (server): counted exactly as a Black Transponder Snail counts its own.
+    private int lightningRodCount = 0;
+
+    // Client only, not saved: how far its eyes have faded in (0..1) and when that was last updated.
+    private float eyeGlow = 0.0F;
+    private long lastGlowNanos = 0L;
+
     // =================== CONSTRUCTOR ===================
 
     public HornedDenDenMushiBlockEntity(BlockPos pos, BlockState state) {
@@ -51,6 +58,7 @@ public class HornedDenDenMushiBlockEntity extends BlockEntity {
         super.onLoad();
         if (level instanceof ServerLevel sl) {
             HornedDDMJammerManager.getInstance().registerJammer(worldPosition, sl);
+            updateAntennaConnection();
         }
     }
 
@@ -124,6 +132,61 @@ public class HornedDenDenMushiBlockEntity extends BlockEntity {
     }
 
     // =================== GETTERS / SETTERS ===================
+
+    /**
+     * Counts the lightning rods of the tower wired to this snail: through a wire on any side, or a rod right next to it - the first valid
+     * tower found, with the rods of its stack counted (BlackTransponderSnailBlock.countLightningRodStack), exactly as a Black Transponder Snail does.
+     * Each rod widens its jamming range (see JamMath.rangeForRods).
+     */
+    public void updateAntennaConnection() {
+        if (level == null || level.isClientSide) return;
+        int rods = 0;
+        for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos neighborPos = worldPosition.relative(dir);
+            net.minecraft.world.level.block.state.BlockState neighbor = level.getBlockState(neighborPos);
+            if (neighbor.getBlock() instanceof net.eclipce.transpondersnails.block.custom.WireBlock) {
+                BlockPos rodPos = net.eclipce.transpondersnails.block.custom.WireBlock.traceToLightningRod(level, neighborPos);
+                if (rodPos != null) {
+                    int count = net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock.countLightningRodStack(level, rodPos);
+                    if (count > 0) {
+                        rods = count;
+                        break;
+                    }
+                }
+            }
+            if (neighbor.getBlock() instanceof net.minecraft.world.level.block.LightningRodBlock) {
+                int count = net.eclipce.transpondersnails.block.custom.BlackTransponderSnailBlock.countLightningRodStack(level, neighborPos);
+                if (count > 0) {
+                    rods = count;
+                    break;
+                }
+            }
+        }
+        lightningRodCount = rods;
+    }
+
+    /** How many lightning rods its tower has (0 if it has none). */
+    public int getLightningRodCount() {
+        return lightningRodCount;
+    }
+
+    /**
+     * Client: eases the eyes' red glow in (towards 1) over a little over half a second while the snail is switched on, and drops it to 0 at once when it is
+     * switched off (the eyes close then). Called by the renderer every frame.
+     */
+    public float stepEyeGlow(boolean on) {
+        long now = System.nanoTime();
+        float dt = lastGlowNanos == 0L ? 0.0F : Math.min(0.25F, (now - lastGlowNanos) / 1.0e9F);
+        lastGlowNanos = now;
+        if (!on) {                                    // switched off: the eyes are closed, so there is nothing to fade - the next time it opens, the red fades in from nothing
+            eyeGlow = 0.0F;
+            return 0.0F;
+        }
+        float target = 1.0F;
+        float step = dt / 0.6F;
+        eyeGlow = target > eyeGlow ? Math.min(target, eyeGlow + step) : Math.max(target, eyeGlow - step);
+        return eyeGlow;
+    }
 
     public int getShellColor() {
         return shellColor;

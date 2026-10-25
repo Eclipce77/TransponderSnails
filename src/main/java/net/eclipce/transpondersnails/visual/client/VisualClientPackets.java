@@ -27,6 +27,11 @@ public final class VisualClientPackets {
         VisualStreamClient.receiveList(pos, tuned, streams, presets);
     }
 
+    /** How jammed what a screen shows is: its picture dissolves into static by that much. */
+    public static void handleJam(UUID linkId, float level) {
+        VisualFeedManager.onJam(linkId, level);
+    }
+
     /** The server asks this client to render a far camera's view and send it up (or stops asking). */
     public static void handleFeedRequest(BlockPos camera, int fps, boolean active, int resolution, int kbps, boolean forceKey) {
         VisualRelayClient.onFeedRequest(camera, fps, active, resolution, kbps, forceKey);

@@ -115,6 +115,8 @@ public final class VisualFeedManager {
         volatile boolean static2;
         /** A Black Transponder Snail's display: nothing for the server to wait for. */
         private final boolean tap;
+        /** How jammed this screen's call or stream is, 0..1 (a jammer): the picture dissolves into static by this much. */
+        volatile float jam = 0.0F;
         private boolean ackSent = false;
         private boolean failedSent = false;
         // renderer diagnostics (package-private on purpose: VisualScreenRenderer logs these once per call)
@@ -146,6 +148,10 @@ public final class VisualFeedManager {
 
         public boolean isSplit() {
             return cameraPos2 != null;
+        }
+
+        public float jam() {
+            return jam;
         }
 
         @Nullable
@@ -265,6 +271,14 @@ public final class VisualFeedManager {
                     releaseUnlinkedFeeds(false);
                 }
             }
+        }
+    }
+
+    /** The server says how jammed what a screen shows is. */
+    static void onJam(UUID linkId, float level) {
+        float clamped = Math.max(0.0F, Math.min(1.0F, level));
+        for (ScreenLink link : LINKS.values()) {
+            if (link.callId.equals(linkId)) link.jam = clamped;
         }
     }
 
