@@ -53,6 +53,13 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
     public static final BooleanProperty IN_CALL = BooleanProperty.create("in_call");
     public static final IntegerProperty SHELL_COLOR = IntegerProperty.create("shell_color", 0, 15);
 
+    /**
+     * Gary (a secret): set when a Transponder Snail that is NAMED "Gary" or "Gary the Snail" is placed, and only on the plain Transponder Snail (the other snail
+     * blocks ignore it - their blockstates do not mention it). It changes which model is drawn and nothing else: the shell and body colours are kept as
+     * always, in the block entity and the shell_color state.
+     */
+    public static final BooleanProperty GARY = BooleanProperty.create("gary");
+
     // Define shapes for each direction manually
     // Original NORTH: (4, 0, 2) to (12, 10.5, 15)
     private static final VoxelShape SHAPE_NORTH = Block.box(4, 0, 2, 12, 10.5, 15);
@@ -85,7 +92,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
                 .setValue(FACING, Direction.NORTH)
                 .setValue(HAS_SOUND, false)
                 .setValue(IN_CALL, false)
-                .setValue(SHELL_COLOR, 0));
+                .setValue(SHELL_COLOR, 0)
+                .setValue(GARY, false));
     }
 
     public boolean hasShell() {
@@ -118,13 +126,22 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, HAS_SOUND, IN_CALL, SHELL_COLOR);
+        builder.add(FACING, HAS_SOUND, IN_CALL, SHELL_COLOR, GARY);
     }
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         // Face the player when placed
-        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+        // Face the player; and if the item being placed is named Gary, this one is Gary (the name is the item's - a placed block cannot be renamed, so to
+        // change it, pick it up, rename the item and place it again: it keeps its colours throughout)
+        return this.defaultBlockState()
+                .setValue(FACING, context.getHorizontalDirection().getOpposite())
+                .setValue(GARY, isGaryCapable() && net.eclipce.transpondersnails.gary.GaryHelper.isGary(context.getItemInHand()));
+    }
+
+    /** Only the plain Transponder Snail can be Gary. */
+    public boolean isGaryCapable() {
+        return this == net.eclipce.transpondersnails.block.ModBlocks.TRANSPONDER_SNAIL.get();
     }
 
     @Override
@@ -251,6 +268,8 @@ public class TransponderSnailBlock extends Block implements EntityBlock {
             if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
 
                 snailBE.loadFromItem(stack);
+                // The item's name goes into the block entity, so a snail that is picked up again is still called what it was called (Gary included)
+                if (stack.hasCustomHoverName()) snailBE.setCustomName(stack.getHoverName());
 
                 // the player who places a visual snail is its owner (a transmitter's stream is called "<owner>'s Stream" until it is named)
                 if (placer instanceof net.minecraft.world.entity.player.Player placingPlayer) {

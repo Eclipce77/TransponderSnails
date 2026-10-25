@@ -103,6 +103,10 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     public int shellColor = 0; // Dye color index (0-15, default white)
     public boolean colorsInitialized = false;
 
+    /** The name the item this snail was placed from had (a snail named Gary, say). Saved, and copied back onto the item when the block is broken. */
+    @Nullable
+    private Component customName = null;
+
     // UV mask texture path for eye protection
     private static final ResourceLocation UV_MASK_TEXTURE =
             new ResourceLocation("transpondersnails:block/transpondersnail/snail/transponder_snail_uv_mask");
@@ -1635,6 +1639,16 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
         return stack;
     }
 
+    @Nullable
+    public Component getCustomName() {
+        return customName;
+    }
+
+    public void setCustomName(@Nullable Component name) {
+        this.customName = name;
+        setChanged();
+    }
+
     /**
      * When the block is broken, preserves the snail data in the dropped item
      */
@@ -1949,6 +1963,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
             tag.putUUID("SnailUUID", snailUUID);
         }
         tag.putInt("AssignedNumber", assignedSnailNumber);
+        if (customName != null) tag.putString("CustomName", Component.Serializer.toJson(customName));
         tag.putBoolean("Initialized", initialized);
 
         if (activeCallId != null) {
@@ -2008,6 +2023,7 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+        this.customName = tag.contains("CustomName", 8) ? Component.Serializer.fromJson(tag.getString("CustomName")) : null;
 
         if (tag.contains("BodyColor")) {
             this.bodyColor = tag.getInt("BodyColor");

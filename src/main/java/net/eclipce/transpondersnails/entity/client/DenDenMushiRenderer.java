@@ -23,6 +23,15 @@ public class DenDenMushiRenderer extends MobRenderer<DenDenMushiEntity, DenDenMu
     private static final ResourceLocation BODY_DETAILS_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
             "textures/entity/den_den_mushi/snail/den_den_mushi_snail_eyes.png"); // Eyes and other details, no tint
 
+    // Gary (a secret): a Den Den Mushi named "Gary" or "Gary the Snail" is drawn with these instead - the same three passes, no body tint. Its shell and body
+    // colours are untouched, so call it anything else and it is the snail it was.
+    private static final ResourceLocation GARY_SHELL_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
+            "textures/entity/den_den_mushi/shell/den_den_mushi_shell_gary.png");
+    private static final ResourceLocation GARY_BODY_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
+            "textures/entity/den_den_mushi/snail/den_den_mushi_snail_gary.png");
+    private static final ResourceLocation GARY_DETAILS_TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID,
+            "textures/entity/den_den_mushi/snail/den_den_mushi_snail_gary_eyes.png");
+
     static {
         for (DyeColor color : DyeColor.values()) {
             SHELL_TEXTURES[color.getId()] = new ResourceLocation(TransponderSnails.MOD_ID,
@@ -40,6 +49,7 @@ public class DenDenMushiRenderer extends MobRenderer<DenDenMushiEntity, DenDenMu
 
     @Override
     public ResourceLocation getTextureLocation(DenDenMushiEntity entity) {
+        if (net.eclipce.transpondersnails.gary.GaryHelper.isGary(entity)) return GARY_SHELL_TEXTURE;
         int shellColor = entity.getShellColor();
         return SHELL_TEXTURES[shellColor];
     }
@@ -67,12 +77,13 @@ public class DenDenMushiRenderer extends MobRenderer<DenDenMushiEntity, DenDenMu
                            DenDenMushiEntity entity, float limbSwing, float limbSwingAmount,
                            float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
 
+            boolean gary = net.eclipce.transpondersnails.gary.GaryHelper.isGary(entity);
             int bodyColor = entity.getBodyColor();
-            float r = ((bodyColor >> 16) & 0xFF) / 255.0f;
-            float g = ((bodyColor >> 8) & 0xFF) / 255.0f;
-            float b = (bodyColor & 0xFF) / 255.0f;
+            float r = gary ? 1.0f : ((bodyColor >> 16) & 0xFF) / 255.0f;     // Gary's body is painted in full colour: no tint
+            float g = gary ? 1.0f : ((bodyColor >> 8) & 0xFF) / 255.0f;
+            float b = gary ? 1.0f : (bodyColor & 0xFF) / 255.0f;
 
-            VertexConsumer consumer = buffer.getBuffer(RenderType.entityTranslucent(BODY_BASE_TEXTURE));
+            VertexConsumer consumer = buffer.getBuffer(RenderType.entityTranslucent(gary ? GARY_BODY_TEXTURE : BODY_BASE_TEXTURE));
             DenDenMushiModel<DenDenMushiEntity> model = this.getParentModel();
 
             // ✅ Apply entity animations/pose to the model
@@ -95,7 +106,8 @@ public class DenDenMushiRenderer extends MobRenderer<DenDenMushiEntity, DenDenMu
                            DenDenMushiEntity entity, float limbSwing, float limbSwingAmount,
                            float partialTick, float ageInTicks, float netHeadYaw, float headPitch) {
 
-            VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(BODY_DETAILS_TEXTURE));
+            VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(
+                    net.eclipce.transpondersnails.gary.GaryHelper.isGary(entity) ? GARY_DETAILS_TEXTURE : BODY_DETAILS_TEXTURE));
             DenDenMushiModel<DenDenMushiEntity> model = this.getParentModel();
 
             model.setupAnim(entity, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);

@@ -1,0 +1,8 @@
+{
+  "parent": "transpondersnails:item/transponder_snail_idle",
+  "textures": {
+    "snail": "transpondersnails:block/transpondersnail/snail/transponder_snail_gary",
+    "shell": "transpondersnails:block/transpondersnail/shell/transponder_snail_shell_gary",
+    "particle": "transpondersnails:block/transpondersnail/snail/transponder_snail_gary"
+  }
+}

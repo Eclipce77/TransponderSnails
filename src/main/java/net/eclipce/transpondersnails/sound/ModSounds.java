@@ -28,6 +28,11 @@ public class ModSounds {
     // Static Sounds
     public static final RegistryObject<SoundEvent> LOOPING_STATIC = registerSoundEvents("looping_static");
 
+    // Gary (a secret): a Transponder Snail that looks like Gary rings, connects and disconnects with these instead (see gary.GarySounds)
+    public static final RegistryObject<SoundEvent> GARY_RINGING = registerSoundEvents("gary_ringing");
+    public static final RegistryObject<SoundEvent> GARY_CONNECTED = registerSoundEvents("gary_connected");
+    public static final RegistryObject<SoundEvent> GARY_DISCONNECTED = registerSoundEvents("gary_disconnected");
+
     private static RegistryObject<SoundEvent> registerSoundEvents(String name) {
         return SOUND_EVENTS.register(name, () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(TransponderSnails.MOD_ID, name)));
     }

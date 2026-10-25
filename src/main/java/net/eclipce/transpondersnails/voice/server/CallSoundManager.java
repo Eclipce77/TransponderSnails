@@ -165,14 +165,14 @@ public class CallSoundManager {
      */
     public void playLocationalRingTone(ServerPlayer player, BlockPos snailLocation) {
         UUID soundId = UUID.randomUUID();
-        playSnailPositionRepeatingSound(player.level(), snailLocation, SNAIL_RINGING_SOUND,
+        playSnailPositionRepeatingSound(player.level(), snailLocation, garyVariant(SNAIL_RINGING_SOUND, snailBlockIsGary(player.level(), snailLocation)),
                 soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
                 2000); // Reduced from 2000ms to 1500ms
     }
 
     public void playLocationalRingToneAtPosition(Level level, BlockPos snailLocation) {
         UUID soundId = UUID.randomUUID();
-        playSnailPositionRepeatingSound(level, snailLocation, SNAIL_RINGING_SOUND,
+        playSnailPositionRepeatingSound(level, snailLocation, garyVariant(SNAIL_RINGING_SOUND, snailBlockIsGary(level, snailLocation)),
                 soundId, SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS,
                 2000); // Reduced from 2000ms to 1500ms
     }
@@ -182,8 +182,13 @@ public class CallSoundManager {
      * The sound follows the player as they move
      */
     public void playRingToneForPlayer(ServerPlayer player) {
+        playRingToneForPlayer(player, -1);
+    }
+
+    /** The same, for the handheld snail with this number: it rings with Gary's ringing if that snail looks like Gary. */
+    public void playRingToneForPlayer(ServerPlayer player, int snailNumber) {
         UUID soundId = UUID.randomUUID();
-        playPlayerFollowingRepeatingSound(player, SNAIL_RINGING_SOUND, soundId,
+        playPlayerFollowingRepeatingSound(player, garyVariant(SNAIL_RINGING_SOUND, handheldSnailIsGary(player, snailNumber)), soundId,
                 SoundType.RING_TONE, SoundCategory.AMBIENT_SNAIL_SOUNDS);
     }
 
@@ -191,28 +196,38 @@ public class CallSoundManager {
      * Play connection sound at snail location - AMBIENT sound that affects blockstate
      */
     public void playCallConnectedSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
-        playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playSnailPositionSound(player.level(), snailPos, garyVariant(SNAIL_CALL_CONNECTION_SOUND, snailBlockIsGary(player.level(), snailPos)), SoundCategory.AMBIENT_SNAIL_SOUNDS);
     }
 
     /**
      * Play connected sound for a player with a handheld snail
      */
     public void playConnectedSoundForPlayer(ServerPlayer player) {
-        playPlayerSound(player, SNAIL_CALL_CONNECTION_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playConnectedSoundForPlayer(player, -1);
+    }
+
+    /** The same, for the handheld snail with this number (Gary's connected sound if that snail looks like Gary). */
+    public void playConnectedSoundForPlayer(ServerPlayer player, int snailNumber) {
+        playPlayerSound(player, garyVariant(SNAIL_CALL_CONNECTION_SOUND, handheldSnailIsGary(player, snailNumber)), SoundCategory.AMBIENT_SNAIL_SOUNDS);
     }
 
     /**
      * Play disconnection sound at snail location - AMBIENT sound that affects blockstate
      */
     public void playCallDisconnectedSoundAtSnail(ServerPlayer player, BlockPos snailPos) {
-        playSnailPositionSound(player.level(), snailPos, SNAIL_CALL_DISCONNECTED_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playSnailPositionSound(player.level(), snailPos, garyVariant(SNAIL_CALL_DISCONNECTED_SOUND, snailBlockIsGary(player.level(), snailPos)), SoundCategory.AMBIENT_SNAIL_SOUNDS);
     }
 
     /**
      * Play disconnected sound for a player with a handheld snail
      */
     public void playDisconnectedSoundForPlayer(ServerPlayer player) {
-        playPlayerSound(player, SNAIL_CALL_DISCONNECTED_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+        playDisconnectedSoundForPlayer(player, -1);
+    }
+
+    /** The same, for the handheld snail with this number (Gary's disconnected sound if that snail looks like Gary). */
+    public void playDisconnectedSoundForPlayer(ServerPlayer player, int snailNumber) {
+        playPlayerSound(player, garyVariant(SNAIL_CALL_DISCONNECTED_SOUND, handheldSnailIsGary(player, snailNumber)), SoundCategory.AMBIENT_SNAIL_SOUNDS);
     }
 
     /**
@@ -255,6 +270,52 @@ public class CallSoundManager {
      */
     public void playBusySoundForPlayer(ServerPlayer player) {
         playPlayerSound(player, SNAIL_CALL_BUSY_SOUND, SoundCategory.AMBIENT_SNAIL_SOUNDS);
+    }
+
+    // =================== GARY (a secret) ===================
+
+    /**
+     * A snail that looks like Gary rings, connects and disconnects with Gary's sounds instead (the three files for them; the rest of what a snail sounds like
+     * has no Gary version and is unchanged - see GarySounds). The sound is picked ONCE, when it starts, so a ringing snail rings the same all the way through.
+     */
+    private static ResourceLocation garyVariant(ResourceLocation normal, boolean gary) {
+        if (!gary || !normal.getNamespace().equals(SNAIL_RINGING_SOUND.getNamespace())) return normal;
+        String path = net.eclipce.transpondersnails.gary.GarySounds.variantPath(normal.getPath(), true);
+        return path.equals(normal.getPath()) ? normal : new ResourceLocation(normal.getNamespace(), path);
+    }
+
+    /**
+     * Is the snail block at this position a Gary? These sounds can be asked for from threads other than the server's, and a plain level.getBlockState from
+     * another thread makes vanilla wait for the server thread to hand the chunk over - so this reads the chunk only if it is already loaded (getChunkNow
+     * never waits, never loads) and treats anything else as "no": the normal sound.
+     */
+    private static boolean snailBlockIsGary(Level level, BlockPos pos) {
+        try {
+            if (level == null) return false;
+            net.minecraft.world.level.chunk.LevelChunk chunk = level instanceof net.minecraft.server.level.ServerLevel serverLevel
+                    ? serverLevel.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4)
+                    : level.getChunkAt(pos);
+            return chunk != null && net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(chunk.getBlockState(pos));
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Is the handheld snail with this number, in this player's inventory, a Gary? Found the same way the call finds it (by number, in any slot), but a snail
+     * is only looked at - and its number only read - if it is named Gary at all, so a normal snail never goes through anything new.
+     */
+    private static boolean handheldSnailIsGary(ServerPlayer player, int snailNumber) {
+        if (player == null || snailNumber < 0) return false;
+        net.minecraft.world.entity.player.Inventory inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            net.minecraft.world.item.ItemStack stack = inventory.getItem(slot);
+            if (net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(stack)
+                    && net.eclipce.transpondersnails.data.SnailNBTHandler.getSnailNumber(stack) == snailNumber) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // =================== CORE SOUND METHODS WITH FASTER TIMING ===================

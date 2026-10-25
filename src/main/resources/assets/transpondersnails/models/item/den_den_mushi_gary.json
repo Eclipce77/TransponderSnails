@@ -1,0 +1,9 @@
+{
+  "parent": "transpondersnails:item/den_den_mushi",
+  "textures": {
+    "eyes": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_gary_eyes",
+    "snail": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_gary",
+    "shell": "transpondersnails:item/den_den_mushi/shell/den_den_mushi_shell_gary",
+    "particle": "transpondersnails:item/den_den_mushi/snail/den_den_mushi_snail_gary"
+  }
+}

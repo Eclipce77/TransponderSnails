@@ -65,6 +65,15 @@ public class ModEventBusClientEvents {
                         return DenDenMushiItem.isCaptured(stack) ? 1.0f : 0.0f;
                     });
 
+            // Gary (a secret): a Den Den Mushi, a baby Den Den Mushi or a Transponder Snail ITEM that is named "Gary" / "Gary the Snail" picks its Gary model.
+            // Only the name counts; the item's colours are never touched, so any other name brings the normal snail back.
+            ItemProperties.register(ModItems.DEN_DEN_MUSHI.get(), new ResourceLocation(TransponderSnails.MOD_ID, "gary"),
+                    (stack, world, entity, seed) -> net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack) ? 1.0f : 0.0f);
+            ItemProperties.register(ModItems.BABY_DEN_DEN_MUSHI.get(), new ResourceLocation(TransponderSnails.MOD_ID, "gary"),
+                    (stack, world, entity, seed) -> net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack) ? 1.0f : 0.0f);
+            ItemProperties.register(ModBlocks.TRANSPONDER_SNAIL.get().asItem(), new ResourceLocation(TransponderSnails.MOD_ID, "gary"),
+                    (stack, world, entity, seed) -> net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack) ? 1.0f : 0.0f);
+
             // =================== TRANSPONDER SNAIL BLOCK ITEM PROPERTIES ===================
 
             // Shell color for block item
@@ -319,7 +328,7 @@ public class ModEventBusClientEvents {
                 return -1;
             }
 
-            if (tintIndex == 0 && DenDenMushiItem.isCaptured(stack)) {
+            if (tintIndex == 0 && DenDenMushiItem.isCaptured(stack) && !net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack)) {   // Gary: no tint
                 return DenDenMushiItem.getBodyColor(stack);
             }
 
@@ -332,7 +341,7 @@ public class ModEventBusClientEvents {
                 return -1;
             }
 
-            if (tintIndex == 0 && BabyDenDenMushiItem.isCaptured(stack)) {
+            if (tintIndex == 0 && BabyDenDenMushiItem.isCaptured(stack) && !net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack)) {   // Gary: no tint
                 return BabyDenDenMushiItem.getBodyColor(stack);
             }
 
@@ -341,7 +350,7 @@ public class ModEventBusClientEvents {
 
         // Register Transponder Snail block item coloring
         event.register((stack, tintIndex) -> {
-            if (tintIndex == 0) {
+            if (tintIndex == 0 && !net.eclipce.transpondersnails.gary.GaryHelper.isGary(stack)) {   // Gary: no tint
                 CompoundTag nbt = stack.getTag();
                 if (nbt != null) {
                     if (nbt.contains("body_color")) {
@@ -472,6 +481,11 @@ public class ModEventBusClientEvents {
     @SubscribeEvent
     public static void registerBlockColors(RegisterColorHandlersEvent.Block event) {
         event.register((state, level, pos, tintIndex) -> {
+            // Gary: no tint - its body is painted in full colour
+            if (state.hasProperty(net.eclipce.transpondersnails.block.custom.TransponderSnailBlock.GARY)
+                    && state.getValue(net.eclipce.transpondersnails.block.custom.TransponderSnailBlock.GARY)) {
+                return -1;
+            }
             if (tintIndex == 0 && level != null && pos != null) {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof TransponderSnailBlockEntity snailBE) {

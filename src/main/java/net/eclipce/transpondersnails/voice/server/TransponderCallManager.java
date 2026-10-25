@@ -418,7 +418,7 @@ public class TransponderCallManager {
                             true
                     );
 
-                    soundManager.playRingToneForPlayer(owner);
+                    soundManager.playRingToneForPlayer(owner, targetSnailNumber);   // (Gary's ringing, if that snail looks like Gary)
 
                     System.out.println("TransponderCallManager: Started ringtone for HANDHELD snail #" + targetSnailNumber);
 
@@ -1431,7 +1431,7 @@ public class TransponderCallManager {
             if (participant.isHandheld() && participant.hasActivePlayer()) {
                 ServerPlayer player = getPlayerById(participant.getPlayerId());
                 if (player != null) {
-                    soundManager.playConnectedSoundForPlayer(player);
+                    soundManager.playConnectedSoundForPlayer(player, participant.getSnailNumber());
                     System.out.println("DEBUG: Played connection sound for HANDHELD snail #" +
                             participant.getSnailNumber() + " (player " + player.getName().getString() + ")");
                 }
@@ -1580,7 +1580,7 @@ public class TransponderCallManager {
             if (participant.isHandheld() && participant.hasActivePlayer()) {
                 ServerPlayer player = getPlayerById(participant.getPlayerId());
                 if (player != null) {
-                    soundManager.playDisconnectedSoundForPlayer(player);
+                    soundManager.playDisconnectedSoundForPlayer(player, participant.getSnailNumber());
                     System.out.println("DEBUG: Played disconnect sound for HANDHELD snail #" +
                             participant.getSnailNumber() + " (player " + player.getName().getString() + ")");
                 }

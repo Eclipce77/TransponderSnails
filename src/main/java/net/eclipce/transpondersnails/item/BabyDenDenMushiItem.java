@@ -81,6 +81,8 @@ public class BabyDenDenMushiItem extends Item {
         CompoundTag entityData = new CompoundTag();
         entity.addAdditionalSaveData(entityData);
         nbt.put(ENTITY_DATA_TAG, entityData);
+        // A creature's name is not part of the data saved above, so carry it across by hand: a snail named Gary is still named Gary as an item.
+        if (entity.hasCustomName()) stack.setHoverName(entity.getCustomName());
 
         return stack;
     }
@@ -91,6 +93,7 @@ public class BabyDenDenMushiItem extends Item {
     public static void applyToEntity(ItemStack stack, DenDenMushiEntity entity) {
         CompoundTag nbt = stack.getTag();
         if (nbt == null) return;
+        if (stack.hasCustomHoverName()) entity.setCustomName(stack.getHoverName());   // ...and back again when it is released
 
         // Apply colors
         if (nbt.contains(BODY_COLOR_TAG)) {

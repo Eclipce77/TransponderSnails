@@ -448,6 +448,34 @@
         "transpondersnails:shell_color": 0.15
       },
       "model": "transpondersnails:item/transponder_snail/transponder_snail_active_shell_black"
+    },
+    {
+      "predicate": {
+        "transpondersnails:gary": 1.0,
+        "transpondersnails:call_state": 0.0
+      },
+      "model": "transpondersnails:item/transponder_snail/transponder_snail_idle_gary"
+    },
+    {
+      "predicate": {
+        "transpondersnails:gary": 1.0,
+        "transpondersnails:call_state": 0.25
+      },
+      "model": "transpondersnails:item/transponder_snail/transponder_snail_ringing_gary"
+    },
+    {
+      "predicate": {
+        "transpondersnails:gary": 1.0,
+        "transpondersnails:call_state": 0.5
+      },
+      "model": "transpondersnails:item/transponder_snail/transponder_snail_call_gary"
+    },
+    {
+      "predicate": {
+        "transpondersnails:gary": 1.0,
+        "transpondersnails:call_state": 0.75
+      },
+      "model": "transpondersnails:item/transponder_snail/transponder_snail_active_gary"
     }
   ]
 }

@@ -51,6 +51,11 @@
                   "source": "ColorsInitialized",
                   "target": "BlockEntityTag.ColorsInitialized",
                   "op": "replace"
+                },
+                {
+                  "source": "CustomName",
+                  "target": "display.Name",
+                  "op": "replace"
                 }
               ]
             }
