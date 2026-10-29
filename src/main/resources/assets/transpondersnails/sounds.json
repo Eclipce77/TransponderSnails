@@ -26,6 +26,33 @@
       }
     ]
   },
+  "gary_connected": {
+    "subtitle": "Snail (Connected)",
+    "sounds": [
+      {
+        "name": "transpondersnails:gary_connected",
+        "stream": false
+      }
+    ]
+  },
+  "gary_disconnected": {
+    "subtitle": "Snail (Disconnected)",
+    "sounds": [
+      {
+        "name": "transpondersnails:gary_disconnected",
+        "stream": false
+      }
+    ]
+  },
+  "gary_ringing": {
+    "subtitle": "Snail (Ringing)",
+    "sounds": [
+      {
+        "name": "transpondersnails:gary_ringing",
+        "stream": false
+      }
+    ]
+  },
   "snail_busy": {
     "subtitle": "Snail (Busy)",
     "sounds": [
@@ -71,33 +98,6 @@
     "sounds": [
       {
         "name": "transpondersnails:looping_static",
-        "stream": false
-      }
-    ]
-  },
-  "gary_connected": {
-    "subtitle": "Gary (Connected)",
-    "sounds": [
-      {
-        "name": "transpondersnails:gary_connected",
-        "stream": false
-      }
-    ]
-  },
-  "gary_disconnected": {
-    "subtitle": "Gary (Disconnected)",
-    "sounds": [
-      {
-        "name": "transpondersnails:gary_disconnected",
-        "stream": false
-      }
-    ]
-  },
-  "gary_ringing": {
-    "subtitle": "Gary (Ringing)",
-    "sounds": [
-      {
-        "name": "transpondersnails:gary_ringing",
         "stream": false
       }
     ]

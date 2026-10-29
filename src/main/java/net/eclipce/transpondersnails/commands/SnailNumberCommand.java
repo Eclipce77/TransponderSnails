@@ -667,6 +667,7 @@ public class SnailNumberCommand {
             case RING_TIMEOUT -> "no answer";
             case INACTIVITY -> "inactivity";
             case DISCONNECT -> "player left";
+            case DIED -> "player died";
             case SNAIL_GONE -> "snail removed";
             case NUMBER_REMOVED -> "number removed";
             case SERVER_STOP -> "server stop";

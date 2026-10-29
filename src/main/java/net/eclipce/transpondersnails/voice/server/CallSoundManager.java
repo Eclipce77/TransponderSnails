@@ -281,24 +281,56 @@ public class CallSoundManager {
     private static ResourceLocation garyVariant(ResourceLocation normal, boolean gary) {
         if (!gary || !normal.getNamespace().equals(SNAIL_RINGING_SOUND.getNamespace())) return normal;
         String path = net.eclipce.transpondersnails.gary.GarySounds.variantPath(normal.getPath(), true);
-        return path.equals(normal.getPath()) ? normal : new ResourceLocation(normal.getNamespace(), path);
+        if (path.equals(normal.getPath())) return normal;
+        System.out.println("CallSoundManager: Gary look -> playing " + path + " instead of " + normal.getPath());   // only ever printed for a Gary snail
+        return new ResourceLocation(normal.getNamespace(), path);
     }
 
     /**
-     * Is the snail block at this position a Gary? These sounds can be asked for from threads other than the server's, and a plain level.getBlockState from
-     * another thread makes vanilla wait for the server thread to hand the chunk over - so this reads the chunk only if it is already loaded (getChunkNow
-     * never waits, never loads) and treats anything else as "no": the normal sound.
+     * Is the snail block at this position a Gary? These sounds are asked for from the server thread AND from the call manager's own scheduler thread (a call
+     * ends - and says so - from either), and the world can only be read from the server thread: from any other, getChunkNow returns nothing, so a world read
+     * alone answered "no" there and the NORMAL sound played. So the snail's own block entity is asked first: every loaded snail registered itself with this manager,
+     * and a block entity holds its own block state, so asking it touches no part of the world and is right on any thread (see GaryLookup).
      */
-    private static boolean snailBlockIsGary(Level level, BlockPos pos) {
+    private boolean snailBlockIsGary(Level level, BlockPos pos) {
         try {
-            if (level == null) return false;
-            net.minecraft.world.level.chunk.LevelChunk chunk = level instanceof net.minecraft.server.level.ServerLevel serverLevel
-                    ? serverLevel.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4)
-                    : level.getChunkAt(pos);
-            return chunk != null && net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(chunk.getBlockState(pos));
+            if (level == null || pos == null) return false;
+            Boolean registered = null;
+            // 1. the block entities registered with this sound manager (every loaded snail registers itself when it loads)
+            for (BlockstateUpdateCallback callback : blockstateCallbacks) {
+                if (callback instanceof net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity snail && isSnailAt(snail, level, pos)) {
+                    registered = net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(snail.getBlockState());
+                    break;
+                }
+            }
+            // 2. the call manager's own registry of numbered snails: a snail that is in a call always has a number, so it is always there
+            if (registered == null) {
+                TransponderCallManager callManager = net.eclipce.transpondersnails.TransponderSnails.getCallManager();
+                if (callManager != null) {
+                    for (net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity snail : callManager.getRegisteredSnailBlocks().values()) {
+                        if (isSnailAt(snail, level, pos)) {
+                            registered = net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(snail.getBlockState());
+                            break;
+                        }
+                    }
+                }
+            }
+            return net.eclipce.transpondersnails.gary.GaryLookup.resolve(registered, () -> readGaryFromWorld(level, pos));
         } catch (RuntimeException e) {
             return false;
         }
+    }
+
+    private static boolean isSnailAt(net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity snail, Level level, BlockPos pos) {
+        return snail != null && snail.getBlockPos().equals(pos) && snail.getLevel() != null && snail.getLevel().dimension().equals(level.dimension());
+    }
+
+    /** The fallback for a snail that is not registered: read the chunk (only works on the server thread; elsewhere it finds nothing, and this says "no"). */
+    private static boolean readGaryFromWorld(Level level, BlockPos pos) {
+        net.minecraft.world.level.chunk.LevelChunk chunk = level instanceof net.minecraft.server.level.ServerLevel serverLevel
+                ? serverLevel.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4)
+                : level.getChunkAt(pos);
+        return chunk != null && net.eclipce.transpondersnails.gary.GaryHelper.isGaryTransponderSnail(chunk.getBlockState(pos));
     }
 
     /**

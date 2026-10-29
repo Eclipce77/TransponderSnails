@@ -133,7 +133,14 @@ public class TransponderCallManager {
     }
 
     private boolean isInTransition(int snailNumber) {
-        return false;
+        // A snail whose side of the call is now CARRIED (a placed snail that was broken and picked up by the player on that side) has not gone anywhere:
+        // the call goes on. (This used to be a stub that always answered "no", so unregistering a snail block always ended the call.)
+        UUID callId = snailToCallId.get(snailNumber);
+        if (callId == null) return false;
+        CallSession session = activeCalls.get(callId);
+        if (session == null) return false;
+        CallSession.CallParticipant participant = session.getParticipant(snailNumber);
+        return participant != null && participant.isHandheld();
     }
 
     @Nullable
@@ -1300,65 +1307,110 @@ public class TransponderCallManager {
         }
     }
 
+    // =================== A CALL SURVIVES ITS SNAIL BEING MOVED ===================
+
+    /**
+     * A PLACED snail that is in a call has been broken (or blown up, replaced...). The call does not end with it: if a player was on that side, they carry it on as a handheld
+     * snail, routed the way it was when they last carried it - the dropped item can lie where it fell. It ends only if nobody was on that side, or that player is gone
+     * (died or left the game; see onPlayerDeath and onPlayerDisconnect).
+     *
+     * @return true if the call was kept; false if the caller should end it, as it always did
+     */
+    public boolean keepCallAfterSnailBroken(int snailNumber) {
+        UUID callId = snailToCallId.get(snailNumber);
+        if (callId == null) return false;
+        CallSession session = activeCalls.get(callId);
+        if (session == null) return false;
+        CallSession.CallParticipant participant = session.getParticipant(snailNumber);
+        CallContinuity.Kind kind = participant == null ? CallContinuity.Kind.NONE : participant.isBlock() ? CallContinuity.Kind.BLOCK : CallContinuity.Kind.HANDHELD;
+        ServerPlayer player = participant != null && participant.hasActivePlayer() ? getPlayerById(participant.getPlayerId()) : null;
+        boolean ending = session.getState() == CallSession.CallState.ENDING || session.getState() == CallSession.CallState.ENDED;
+        if (!CallContinuity.keepCallAfterBreak(kind, participant != null && participant.hasActivePlayer(), player != null && player.isAlive(), ending)) {
+            return false;
+        }
+        transitionBlockToHandheld(snailNumber, participant.getPlayerId());
+        return true;
+    }
+
+    /**
+     * A player died. A snail they were CARRYING drops with the rest of what they had, and with them gone nobody is left on that side: that side of the call ends.
+     * (A player who dies standing at a placed snail leaves it where it is, and nothing changes.)
+     */
+    public void onPlayerDeath(UUID playerId) {
+        UUID callId = playerToCallId.get(playerId);
+        if (callId == null) return;
+        CallSession session = activeCalls.get(callId);
+        if (session == null) return;
+        CallSession.CallParticipant participant = session.getParticipantByPlayer(playerId);
+        CallContinuity.Kind kind = participant == null ? CallContinuity.Kind.NONE : participant.isHandheld() ? CallContinuity.Kind.HANDHELD : CallContinuity.Kind.BLOCK;
+        if (!CallContinuity.endCallWhenPlayerDies(kind)) return;
+        ServerPlayer player = getPlayerById(playerId);
+        if (player != null) {
+            endCallForPlayer(player, CallLogRegistry.EndReason.DIED);
+        }
+    }
+
     // =================== TRANSITIONS ===================
 
     public void transitionBlockToHandheld(int snailNumber, UUID playerId) {
         UUID callId = snailToCallId.get(snailNumber);
         if (callId == null) return;
-
         CallSession session = activeCalls.get(callId);
         if (session == null) return;
-
-        unregisterSnailBlock(snailNumber);
-        registerHandheldSnail(snailNumber, playerId);
-
         CallSession.CallParticipant oldParticipant = session.getParticipant(snailNumber);
+        BlockPos oldBlockPos = oldParticipant != null ? oldParticipant.getBlockPosition() : null;
+        // NOT unregisterSnailBlock(): that ends the call of a snail that is gone, and this one is not gone - the player carries it on
+        registeredSnailBlocks.remove(snailNumber);
+        stopRingingAtSnail(snailNumber);
+        registerHandheldSnail(snailNumber, playerId);
         if (oldParticipant != null) {
             session.removeParticipant(snailNumber);
             CallSession.CallParticipant newParticipant = CallSession.CallParticipant.handheld(playerId, snailNumber);
             session.addParticipant(snailNumber, newParticipant);
-            recreateAudioChannelsForTransition(session, snailNumber, playerId, true);
+            recreateAudioChannelsForTransition(session, snailNumber, playerId, true, oldBlockPos);
         }
     }
 
     public void transitionHandheldToBlock(int snailNumber, BlockPos blockPos, TransponderSnailBlockEntity blockEntity) {
         UUID callId = snailToCallId.get(snailNumber);
         if (callId == null) return;
-
         CallSession session = activeCalls.get(callId);
         if (session == null) return;
-
+        CallSession.CallParticipant oldParticipant = session.getParticipant(snailNumber);
         UUID playerId = handheldSnailOwners.get(snailNumber);
+        if (playerId == null && oldParticipant != null) playerId = oldParticipant.getPlayerId();
         unregisterHandheldSnail(snailNumber);
         registerSnailBlock(snailNumber, blockEntity);
-
-        CallSession.CallParticipant oldParticipant = session.getParticipant(snailNumber);
         if (oldParticipant != null) {
             session.removeParticipant(snailNumber);
-            CallSession.CallParticipant newParticipant = CallSession.CallParticipant.blockWithPlayer(
-                    playerId, snailNumber, blockPos);
+            CallSession.CallParticipant newParticipant = CallSession.CallParticipant.blockWithPlayer(playerId, snailNumber, blockPos);
             session.addParticipant(snailNumber, newParticipant);
-            recreateAudioChannelsForTransition(session, snailNumber, playerId, false);
+            recreateAudioChannelsForTransition(session, snailNumber, playerId, false, null);
+            // The placed snail has to be told it is in this call, the way a snail is when a call connects (its call, its look, its audio); nothing else did
+            blockEntity.onCallConnected(callId, session);
+            blockEntity.onCallFullyConnected(callId);
         }
     }
 
     /**
      * âœ¨ IMPROVED: Recreate channels for transitions with CallSession integration
      */
-    private void recreateAudioChannelsForTransition(CallSession session, int snailNumber, UUID playerId, boolean toHandheld) {
+    private void recreateAudioChannelsForTransition(CallSession session, int snailNumber, UUID playerId, boolean toHandheld, @Nullable BlockPos oldBlockPos) {
         if (toHandheld) {
-            // Remove block channels
-            for (BlockPos pos : session.getInvolvedBlockPositions()) {
-                session.removeProximityChannel(pos);
+            // Remove ONLY this snail's block channel. (It used to remove the channel of every placed snail left in the call - including the one on the OTHER side,
+            // which would have gone silent.)
+            if (oldBlockPos != null) {
+                session.removeProximityChannel(oldBlockPos);
             }
             // Create handheld channel
             createHandheldAudioChannel(session, snailNumber, playerId);
             System.out.println("TransponderCallManager: Transitioned snail #" + snailNumber + " to handheld");
         } else {
             // Remove handheld channel
-            session.removeHandheldChannel(playerId);
-            playerMovingChannels.remove(playerId);
-
+            if (playerId != null) {
+                session.removeHandheldChannel(playerId);
+                playerMovingChannels.remove(playerId);
+            }
             // Create block channel
             TransponderSnailBlockEntity blockEntity = registeredSnailBlocks.get(snailNumber);
             if (blockEntity != null) {

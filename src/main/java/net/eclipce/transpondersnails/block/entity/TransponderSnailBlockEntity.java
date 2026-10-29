@@ -1326,6 +1326,14 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 }
             }
 
+            // A placed snail that is BROKEN during a call does not take the call with it: if a player was on this side, the call carries on with them as a handheld snail
+            // (see keepCallAfterSnailBroken). Only a block that really was broken counts - one that is just unloading with its chunk, or the server stopping, ends the call as before.
+            boolean callKept = false;
+            if (!isVisualSnail && activeCallId != null && !isServerShuttingDown && isCallManagerAvailable()
+                    && !(level.getBlockState(worldPosition).getBlock() instanceof TransponderSnailBlock)) {
+                callKept = getCallManager().keepCallAfterSnailBroken(assignedSnailNumber);
+            }
+
             // Unregister from call manager
             unregisterFromCallManager();
 
@@ -1337,8 +1345,8 @@ public class TransponderSnailBlockEntity extends BlockEntity implements MenuProv
                 }
             }
 
-            // End any active calls
-            if (!isVisualSnail && activeCallId != null && isCallManagerAvailable()) {
+            // End any active calls (unless the player on this side is carrying it on)
+            if (!callKept && !isVisualSnail && activeCallId != null && isCallManagerAvailable()) {
                 TransponderCallManager callManager = getCallManager();
                 callManager.endCallBySnailNumber(assignedSnailNumber);
             }

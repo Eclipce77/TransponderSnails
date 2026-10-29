@@ -205,41 +205,34 @@ public class TransponderSnailItem extends BlockItem {
         if (heldStack.getItem() != this) {
             return InteractionResult.PASS;
         }
-
         Level level = context.getLevel();
         BlockPos pos = context.getClickedPos();
         BlockState clickedBlock = level.getBlockState(pos);
         Player player = context.getPlayer();
-
         if (clickedBlock.getBlock() instanceof TransponderSnailBlock) {
             return InteractionResult.PASS;
         }
-
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
             int snailNumber = SnailNBTHandler.getSnailNumber(heldStack);
             TransponderCallManager callManager = TransponderSnails.getCallManager();
-
             if (snailNumber != -1 && callManager != null && callManager.isSnailInCall(snailNumber)) {
+                // Where it will go - worked out BEFORE placing, because it depends on what is there now: a replaceable block (tall grass...) is replaced, anything else is built against
+                BlockPos placedPos = new net.minecraft.world.item.context.BlockPlaceContext(context).getClickedPos();
                 InteractionResult result = super.useOn(context);
-
-                if (result == InteractionResult.SUCCESS) {
-                    BlockPos placedPos = context.getClickedPos().relative(context.getClickedFace());
-                    BlockEntity blockEntity = level.getBlockEntity(placedPos);
-
-                    if (blockEntity instanceof TransponderSnailBlockEntity snailBE) {
-                        callManager.transitionHandheldToBlock(snailNumber, placedPos, snailBE);
-                        serverPlayer.displayClientMessage(
-                                Component.literal("Call seamlessly transferred to placed snail")
-                                        .withStyle(ChatFormatting.GREEN),
-                                true
-                        );
-                    }
+                // The server answers a successful placement with CONSUME - only the client gets SUCCESS (that is what swings the arm) - so the old test "result == SUCCESS" was
+                // never true here and the call was never moved to the block
+                BlockEntity blockEntity = level.getBlockEntity(placedPos);
+                if (net.eclipce.transpondersnails.voice.server.CallContinuity.placementTakesOver(result.consumesAction(), blockEntity instanceof TransponderSnailBlockEntity)) {
+                    callManager.transitionHandheldToBlock(snailNumber, placedPos, (TransponderSnailBlockEntity) blockEntity);
+                    serverPlayer.displayClientMessage(
+                            Component.literal("Call seamlessly transferred to placed snail")
+                                    .withStyle(ChatFormatting.GREEN),
+                            true
+                    );
                 }
-
                 return result;
             }
         }
-
         return super.useOn(context);
     }
 

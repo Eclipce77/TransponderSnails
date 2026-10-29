@@ -68,7 +68,7 @@ public class ForgeEvents {
 
     /**
      * Called when a player dies - stop any interception
-     * Does NOT end the call if they're a participant - call continues for others
+     * Ends the call if they were CARRYING a snail in one (see below); a player at a placed snail leaves it where it is
      */
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
@@ -87,9 +87,9 @@ public class ForgeEvents {
                         }
                     }
 
-                    // Note: Don't end the call if they're a participant
-                    // The call should continue for other participants
-                    // It will auto-end if ALL participants die via normal cleanup
+                    // A player who dies CARRYING a snail that is in a call: the snail drops with the rest of what they had and nobody is left on that side, so that side of the call ends
+                    // (see TransponderCallManager.onPlayerDeath). Dropping or breaking a snail does not end a call - only the player dying, or leaving the game, does.
+                    callManager.onPlayerDeath(player.getUUID());
 
                 } catch (Exception e) {
                     System.err.println("Error handling player death: " + e.getMessage());

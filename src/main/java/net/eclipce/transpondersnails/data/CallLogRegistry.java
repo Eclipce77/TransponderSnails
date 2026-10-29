@@ -59,6 +59,7 @@ public final class CallLogRegistry {
         RING_TIMEOUT,
         INACTIVITY,
         DISCONNECT,      // a participant left the server
+        DIED,            // a participant died carrying their snail
         SNAIL_GONE,      // a placed snail was broken, unloaded or destroyed
         NUMBER_REMOVED,  // an admin removed the number (/snailnumber remove)
         SERVER_STOP,
