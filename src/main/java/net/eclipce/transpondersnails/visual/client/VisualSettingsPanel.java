@@ -4,6 +4,8 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.eclipce.transpondersnails.TransponderSnails;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.client.TooltipTimer;
+import net.eclipce.transpondersnails.visual.HoldRepeat;
+import net.eclipce.transpondersnails.visual.ProjectorPadLayout;
 import net.eclipce.transpondersnails.visual.ProjectorPlacement;
 import net.eclipce.transpondersnails.visual.SnailGuiLayout;
 import net.eclipce.transpondersnails.visual.SnailGuiLayout.Rect;
@@ -11,6 +13,7 @@ import net.eclipce.transpondersnails.visual.VisualCallConstants;
 import net.eclipce.transpondersnails.visual.VisualMenuText;
 import net.eclipce.transpondersnails.visual.VisualScreenConfig;
 import net.eclipce.transpondersnails.visual.VisualSettings;
+import net.eclipce.transpondersnails.visual.ZoomBarLayout;
 import net.eclipce.transpondersnails.visual.network.VisualConfigUpdatePacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
 import net.minecraft.ChatFormatting;
@@ -34,37 +37,38 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
 
 /**
- * The projector settings, drawn on the texture assets/transpondersnails/textures/gui/visual_snail_gui.png (where everything goes on it:
- * {@link SnailGuiLayout}). It is a panel, not a screen: VisualConfigScreen hosts it. It is reached ONLY by crouch + right click on an idle
- * Visual Transponder Snail. The panel is only about the VISUAL side of the snail: it shows no snail number.
+ * The projector settings, drawn on the texture assets/transpondersnails/textures/gui/visual_snail_projector_settings_gui.png (where the pad is on it: {@link ProjectorPadLayout};
+ * the panel, the title zone, the display and the depth zone are shared with the dialing GUI: {@link SnailGuiLayout}). It is a panel, not a screen: VisualConfigScreen hosts it. It is
+ * reached ONLY by crouch + right click on an idle Visual Transponder Snail. The panel is only about the VISUAL side of the snail: it shows no snail number.
  *
  * <ul>
  *   <li><b>Title and description</b>: in the box above the panel.</li>
- *   <li><b>The three slider rows</b>, each with a round button on its left that resets that slider:
- *     <ul>
- *       <li><b>Screen size</b>: the projector zooms like a real one - the further away the screen, the bigger the minimum size
- *           (+1 every 2 blocks), and the maximum is 4x the minimum. The slider only offers sizes inside that range for the distance
- *           right now, and the range follows the world live.</li>
- *       <li><b>Left/Right and Down/Up</b>: slide the screen along the surface, at most 3 blocks each way.</li>
- *     </ul></li>
- *   <li><b>Depth</b> (the box below the panel): automatic when there is a surface straight behind the snail (the screen is laid on it),
- *       shown as plain text. Only with nothing to project onto can the screen be pushed further back with "Extra depth" (0 = original
- *       position, never towards the snail): then a slider appears there, on a track drawn like the bars of the texture.</li>
+ *   <li><b>The direction pad</b>: four arrows slide the screen along the surface, a quarter block per click (hold to keep moving), at most 3 blocks each way; the
+ *       button in the middle puts the projector back in its original position (no sliding, no extra depth) and the zoom back to the default. The buttons are part of the texture; the menu lights up the one
+ *       the mouse is over with its own picture (textures/gui/buttons/), so the light has the arrow's shape - see {@link PadWidget}.</li>
+ *   <li><b>Zoom (the screen size)</b>: the striped bar on the left ({@link ZoomBarLayout}) - its top half zooms in (a bigger screen), its bottom half zooms out, hold to keep
+ *       going - and the mouse wheel (wheel up = zoom in). The red indicator beside the bar shows where the size is between the smallest and the biggest for the distance right now:
+ *       on the top stripe all the way in, on the bottom one all the way out. The projector zooms like a real one - the further away the screen, the bigger the minimum size
+ *       (+1 every 2 blocks), and the maximum is 4x the minimum; the range follows the world live.</li>
+ *   <li><b>Size and distance</b> (the box below the panel): the screen's size and how far away it is, as plain text ("4 x 4 blocks, 1.5 away"). The depth is automatic when there
+ *       is a surface straight behind the snail (the screen is laid on it), so there is nothing to set. Only with nothing to project onto can the screen be pushed further back
+ *       with "Extra depth" (0 = original position, never towards the snail): then a slider takes the place of that text, on a track drawn like the bars of the old texture, and
+ *       the size and distance are written in the display instead. Right-clicking that slider resets it, and so does the middle button of the pad.</li>
  * </ul>
- * Right-clicking any slider resets that slider too (the extra depth has no round button).
  *
  * <b>The big display</b> is a 3D view (ProjectorMiniView): the projector (its own model), anything in the way of its light, and the
  * screen at its real size and place - the blocks it lies on, and the picture on it as the projector will show it - with the light drawn from
  * the lens to the screen. Drag it to turn it. It uses the same placement as the real screen (ProjectorPlacement), so it cannot disagree.
  *
  * While it is open the world stays visible and a frame shows where the screen will be; if the snail is in a call, its real
- * screen follows the sliders immediately (see VisualScreenRenderer). The settings are sent to the server a moment after the last
- * change (and when the panel closes), so dragging a slider does not flood the connection.
+ * screen follows the pad immediately (see VisualScreenRenderer). The settings are sent to the server a moment after the last
+ * change (and when the panel closes), so holding an arrow does not flood the connection.
  */
 @OnlyIn(Dist.CLIENT)
 public class VisualSettingsPanel {
@@ -82,7 +86,8 @@ public class VisualSettingsPanel {
 
     private static final Component TITLE = Component.literal("Projector settings");
 
-    private static final ResourceLocation TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID, "textures/gui/visual_snail_gui.png");
+    private static final ResourceLocation TEXTURE = new ResourceLocation(TransponderSnails.MOD_ID, "textures/gui/visual_snail_projector_settings_gui.png");
+    private static final ResourceLocation ZOOM_INDICATOR = new ResourceLocation(TransponderSnails.MOD_ID, "textures/gui/zoom_indicator.png");
     private static final long SEND_DELAY_MS = 150L;
 
     // colours: the slider fill is a faint light over the bar of the texture, the handle a light block with a dark edge
@@ -119,13 +124,9 @@ public class VisualSettingsPanel {
     private int originX;
     private int originY;
 
-    private ConfigSlider sizeSlider;
-    private ConfigSlider sideSlider;
-    private ConfigSlider upSlider;
     private ConfigSlider depthSlider;
-    private ResetButton sizeReset;
-    private ResetButton sideReset;
-    private ResetButton upReset;
+    private PadWidget pad;
+    private ZoomBarWidget zoomBar;
     private final TooltipTimer tooltipTimer = new TooltipTimer();
 
     // The 3D view in the big display, and what it is built from (the placement and the surface found for it)
@@ -169,32 +170,14 @@ public class VisualSettingsPanel {
         active = this;
         this.originX = originX;
         this.originY = originY;
-        refreshGeometry(true); // minSize / maxSize / shownSize for the size slider
-        int max = (int) VisualCallConstants.SCREEN_OFFSET_MAX;
+        refreshGeometry(true); // minSize / maxSize / shownSize: the size range the mouse wheel moves in
 
-        // the three slider rows: screen size, left/right, down/up - the last two with 0 in the middle
-        sizeSlider = addWidget(new ConfigSlider(onScreen(SnailGuiLayout.SIZE_BAR),
-                minSize, maxSize, 1.0, shownSize, false,
-                v -> { size = (int) Math.round(v); markDirty(); },
-                v -> "Screen size: " + (int) Math.round(v) + " x " + (int) Math.round(v),
-                this::resetSize));
-        sizeSlider.setRange(minSize, maxSize, shownSize);
+        // the direction pad: up / down / left / right slide the screen, the middle button puts the projector and the zoom back (looks baked into the texture)
+        pad = addWidget(new PadWidget(onScreen(ProjectorPadLayout.ZONE), originX, originY, this::onPad,
+                () -> host.dragging()));
 
-        sideSlider = addWidget(new ConfigSlider(onScreen(SnailGuiLayout.SIDE_BAR),
-                -max, max, VisualCallConstants.SCREEN_OFFSET_STEP, side, true,
-                v -> { side = (float) v; markDirty(); },
-                v -> VisualMenuText.offsetLabel(v, "Left/Right", "Left", "Right"),
-                this::resetSide));
-        upSlider = addWidget(new ConfigSlider(onScreen(SnailGuiLayout.UP_BAR),
-                -max, max, VisualCallConstants.SCREEN_OFFSET_STEP, up, true,
-                v -> { up = (float) v; markDirty(); },
-                v -> VisualMenuText.offsetLabel(v, "Down/Up", "Down", "Up"),
-                this::resetUp));
-
-        // the round buttons on the left of the rows reset their slider
-        sizeReset = addWidget(new ResetButton(onScreen(SnailGuiLayout.SIZE_RESET), this::resetSize));
-        sideReset = addWidget(new ResetButton(onScreen(SnailGuiLayout.SIDE_RESET), this::resetSide));
-        upReset = addWidget(new ResetButton(onScreen(SnailGuiLayout.UP_RESET), this::resetUp));
+        // the zoom bar on the left: its top half zooms in (a bigger screen), its bottom half zooms out; the indicator beside it is drawn in renderBackground
+        zoomBar = addWidget(new ZoomBarWidget(onScreen(ZoomBarLayout.ZONE), originX, originY, this::zoom, () -> host.dragging()));
 
         // the depth, in the box below the panel: 0 = the original position; only further back is possible (never towards the snail)
         depthSlider = addWidget(new ConfigSlider(onScreen(SnailGuiLayout.DEPTH_BAR),
@@ -240,9 +223,6 @@ public class VisualSettingsPanel {
         maxSize = r.maxSize();
         shownSize = r.size();
 
-        if (sizeSlider != null) {
-            sizeSlider.setRange(minSize, maxSize, shownSize);
-        }
         if (depthSlider != null) {
             depthSlider.visible = !surfaceFound; // slider only while the screen floats; with a surface a plain value is shown
             depthSlider.active = !surfaceFound;
@@ -252,23 +232,50 @@ public class VisualSettingsPanel {
 
     // ---- resets: each slider on its own (the round buttons, and right click on a slider) ----
 
-    private void resetSize() {
-        size = VisualScreenConfig.clampSize(VisualCallConstants.SCREEN_DEFAULT_SIZE, VisualSettings.maxScreenSize());
-        refreshGeometry(true); // moves the size slider to the (zoom-limited) default
+    /** A pad button was pressed (or repeated): an arrow slides the screen a step, the middle one puts the projector back where it was and the zoom back to the default. */
+    private void onPad(ProjectorPadLayout.Button button) {
+        ProjectorPadLayout.Offsets next = ProjectorPadLayout.apply(button, new ProjectorPadLayout.Offsets(side, up, back));
+        side = next.side();
+        up = next.up();
+        back = next.back();
+        if (button == ProjectorPadLayout.Button.CENTER) {
+            if (depthSlider != null) {
+                depthSlider.setTo(back); // the extra-depth slider (shown only when nothing is behind the snail) goes back with it
+            }
+            // the zoom goes back to the default too: the preferred size is set, and what is shown is it held inside the zoom range for the distance right now
+            size = ProjectorPadLayout.defaultSize(VisualSettings.maxScreenSize());
+            refreshGeometry(true); // the size shown, the indicator and the 3D view follow at once
+        }
         markDirty();
     }
 
-    private void resetSide() {
-        side = 0.0F;
-        sideSlider.setTo(side);
-        markDirty();
+    /**
+     * The mouse wheel zooms - resizes the screen; the zoom bar does the same: wheel up = zoom in = bigger. It moves inside the zoom range of
+     * the distance right now (see minSize / maxSize). Anything under the mouse that uses the wheel itself (the extra-depth slider) gets it first; see VisualConfigScreen.
+     *
+     * @return true if the wheel was used
+     */
+    public boolean onScroll(double delta) {
+        if (delta == 0.0) {
+            return false;
+        }
+        zoom(delta > 0.0 ? ZoomBarLayout.Direction.IN : ZoomBarLayout.Direction.OUT);
+        return true;
     }
 
-    private void resetUp() {
-        up = 0.0F;
-        upSlider.setTo(up);
-        markDirty();
+    /** One step of zoom, from the wheel or the zoom bar: in = a screen one size bigger, out = one smaller, inside the range for the distance right now. */
+    private void zoom(ZoomBarLayout.Direction direction) {
+        int target = ZoomBarLayout.zoomed(shownSize, direction, minSize, maxSize);
+        if (target != shownSize) {
+            size = target;
+            refreshGeometry(true); // the size shown, the indicator and the 3D view follow at once
+            markDirty();
+        }
     }
+
+
+
+
 
     private void resetBack() {
         back = 0.0F;
@@ -314,6 +321,10 @@ public class VisualSettingsPanel {
         g.blit(TEXTURE, originX, originY, 0.0F, 0.0F, SnailGuiLayout.TEXTURE_SIZE, SnailGuiLayout.TEXTURE_SIZE,
                 SnailGuiLayout.TEXTURE_SIZE, SnailGuiLayout.TEXTURE_SIZE);
 
+        // the zoom indicator beside the bar: on the top stripe when zoomed all the way in (the biggest screen), on the bottom one all the way out
+        g.blit(ZOOM_INDICATOR, originX + ZoomBarLayout.INDICATOR_X, originY + ZoomBarLayout.indicatorY(shownSize, minSize, maxSize), 0.0F, 0.0F,
+                ZoomBarLayout.INDICATOR_SIZE, ZoomBarLayout.INDICATOR_SIZE, ZoomBarLayout.INDICATOR_SIZE, ZoomBarLayout.INDICATOR_SIZE);
+
         // the 3D view, in the big display
         miniView.render(g, onScreen(SnailGuiLayout.DISPLAY));
 
@@ -324,8 +335,9 @@ public class VisualSettingsPanel {
 
         Rect depthZone = onScreen(SnailGuiLayout.DEPTH_ZONE);
         if (surfaceFound) {
-            // With a surface behind the snail the depth is automatic and cannot be moved: shown as plain text, like the title
-            drawFitted(g, host.font(), Component.literal("Depth: " + oneDecimal(depth) + " blocks (auto)"),
+            // With a surface behind the snail the depth is automatic and cannot be moved, so there is nothing to set here: the box shows the screen's size and how far
+            // away it is, as plain text, like the title
+            drawFitted(g, host.font(), Component.literal(infoText()),
                     depthZone.centerX(), depthZone.y() + (depthZone.h() - 8) / 2, depthZone.w() - 4, 0xFFFFFF);
         } else {
             // Nothing behind the snail: the extra-depth slider. The texture has no bar here, so its track is drawn like the bars of the
@@ -345,32 +357,66 @@ public class VisualSettingsPanel {
         Rect display = onScreen(SnailGuiLayout.DISPLAY);
         g.pose().pushPose();
         g.pose().translate(0.0F, 0.0F, 200.0F); // above the 3D view, which is drawn with a depth of its own
-        // the screen's real size and how far away it is, so the size can be read as well as seen
-        drawFitted(g, font, Component.literal(shownSize + " x " + shownSize + " blocks, " + oneDecimal(depth) + " away"),
-                display.centerX(), display.y() + 3, display.w() - 8, 0xFFFFFF);
+        // The screen's size and how far away it is are in the box below the panel. Only while that box holds the extra-depth slider (nothing behind the snail) they are written
+        // here, so they can always be read.
+        if (!surfaceFound) {
+            drawFitted(g, font, Component.literal(infoText()),
+                    display.centerX(), display.y() + 3, display.w() - 8, 0xFFFFFF);
+        }
         if (mouseX >= display.x() && mouseX < display.right() && mouseY >= display.y() && mouseY < display.bottom()) {
             drawFitted(g, font, Component.literal("Drag to turn"), display.centerX(), display.bottom() - 11, display.w() - 8, 0xC8C8C8);
         }
         g.pose().popPose();
 
         // like a vanilla tooltip: after a short rest of the mouse, never while dragging
-        int hovered = host.dragging() ? -1
-                : sizeReset.isMouseOver(mouseX, mouseY) ? 0
-                : sideReset.isMouseOver(mouseX, mouseY) ? 1
-                : upReset.isMouseOver(mouseX, mouseY) ? 2 : -1;
-        if (tooltipTimer.update(hovered, System.currentTimeMillis())) {
+        ProjectorPadLayout.Button over = host.dragging() ? null : pad.buttonAt(mouseX, mouseY);
+        ZoomBarLayout.Direction zoomOver = host.dragging() || over != null ? null : zoomBar.directionAt(mouseX, mouseY);
+        int option = over != null ? over.ordinal() : zoomOver != null ? ProjectorPadLayout.Button.values().length + zoomOver.ordinal() : -1;
+        if (tooltipTimer.update(option, System.currentTimeMillis()) && option >= 0) {
             int wrap = TooltipTimer.wrapWidth(host.width());
-            String what = hovered == 0 ? "Reset screen size" : hovered == 1 ? "Reset left/right" : "Reset down/up";
-            List<FormattedCharSequence> lines = new ArrayList<>(font.split(Component.literal(what), wrap));
-            lines.addAll(font.split(Component.literal("Right-click a bar for the same").withStyle(ChatFormatting.GRAY), wrap));
+            String title = over != null ? padTitle(over) : zoomOver == ZoomBarLayout.Direction.IN ? "Zoom in" : "Zoom out";
+            List<String> details = over != null ? padDetails(over) : zoomDetails(zoomOver);
+            List<FormattedCharSequence> lines = new ArrayList<>(font.split(Component.literal(title), wrap));
+            for (String detail : details) {
+                lines.addAll(font.split(Component.literal(detail).withStyle(ChatFormatting.GRAY), wrap));
+            }
             g.renderTooltip(font, lines, mouseX, mouseY);
         }
     }
 
+    /** The grey lines under a zoom bar tooltip: no values, only that a click cannot go further this way at this distance, and how else to zoom. */
+    private List<String> zoomDetails(ZoomBarLayout.Direction direction) {
+        boolean atEnd = ZoomBarLayout.zoomed(shownSize, direction, minSize, maxSize) == shownSize;
+        if (!atEnd) {
+            return List.of("Scroll or use the Bar Sections");
+        }
+        // no value: only why a click would do nothing
+        return List.of(direction == ZoomBarLayout.Direction.IN ? "Already the biggest at this distance" : "Already the smallest at this distance", "Scroll or use the Bar Sections");
+    }
+
+    private static String padTitle(ProjectorPadLayout.Button button) {
+        return switch (button) {
+            case UP -> "Move Up";
+            case DOWN -> "Move Down";
+            case LEFT -> "Move Left";
+            case RIGHT -> "Move Right";
+            case CENTER -> "Reset";
+        };
+    }
+
+    /** The grey line under a pad tooltip: the arrows have none (no values on the buttons); the middle button says what it puts back. */
+    private List<String> padDetails(ProjectorPadLayout.Button button) {
+        return switch (button) {
+            case UP, DOWN, LEFT, RIGHT -> List.of();   // just the title: the buttons show no values (the size and distance are in the box below the panel)
+            case CENTER -> List.of("Resets position and zoom");
+        };
+    }
+
     // ------------------------------------------------------------------------------------------------
 
-    private static String oneDecimal(double v) {
-        return String.format(Locale.ROOT, "%.1f", v);
+    /** The screen's size and how far away it is (the one text both places use). */
+    private String infoText() {
+        return VisualMenuText.sizeAndDistance(shownSize, depth);
     }
 
     /**
@@ -398,11 +444,188 @@ public class VisualSettingsPanel {
         return span <= 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, (value - min) / span));
     }
 
-    /** A filled disc (for the highlight of a round button). */
-    private static void fillDisc(GuiGraphics g, int cx, int cy, int radius, int color) {
-        for (int dy = -radius; dy <= radius; dy++) {
-            int dx = (int) Math.floor(Math.sqrt((double) radius * radius - (double) dy * dy));
-            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
+
+
+    /**
+     * The direction pad: ONE widget for all five buttons, because they are not rectangles (see ProjectorPadLayout.at: the middle button is a circle, each arrow a square).
+     * Their looks are part of the texture, so this draws nothing until the mouse is over one: then it draws that button's own picture (textures/gui/buttons/*.png - the very
+     * picture that is baked into the texture at that place, so the light has the shape of the arrow or disc) brighter, and darker while it is pressed. Holding an arrow keeps
+     * moving the screen (HoldRepeat); the middle button does its one thing per click.
+     */
+    private static final class PadWidget extends AbstractWidget {
+        private static final float HOT = 1.7F;
+        private static final float PRESSED = 0.55F;
+
+        private final int originX;
+        private final int originY;
+        private final Consumer<ProjectorPadLayout.Button> action;
+        private final BooleanSupplier hostDragging;
+        private final HoldRepeat repeat = new HoldRepeat();
+        private final ResourceLocation[] pictures = new ResourceLocation[ProjectorPadLayout.Button.values().length];
+        private ProjectorPadLayout.Button pressed = null;
+
+        PadWidget(Rect zone, int originX, int originY, Consumer<ProjectorPadLayout.Button> action, BooleanSupplier hostDragging) {
+            super(zone.x(), zone.y(), zone.w(), zone.h(), Component.literal("Projector position"));
+            this.originX = originX;
+            this.originY = originY;
+            this.action = action;
+            this.hostDragging = hostDragging;
+            for (ProjectorPadLayout.Button b : ProjectorPadLayout.Button.values()) {
+                pictures[b.ordinal()] = new ResourceLocation(TransponderSnails.MOD_ID, "textures/gui/buttons/" + ProjectorPadLayout.pictureName(b) + ".png");
+            }
+        }
+
+        /** The button under a screen position, or null. */
+        ProjectorPadLayout.Button buttonAt(double mouseX, double mouseY) {
+            return ProjectorPadLayout.at(mouseX - originX, mouseY - originY);
+        }
+
+        // Only a point that is on a button counts as "on this widget", so a click anywhere else in the pad's bounding box falls through to whatever is there.
+        @Override
+        public boolean isMouseOver(double mouseX, double mouseY) {
+            return this.active && this.visible && buttonAt(mouseX, mouseY) != null;
+        }
+
+        @Override
+        protected boolean clicked(double mouseX, double mouseY) {
+            return isMouseOver(mouseX, mouseY);
+        }
+
+        @Override
+        public void onClick(double mouseX, double mouseY) {
+            ProjectorPadLayout.Button button = buttonAt(mouseX, mouseY);
+            if (button == null) {
+                return;
+            }
+            pressed = button;
+            repeat.press(System.currentTimeMillis());
+            action.accept(button); // the click itself is the first step
+        }
+
+        @Override
+        public void onRelease(double mouseX, double mouseY) {
+            stop();
+        }
+
+        private void stop() {
+            pressed = null;
+            repeat.release();
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            ProjectorPadLayout.Button hovered = buttonAt(mouseX, mouseY);
+            if (pressed != null) {
+                // Let go - also somewhere else, where no release reaches this widget - or slid off the button: it stops. Otherwise an arrow that is held repeats.
+                if (!Minecraft.getInstance().mouseHandler.isLeftPressed() || hovered != pressed) {
+                    stop();
+                } else if (pressed != ProjectorPadLayout.Button.CENTER) {
+                    for (int due = repeat.poll(System.currentTimeMillis()); due > 0; due--) {
+                        action.accept(pressed);
+                    }
+                }
+            }
+            // no light while the mouse is dragging something else (the 3D view) across the pad
+            if (hovered == null || (pressed == null && hostDragging.getAsBoolean())) {
+                return;
+            }
+            Rect picture = ProjectorPadLayout.rect(hovered);
+            float brightness = hovered == pressed ? PRESSED : HOT;
+            RenderSystem.enableBlend();
+            g.setColor(brightness, brightness, brightness, 1.0F);
+            g.blit(pictures[hovered.ordinal()], originX + picture.x(), originY + picture.y(), 0.0F, 0.0F,
+                    ProjectorPadLayout.SPRITE_SIZE, ProjectorPadLayout.SPRITE_SIZE, ProjectorPadLayout.SPRITE_SIZE, ProjectorPadLayout.SPRITE_SIZE);
+            g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput output) {
+            this.defaultButtonNarrationText(output);
+        }
+    }
+
+    /**
+     * The zoom bar: the top half zooms in, the bottom half zooms out (ZoomBarLayout). Like the pad, its looks are part of the texture, so it only lights up the half the mouse is
+     * over (a faint light, darker while it is pressed), and holding it keeps zooming (HoldRepeat). The indicator beside it is drawn by the panel.
+     */
+    private static final class ZoomBarWidget extends AbstractWidget {
+        private static final int HOT = 0x40FFFFFF;
+        private static final int PRESSED = 0x60000000;
+
+        private final int originX;
+        private final int originY;
+        private final Consumer<ZoomBarLayout.Direction> action;
+        private final BooleanSupplier hostDragging;
+        private final HoldRepeat repeat = new HoldRepeat();
+        private ZoomBarLayout.Direction pressed = null;
+
+        ZoomBarWidget(Rect zone, int originX, int originY, Consumer<ZoomBarLayout.Direction> action, BooleanSupplier hostDragging) {
+            super(zone.x(), zone.y(), zone.w(), zone.h(), Component.literal("Zoom"));
+            this.originX = originX;
+            this.originY = originY;
+            this.action = action;
+            this.hostDragging = hostDragging;
+        }
+
+        /** The half of the bar under a screen position, or null. */
+        ZoomBarLayout.Direction directionAt(double mouseX, double mouseY) {
+            return ZoomBarLayout.at(mouseX - originX, mouseY - originY);
+        }
+
+        @Override
+        public boolean isMouseOver(double mouseX, double mouseY) {
+            return this.active && this.visible && directionAt(mouseX, mouseY) != null;
+        }
+
+        @Override
+        protected boolean clicked(double mouseX, double mouseY) {
+            return isMouseOver(mouseX, mouseY);
+        }
+
+        @Override
+        public void onClick(double mouseX, double mouseY) {
+            ZoomBarLayout.Direction direction = directionAt(mouseX, mouseY);
+            if (direction == null) {
+                return;
+            }
+            pressed = direction;
+            repeat.press(System.currentTimeMillis());
+            action.accept(direction); // the click itself is the first step
+        }
+
+        @Override
+        public void onRelease(double mouseX, double mouseY) {
+            stop();
+        }
+
+        private void stop() {
+            pressed = null;
+            repeat.release();
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            ZoomBarLayout.Direction hovered = directionAt(mouseX, mouseY);
+            if (pressed != null) {
+                // Let go (also somewhere else, where no release reaches this widget) or slid off the half: it stops. Otherwise it keeps zooming.
+                if (!Minecraft.getInstance().mouseHandler.isLeftPressed() || hovered != pressed) {
+                    stop();
+                } else {
+                    for (int due = repeat.poll(System.currentTimeMillis()); due > 0; due--) {
+                        action.accept(pressed);
+                    }
+                }
+            }
+            if (hovered == null || (pressed == null && hostDragging.getAsBoolean())) {
+                return;
+            }
+            Rect half = ZoomBarLayout.half(hovered);
+            g.fill(originX + half.x(), originY + half.y(), originX + half.right(), originY + half.bottom(), hovered == pressed ? PRESSED : HOT);
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput output) {
+            this.defaultButtonNarrationText(output);
         }
     }
 
@@ -435,36 +658,6 @@ public class VisualSettingsPanel {
 
         @Override
         public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            this.defaultButtonNarrationText(output);
-        }
-    }
-
-    /**
-     * The round button on the left of a slider row. Its looks are part of the texture; this only lights it up when the mouse is over it and
-     * darkens it while it is pressed.
-     */
-    private static final class ResetButton extends AbstractWidget {
-        private final Runnable action;
-
-        ResetButton(Rect r, Runnable action) {
-            super(r.x(), r.y(), r.w(), r.h(), Component.literal("Reset"));
-            this.action = action;
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            if (!this.isHovered()) return;
-            boolean pressed = Minecraft.getInstance().mouseHandler.isLeftPressed();
-            fillDisc(g, getX() + getWidth() / 2, getY() + getHeight() / 2, 5, pressed ? 0x70000000 : 0x55FFFFFF);
         }
 
         @Override

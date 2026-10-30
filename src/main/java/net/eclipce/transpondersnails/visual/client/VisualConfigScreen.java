@@ -54,6 +54,12 @@ public class VisualConfigScreen extends Screen {
         return false;
     }
 
+    /** A widget under the mouse that uses the wheel itself (the extra-depth slider) gets it first; anywhere else the wheel resizes the screen. */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        return super.mouseScrolled(mouseX, mouseY, delta) || panel.onScroll(delta);
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         panel.renderBackground(g);
