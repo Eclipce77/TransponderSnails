@@ -9,6 +9,7 @@ import com.mojang.math.Axis;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.visual.ProjectorEffects;
+import net.eclipce.transpondersnails.visual.ProjectorHeadAim;
 import net.eclipce.transpondersnails.visual.ProjectorPlacement;
 import net.eclipce.transpondersnails.visual.ProjectorTransition;
 import net.eclipce.transpondersnails.visual.ProjectorSurface;
@@ -642,8 +643,9 @@ public final class VisualScreenRenderer {
                 float projecting = VisualGlow.projector(role, flags);
                 drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, VisualGlowModels.projector(snail),
                         projecting, VisualCallConstants.GLOW_PROJECTOR_LIGHT);
+                // the lens glows where the head is: it is turned with the head (the same pose VisualProjectorHeadRenderer drew it at this frame)
                 drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, VisualGlowModels.projectorTop(snail),
-                        projecting, VisualCallConstants.GLOW_PROJECTOR_TOP_LIGHT);
+                        projecting, VisualCallConstants.GLOW_PROJECTOR_TOP_LIGHT, headPose(level, pos));
             }
         }
         buffers.endBatch(RenderType.cutout());
@@ -672,6 +674,21 @@ public final class VisualScreenRenderer {
     /** Draws one glow model over its snail, full-bright up to {@code fullLevel} (scaled by how far the picture has faded in). */
     private static void drawGlowPart(ClientLevel level, PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, BlockPos pos,
                                      Direction facing, int ambient, String modelName, float ease, int fullLevel) {
+        drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, modelName, ease, fullLevel, null);
+    }
+
+    /** Where the head of the projector at {@code pos} is turned to right now (not turned if there is no such snail to ask). */
+    private static ProjectorHeadAim.Pose headPose(ClientLevel level, BlockPos pos) {
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        return blockEntity instanceof TransponderSnailBlockEntity snail ? VisualProjectorHead.current(snail) : ProjectorHeadAim.Pose.NEUTRAL;
+    }
+
+    /**
+     * The same, with the glow model turned like the head of the projector: {@code head} is its pose, or null for a part that does not move (the eyes, the body of the
+     * projector). The head's own turn comes after the snail's facing, so it turns about its pivot on the snail whichever way the snail faces.
+     */
+    private static void drawGlowPart(ClientLevel level, PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, BlockPos pos,
+                                     Direction facing, int ambient, String modelName, float ease, int fullLevel, @Nullable ProjectorHeadAim.Pose head) {
         if (ease <= 0.0F) return;
         BakedModel model = VisualGlowModels.get(modelName);
         if (model == null) {
@@ -691,6 +708,9 @@ public final class VisualScreenRenderer {
             pose.translate(0.5, 0.5, 0.5);
             pose.mulPose(Axis.YP.rotationDegrees(-yRotation(facing))); // the same turn the blockstate gives the snail
             pose.translate(-0.5, -0.5, -0.5);
+            if (head != null) {
+                VisualProjectorHead.turn(pose, head);
+            }
 
             VertexConsumer vc = buffers.getBuffer(RenderType.cutout());
             PoseStack.Pose last = pose.last();

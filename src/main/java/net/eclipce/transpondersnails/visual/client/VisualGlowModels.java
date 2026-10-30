@@ -41,6 +41,10 @@ public final class VisualGlowModels {
     static String projectorTop(String snail) {
         return snail + "_glow_projector_top";
     }
+    /** The projector's head - its top part, the lens - as a model of its own, drawn turned towards the screen (VisualProjectorHeadRenderer). It is not in the snail's own models. */
+    static String projectorHead(String snail) {
+        return snail + "_projector_head";
+    }
 
     static String projectorSnail() { return PROJECTOR; }
 
@@ -58,6 +62,7 @@ public final class VisualGlowModels {
         }
         event.register(location(projector(PROJECTOR)));
         event.register(location(projectorTop(PROJECTOR)));
+        event.register(location(projectorHead(PROJECTOR)));
     }
 
     private static ResourceLocation location(String name) {

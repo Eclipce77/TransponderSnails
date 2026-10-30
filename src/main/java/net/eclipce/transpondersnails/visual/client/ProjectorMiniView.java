@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.visual.ProjectorEffects;
+import net.eclipce.transpondersnails.visual.ProjectorHeadAim;
 import net.eclipce.transpondersnails.visual.ProjectorPicture;
 import net.eclipce.transpondersnails.visual.ProjectorPlacement;
 import net.eclipce.transpondersnails.visual.ProjectorScene;
@@ -36,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * The 3D view in the projector settings (in the big display of the texture). It shows only what matters to the projection:
@@ -106,9 +108,9 @@ final class ProjectorMiniView {
     // Reading the world
     // ------------------------------------------------------------------------------------------------
 
-    private static double[] keyOf(ProjectorPlacement.Result res, double surfaceDistance) {
+    private static double[] keyOf(ProjectorPlacement.Result res, double surfaceDistance, float side, float up) {
         double[] c = res.center();
-        return new double[]{res.size(), res.depth(), res.surfaceFound() ? 1.0 : 0.0, c[0], c[1], c[2], Double.isNaN(surfaceDistance) ? -1.0 : surfaceDistance};
+        return new double[]{res.size(), res.depth(), res.surfaceFound() ? 1.0 : 0.0, c[0], c[1], c[2], Double.isNaN(surfaceDistance) ? -1.0 : surfaceDistance, side, up};
     }
 
     private static boolean same(double[] x, double[] y) {
@@ -117,20 +119,23 @@ final class ProjectorMiniView {
         return true;
     }
 
-    /** Call every tick: rebuilds the scene when the settings or the surface changed, and now and then for changes in the world. */
-    void tick(ClientLevel level, BlockPos pos, ProjectorPlacement.Result res, double surfaceDistance) {
+    /**
+     * Call every tick: rebuilds the scene when the settings or the surface changed, and now and then for changes in the world.
+     * {@code side} and {@code up} are the screen's left/right and up/down offsets: they turn the projector's head (the size of the screen does not).
+     */
+    void tick(ClientLevel level, BlockPos pos, ProjectorPlacement.Result res, double surfaceDistance, float side, float up) {
         if (level == null || res == null || !level.isLoaded(pos)) return;
         ticksSinceBuild++;
-        double[] key = keyOf(res, surfaceDistance);
+        double[] key = keyOf(res, surfaceDistance, side, up);
         if (!dirty && ticksSinceBuild < REBUILD_TICKS && same(key, builtFor)) return;
-        if (rebuild(level, pos, res, surfaceDistance)) {
+        if (rebuild(level, pos, res, surfaceDistance, side, up)) {
             builtFor = key;
             dirty = false;
             ticksSinceBuild = 0;
         }
     }
 
-    private boolean rebuild(ClientLevel level, BlockPos pos, ProjectorPlacement.Result res, double surfaceDistance) {
+    private boolean rebuild(ClientLevel level, BlockPos pos, ProjectorPlacement.Result res, double surfaceDistance, float side, float up) {
         BlockState snail = level.getBlockState(pos);
         if (!(snail.getBlock() instanceof TransponderSnailBlock) || !snail.hasProperty(TransponderSnailBlock.FACING)) return false;
         Direction facing = snail.getValue(TransponderSnailBlock.FACING);
@@ -185,7 +190,7 @@ final class ProjectorMiniView {
         }
 
         // The projector: the game's own model for this block
-        List<ProjectorScene.Cell> baked = bakeModel(level, pos, snail, frame);
+        List<ProjectorScene.Cell> baked = bakeModel(level, pos, snail, frame, ProjectorHeadAim.poseFor(side, up));
         double[] mb = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
         if (baked != null) {
             for (ProjectorScene.Cell c : baked) for (double[] p : c.corners()) for (int k = 0; k < 3; k++) { mb[k] = Math.min(mb[k], p[k]); mb[k + 3] = Math.max(mb[k + 3], p[k]); }
@@ -312,7 +317,7 @@ final class ProjectorMiniView {
      * The snail as the game draws it: the baked model of this block state (so its shell colour, its turn and its call state are right),
      * every quad cut into coloured cells (ProjectorScene.cells). Null if anything goes wrong: a plain block is drawn then.
      */
-    private static List<ProjectorScene.Cell> bakeModel(ClientLevel level, BlockPos pos, BlockState state, ProjectorScene.Frame frame) {
+    private static List<ProjectorScene.Cell> bakeModel(ClientLevel level, BlockPos pos, BlockState state, ProjectorScene.Frame frame, ProjectorHeadAim.Pose head) {
         try {
             Minecraft mc = Minecraft.getInstance();
             BakedModel baked = mc.getBlockRenderer().getBlockModel(state);
@@ -321,28 +326,51 @@ final class ProjectorMiniView {
             Direction[] sides = {null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
             for (Direction side : sides) {
                 for (BakedQuad quad : baked.getQuads(state, side, random)) {
-                    int[] v = quad.getVertices();   // 8 ints a vertex: x y z, colour, u v, light, normal
-                    TextureAtlasSprite sprite = quad.getSprite();
-                    float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
-                    double[][] pos4 = new double[4][3];
-                    double[][] uv4 = new double[4][2];
-                    for (int i = 0; i < 4; i++) {
-                        pos4[i][0] = Float.intBitsToFloat(v[i * 8]);
-                        pos4[i][1] = Float.intBitsToFloat(v[i * 8 + 1]);
-                        pos4[i][2] = Float.intBitsToFloat(v[i * 8 + 2]);
-                        uv4[i][0] = (Float.intBitsToFloat(v[i * 8 + 4]) - u0) / (u1 - u0);   // atlas uv -> the sprite's own 0..1
-                        uv4[i][1] = (Float.intBitsToFloat(v[i * 8 + 5]) - v0) / (v1 - v0);
+                    addQuad(out, mc, level, pos, state, quad, frame, p -> p);
+                }
+            }
+            // The head of the projector is not in the snail's baked model (it is drawn turned, in the world: VisualProjectorHeadRenderer). It is added here, turned the same way:
+            // each corner is put through the head's pose (pixels, for a snail facing north) and then turned with the snail's facing - so the preview shows what the world will.
+            BakedModel headModel = state.hasProperty(TransponderSnailBlock.FACING) && head != null
+                    ? VisualGlowModels.get(VisualGlowModels.projectorHead(VisualGlowModels.projectorSnail())) : null;
+            if (headModel != null) {
+                Direction facing = state.getValue(TransponderSnailBlock.FACING);
+                UnaryOperator<double[]> turned = p -> {
+                    double[] pixels = ProjectorHeadAim.apply(head, new double[]{p[0] * 16.0, p[1] * 16.0, p[2] * 16.0});
+                    return ProjectorHeadAim.toWorld(new double[]{pixels[0] / 16.0, pixels[1] / 16.0, pixels[2] / 16.0}, facing.getStepX(), facing.getStepZ());
+                };
+                for (Direction side : sides) {
+                    for (BakedQuad quad : headModel.getQuads(null, side, random)) {
+                        addQuad(out, mc, level, pos, state, quad, frame, turned);
                     }
-                    int tint = quad.isTinted() ? mc.getBlockColors().getColor(state, level, pos, quad.getTintIndex()) : -1;
-                    SpriteColors colors = spriteColors(sprite);
-                    out.addAll(ProjectorScene.cells(frame, pos4, uv4, sprite.contents().width(), sprite.contents().height(),
-                            (a, b, c, d) -> tinted(colors.average(a, b, c, d), tint)));
                 }
             }
             return out.isEmpty() ? null : out;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** One baked quad, cut into coloured cells (ProjectorScene.cells); {@code mapPoint} moves each of its corners first (block-local 0..1), or leaves them. */
+    private static void addQuad(List<ProjectorScene.Cell> out, Minecraft mc, ClientLevel level, BlockPos pos, BlockState state, BakedQuad quad,
+                                ProjectorScene.Frame frame, UnaryOperator<double[]> mapPoint) {
+        int[] v = quad.getVertices();   // 8 ints a vertex: x y z, colour, u v, light, normal
+        TextureAtlasSprite sprite = quad.getSprite();
+        float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
+        double[][] pos4 = new double[4][3];
+        double[][] uv4 = new double[4][2];
+        for (int i = 0; i < 4; i++) {
+            pos4[i][0] = Float.intBitsToFloat(v[i * 8]);
+            pos4[i][1] = Float.intBitsToFloat(v[i * 8 + 1]);
+            pos4[i][2] = Float.intBitsToFloat(v[i * 8 + 2]);
+            pos4[i] = mapPoint.apply(pos4[i]);
+            uv4[i][0] = (Float.intBitsToFloat(v[i * 8 + 4]) - u0) / (u1 - u0);   // atlas uv -> the sprite's own 0..1
+            uv4[i][1] = (Float.intBitsToFloat(v[i * 8 + 5]) - v0) / (v1 - v0);
+        }
+        int tint = quad.isTinted() ? mc.getBlockColors().getColor(state, level, pos, quad.getTintIndex()) : -1;
+        SpriteColors colors = spriteColors(sprite);
+        out.addAll(ProjectorScene.cells(frame, pos4, uv4, sprite.contents().width(), sprite.contents().height(),
+                (a, b, c, d) -> tinted(colors.average(a, b, c, d), tint)));
     }
 
     // ------------------------------------------------------------------------------------------------

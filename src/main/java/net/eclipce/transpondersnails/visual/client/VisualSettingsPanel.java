@@ -192,7 +192,7 @@ public class VisualSettingsPanel {
         // the big display: a 3D view of the projector, the space behind it and the screen. Drag to turn it.
         addWidget(new ViewDrag(onScreen(SnailGuiLayout.DISPLAY), miniView));
         miniView.markDirty();
-        miniView.tick(Minecraft.getInstance().level, pos, lastPlacement, lastSurface);
+        miniView.tick(Minecraft.getInstance().level, pos, lastPlacement, lastSurface, side, up); // side and up turn the projector's head in the view (the size does not)
     }
 
     /**
@@ -295,7 +295,7 @@ public class VisualSettingsPanel {
 
     public void tick() {
         refreshGeometry(false);
-        miniView.tick(Minecraft.getInstance().level, pos, lastPlacement, lastSurface);
+        miniView.tick(Minecraft.getInstance().level, pos, lastPlacement, lastSurface, side, up); // side and up turn the projector's head in the view (the size does not)
         // a moment after the LAST change, not while the slider is still being dragged
         if (dirty && System.currentTimeMillis() - lastChangeMs >= SEND_DELAY_MS) {
             sendNow();

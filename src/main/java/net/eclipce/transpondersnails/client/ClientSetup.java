@@ -5,6 +5,7 @@ package net.eclipce.transpondersnails.client;
 import net.eclipce.transpondersnails.block.entity.ModBlockEntities;
 import net.eclipce.transpondersnails.client.renderer.BlackTransponderSnailBlockEntityRenderer;
 import net.eclipce.transpondersnails.client.renderer.HornedDenDenMushiBlockEntityRenderer;
+import net.eclipce.transpondersnails.visual.client.VisualProjectorHeadRenderer;
 import net.eclipce.transpondersnails.entity.ModEntities;
 import net.eclipce.transpondersnails.entity.client.BabyBlackTransponderSnailRenderer;
 import net.eclipce.transpondersnails.entity.client.BlackTransponderSnailRenderer;
@@ -63,6 +64,11 @@ public class ClientSetup {
         // HornedDenDenMushiBlock uses RenderShape.ENTITYBLOCK_ANIMATED — without this
         // registration the block will be invisible in the world.
         BlockEntityRenderers.register(ModBlockEntities.HORNED_DEN_DEN_MUSHI_BLOCK_ENTITY.get(), HornedDenDenMushiBlockEntityRenderer::new);
+
+        // The head of the Visual Transponder Snail (the projector): its top part is not in the snail's static models, it is drawn here, turned towards where the screen is moved
+        // to. This block entity type is shared by all the snails with a TransponderSnailBlockEntity; the renderer leaves at once for everything that is not a projector, and
+        // the block still draws its own model as before (this only adds the head), so no block turns invisible.
+        BlockEntityRenderers.register(ModBlockEntities.TRANSPONDER_SNAIL_BE.get(), VisualProjectorHeadRenderer::new);
 
     }
 

@@ -174,12 +174,29 @@ public final class VisualCallConstants {
     /** The TOP part of the projector - the lens that "throws" the picture - is slightly brighter than the rest of it. */
     public static final int GLOW_PROJECTOR_TOP_LIGHT = 14;
     /**
-     * Where the light ray starts: the centre of the top part of the projector (element 9 of visual_transponder_snail.json), in model
-     * pixels (0-16) for a snail facing north. tools/generate_glow_models.py prints this centre; update it if the model changes.
+     * Where the light ray starts: the centre of the top part of the projector - the head, models/block/visual_transponder_snail_projector_head.json
+     * (it used to be element 9 of visual_transponder_snail.json) - in model pixels (0-16) for a snail facing north. Update it if the head moves.
      */
     public static final double PROJECTOR_LENS_X = 8.0;
     public static final double PROJECTOR_LENS_Y = 11.75;
     public static final double PROJECTOR_LENS_Z = 10.52;
+
+    // --- the projector's head turns towards where the screen is moved to (ProjectorHeadAim; drawn by VisualProjectorHeadRenderer) ---
+    /**
+     * Where the head turns: the middle of its bottom face, which sits on the top of the neck (the head's bottom face is at y 11, the neck's top face too), in model pixels (0-16)
+     * for a snail facing north. Turning about THIS point keeps the head on the neck; the little it would still dip into the neck when it tilts is cancelled by ProjectorHeadAim.liftFor.
+     */
+    public static final double PROJECTOR_HEAD_PIVOT_X = 8.0;
+    public static final double PROJECTOR_HEAD_PIVOT_Y = 11.0;
+    public static final double PROJECTOR_HEAD_PIVOT_Z = 10.52;
+    /**
+     * How far the head turns when the screen is moved all the way (SCREEN_OFFSET_MAX) sideways (yaw) and up or down (pitch), in degrees. It follows only the left/right and
+     * up/down offsets - never the zoom. The limits keep the head clear of the rest of the model (checked against the real model boxes by the unit tests).
+     */
+    public static final double PROJECTOR_HEAD_MAX_YAW_DEGREES = 25.0;
+    public static final double PROJECTOR_HEAD_MAX_PITCH_DEGREES = 20.0;
+    /** How quickly the head follows the screen: the part of the turn still to go shrinks by a factor of e every 1 / SPEED seconds (12 = most of the way in about a tenth of a second). */
+    public static final double PROJECTOR_HEAD_TURN_SPEED = 12.0;
 
     // --- the projector turning on and off: the picture fades in / out, with TV static and a pop of light at both ends (ProjectorTransition) ---
     /** The picture fades out over this long (ms) when the call ends, frozen on its last frame. (The fade-in is FEED_FADE_IN_MS.) */
