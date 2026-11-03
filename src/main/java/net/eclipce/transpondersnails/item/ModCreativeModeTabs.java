@@ -29,6 +29,8 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get());
                         pOutput.accept(ModBlocks.AMPLIFIED_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.HORNED_TRANSPONDER_SNAIL.get());
+                        pOutput.accept(ModItems.BLACK_DEN_DEN_MUSHI.get());
+                        pOutput.accept(ModItems.BABY_BLACK_DEN_DEN_MUSHI.get());
                         pOutput.accept(ModItems.BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get());
                         pOutput.accept(ModItems.PORTABLE_BLACK_TRANSPONDER_SNAIL.get());
@@ -40,6 +42,8 @@ public class ModCreativeModeTabs {
                         pOutput.accept(ModItems.VISUAL_TRANSMITTER.get());
                         pOutput.accept(ModItems.DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModItems.HORNED_DEN_DEN_MUSHI_SPAWN_EGG.get());
+                        pOutput.accept(ModItems.BLACK_DEN_DEN_MUSHI_SPAWN_EGG.get());
+                        pOutput.accept(ModItems.BABY_BLACK_DEN_DEN_MUSHI_SPAWN_EGG.get());
                         pOutput.accept(ModItems.WHITE_DEN_DEN_MUSHI_SPAWN_EGG.get());
                     })
                     .build());

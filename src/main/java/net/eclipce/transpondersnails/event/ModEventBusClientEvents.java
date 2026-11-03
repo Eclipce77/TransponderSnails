@@ -35,11 +35,11 @@ public class ModEventBusClientEvents {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(
-                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                ModEntities.BABY_BLACK_DEN_DEN_MUSHI.get(),
                 BabyBlackTransponderSnailRenderer::new
         );
 
-        event.registerEntityRenderer(ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+        event.registerEntityRenderer(ModEntities.BLACK_DEN_DEN_MUSHI.get(),
                 BlackTransponderSnailRenderer::new);
 
     }

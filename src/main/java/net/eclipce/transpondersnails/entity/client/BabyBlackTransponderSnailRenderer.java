@@ -28,6 +28,12 @@ public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackT
 
     private final ItemRenderer itemRenderer;
 
+    /** The baby's scale: half the adult's 3.0. */
+    private static final float BABY_SCALE = 1.5F;
+
+    /** From the model's centre (y = 0.5) down to its lowest point (0.238 px of 16): 0.5 - 0.238 / 16. */
+    private static final double MODEL_LIFT = 0.5D - 0.238D / 16.0D;
+
     // Debug flag - set to false once everything works
     private static final boolean DEBUG = false;
     private static int debugCounter = 0;
@@ -42,8 +48,12 @@ public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackT
                        PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         poseStack.pushPose();
 
-        // Position: Lift the model up so it's visible above ground
-        poseStack.translate(0.0D, 0.225D, 0.0D);
+        // Position: with the NONE context the model is centred on the origin (its 0..16 box maps to -0.5..0.5), so lift it by the distance from that
+        // centre down to the model's lowest point, scaled, and it stands on the ground (the same way the adult renderer does it)
+        poseStack.translate(0.0D, MODEL_LIFT * BABY_SCALE, 0.0D);
+
+        // Scale: the baby is half the adult's size (adult 3.0 x 1.15; the baby model is the same geometry), which makes it the size of its hitbox
+        poseStack.scale(BABY_SCALE, BABY_SCALE, BABY_SCALE);
 
         // Rotation: Face the correct direction
         poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - entityYaw));
@@ -64,9 +74,11 @@ public class BabyBlackTransponderSnailRenderer extends EntityRenderer<BabyBlackT
         nbt.putInt("shell_color", shellColor);
 
         // Render the item model
+        // NONE, not GROUND: the GROUND transform of the item model is for a dropped item (it turns the model upside down and tilts it 35 degrees), which is
+        // what made the baby snails lie flat and turned over. NONE applies no display transform; the position, scale and facing are set here.
         itemRenderer.renderStatic(
                 itemStack,
-                ItemDisplayContext.GROUND,
+                ItemDisplayContext.NONE,
                 packedLight,
                 OverlayTexture.NO_OVERLAY,
                 poseStack,

@@ -53,8 +53,8 @@ public class ClientSetup {
         EntityRenderers.register(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiRenderer::new);
         EntityRenderers.register(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiRenderer::new);
         EntityRenderers.register(ModEntities.HORNED_DEN_DEN_MUSHI.get(), HornedDenDenMushiRenderer::new);
-        EntityRenderers.register(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailRenderer::new);
-        EntityRenderers.register(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailRenderer::new);
+        EntityRenderers.register(ModEntities.BABY_BLACK_DEN_DEN_MUSHI.get(), BabyBlackTransponderSnailRenderer::new);
+        EntityRenderers.register(ModEntities.BLACK_DEN_DEN_MUSHI.get(), BlackTransponderSnailRenderer::new);
 
         // Block Entity Renderer — REQUIRED because BlackTransponderSnailBlock implements EntityBlock.
         // EntityBlock blocks render NO geometry without a registered BlockEntityRenderer.

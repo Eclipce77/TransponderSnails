@@ -20,7 +20,7 @@ public class ModItems {
                     new Item.Properties()));
 
     public static final RegistryObject<Item> BABY_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("baby_den_den_mushi_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL, 0xffbf66, 0xff526b,
+            () -> new ForgeSpawnEggItem(ModEntities.BABY_BLACK_DEN_DEN_MUSHI, 0xffbf66, 0xff526b,
                     new Item.Properties()));
 
     public static final RegistryObject<Item> HORNED_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("horned_den_den_mushi_spawn_egg",
@@ -31,12 +31,12 @@ public class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.WHITE_DEN_DEN_MUSHI, 0xFAF9F6, 0xdcdcdc,
                     new Item.Properties()));
 
-    public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL_SPAWN_EGG = ITEMS.register("black_transponder_snail_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.BLACK_TRANSPONDER_SNAIL, 0x38343b, 0xE2DFD2,
+    public static final RegistryObject<Item> BLACK_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("black_den_den_mushi_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.BLACK_DEN_DEN_MUSHI, 0x38343b, 0xE2DFD2,
                     new Item.Properties()));
 
-    public static final RegistryObject<Item> BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_EGG = ITEMS.register("baby_black_transponder_snail_spawn_egg",
-            () -> new ForgeSpawnEggItem(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL, 0x544d59, 0x635b6c,
+    public static final RegistryObject<Item> BABY_BLACK_DEN_DEN_MUSHI_SPAWN_EGG = ITEMS.register("baby_black_den_den_mushi_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.BABY_BLACK_DEN_DEN_MUSHI, 0x544d59, 0x635b6c,
                     new Item.Properties()));
 
     public static final RegistryObject<Item> DEN_DEN_MUSHI = ITEMS.register("den_den_mushi",
@@ -93,7 +93,7 @@ public class ModItems {
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER = ITEMS.register("visual_transmission_transponder_snail_transmitter",
-            () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get(),
+             () -> new TransponderSnailItem(ModBlocks.VISUAL_TRANSMISSION_TRANSPONDER_SNAIL_TRANSMITTER.get(),
                     new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> AMPLIFIED_TRANSPONDER_SNAIL = ITEMS.register("amplified_transponder_snail",
@@ -103,6 +103,14 @@ public class ModItems {
     /** The jammer block, as an item: it is placed (and picked up again) with its colours. */
     public static final RegistryObject<Item> HORNED_TRANSPONDER_SNAIL = ITEMS.register("horned_transponder_snail",
             () -> new HornedTransponderSnailItem(ModBlocks.HORNED_TRANSPONDER_SNAIL.get(), new Item.Properties().stacksTo(1)));
+
+    /** The Black Den Den Mushi as an item (the creature, picked up): a crafting ingredient with NO block form. */
+    public static final RegistryObject<Item> BLACK_DEN_DEN_MUSHI = ITEMS.register("black_den_den_mushi",
+            () -> new BlackDenDenMushiItem(new Item.Properties().stacksTo(1)));
+
+    /** The Baby Black Den Den Mushi as an item (the small creature, picked up): a crafting ingredient with NO block form. */
+    public static final RegistryObject<Item> BABY_BLACK_DEN_DEN_MUSHI = ITEMS.register("baby_black_den_den_mushi",
+            () -> new BabyBlackDenDenMushiItem(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> BLACK_TRANSPONDER_SNAIL = ITEMS.register("black_transponder_snail",
             () -> new BlackTransponderSnailItem(

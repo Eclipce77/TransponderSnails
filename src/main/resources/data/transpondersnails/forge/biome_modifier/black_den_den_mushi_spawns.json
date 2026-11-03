@@ -3,10 +3,10 @@
   "biomes": "#minecraft:is_ocean",
   "spawners": [
     {
-      "type": "transpondersnails:baby_black_transponder_snail",
-      "weight": 6,
+      "type": "transpondersnails:black_den_den_mushi",
+      "weight": 8,
       "minCount": 1,
-      "maxCount": 2
+      "maxCount": 3
     }
   ]
 }

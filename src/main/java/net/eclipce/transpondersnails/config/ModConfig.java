@@ -409,7 +409,7 @@ public class ModConfig {
 
             spawnBiomes = builder
                     .comment("Biome tags where LAND snails (Den Den Mushi) can spawn")
-                    .comment("Black Transponder Snails spawn underwater regardless of this setting")
+                    .comment("Black Den Den Mushi spawn underwater regardless of this setting")
                     .comment("Format: Biome tags (with #) or specific biomes")
                     .comment("Default: Forests, beaches, and water areas")
                     .defineList("spawn_biomes",
@@ -424,8 +424,9 @@ public class ModConfig {
             disabledSnails = builder
                     .comment("List of snails that should NOT spawn naturally")
                     .comment("Leave empty to allow all snails to spawn")
-                    .comment("Valid values: 'den_den_mushi', 'white_den_den_mushi', 'black_transponder_snail', 'baby_black_transponder_snail'")
-                    .comment("Example: ['baby_black_transponder_snail'] to disable only baby black snails")
+                    .comment("Valid values: 'den_den_mushi', 'white_den_den_mushi', 'black_den_den_mushi', 'baby_black_den_den_mushi'")
+                    .comment("(the older names 'black_transponder_snail' and 'baby_black_transponder_snail' still work)")
+                    .comment("Example: ['baby_black_den_den_mushi'] to disable only baby black den den mushi")
                     .defineList("disabled_snails",
                             Arrays.asList(),
                             obj -> obj instanceof String);
@@ -456,10 +457,10 @@ public class ModConfig {
 
             // Black Transponder Snail Configuration
             builder.comment("")
-                    .comment("Black Transponder Snail")
+                    .comment("Black Den Den Mushi")
                     .comment("-".repeat(60))
                     .comment("Spawns in medium to deep water (5-30 blocks deep)")
-                    .push("black_transponder_snail");
+                    .push("black_den_den_mushi");
 
             blackTransponderSnailSpawnRate = builder
                     .comment("Spawn rate percentage (0-100, decimals allowed)")
@@ -474,14 +475,14 @@ public class ModConfig {
                     .comment("Maximum group size when spawning")
                     .defineInRange("max_group_size", 3, 1, 64);
 
-            builder.pop(); // black_transponder_snail
+            builder.pop(); // black_den_den_mushi
 
             // Baby Black Transponder Snail Configuration
             builder.comment("")
-                    .comment("Baby Black Transponder Snail")
+                    .comment("Baby Black Den Den Mushi")
                     .comment("-".repeat(60))
                     .comment("Spawns in medium to deep water (5-30 blocks deep)")
-                    .push("baby_black_transponder_snail");
+                    .push("baby_black_den_den_mushi");
 
             babyBlackTransponderSnailSpawnRate = builder
                     .comment("Spawn rate percentage (0-100, decimals allowed)")
@@ -496,7 +497,7 @@ public class ModConfig {
                     .comment("Maximum group size when spawning")
                     .defineInRange("max_group_size", 2, 1, 64);
 
-            builder.pop(); // baby_black_transponder_snail
+            builder.pop(); // baby_black_den_den_mushi
 
             // White Den Den Mushi Configuration
             builder.comment("")
@@ -799,7 +800,9 @@ public class ModConfig {
     }
 
     public static boolean isSnailSpawnEnabled(String snailId) {
-        return !cachedDisabledSnails.contains(snailId);
+        // a disabled list written before the rename names the creature by its old id: that still disables it
+        String legacy = net.eclipce.transpondersnails.visual.LegacyIds.legacyEntityName(snailId);
+        return !cachedDisabledSnails.contains(snailId) && (legacy == null || !cachedDisabledSnails.contains(legacy));
     }
 
     // Den Den Mushi spawn getters

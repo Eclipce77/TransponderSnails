@@ -39,16 +39,16 @@ public class BlackTransponderSnailSpawnConditions {
 
 
         // 1. Check if this snail type is enabled in config
-        String snailId = entityType == net.eclipce.transpondersnails.entity.ModEntities.BLACK_TRANSPONDER_SNAIL.get()
-                ? "black_transponder_snail"
-                : "baby_black_transponder_snail";
+        String snailId = entityType == net.eclipce.transpondersnails.entity.ModEntities.BLACK_DEN_DEN_MUSHI.get()
+                ? "black_den_den_mushi"
+                : "baby_black_den_den_mushi";
 
         if (!ModConfig.isSnailSpawnEnabled(snailId)) {
             return false;
         }
 
         // 2. Check if spawn rate allows spawning
-        double spawnRate = snailId.equals("black_transponder_snail")
+        double spawnRate = snailId.equals("black_den_den_mushi")
                 ? ModConfig.getBlackTransponderSnailSpawnRate()
                 : ModConfig.getBabyBlackTransponderSnailSpawnRate();
 

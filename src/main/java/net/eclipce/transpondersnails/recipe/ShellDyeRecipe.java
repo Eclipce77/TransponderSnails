@@ -14,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Custom shapeless crafting recipe for dyeing snail shells
- * Works with: Den Den Mushi, Baby Den Den Mushi, Black Transponder Snail,
+ * Works with: Den Den Mushi, Baby Den Den Mushi, Black Transponder Snail, Black Den Den Mushi,
  *             Baby Black Transponder Snail, White Den Den Mushi,
  *             Transponder Snail blocks, White Transponder Snail block
  *
@@ -101,6 +101,7 @@ public class ShellDyeRecipe extends CustomRecipe {
         return item instanceof DenDenMushiItem
                 || item instanceof BabyDenDenMushiItem
                 || item instanceof BlackTransponderSnailItem
+                || item instanceof net.eclipce.transpondersnails.item.BlackDenDenMushiItem
                 || item instanceof BabyBlackTransponderSnailItem
                 || item instanceof WhiteDenDenMushiItem
                 || item instanceof TransponderSnailItem
@@ -122,6 +123,7 @@ public class ShellDyeRecipe extends CustomRecipe {
      *   WhiteDenDenMushiItem     → "ShellColor"  (capital)
      *   HornedDenDenMushiItem    → "ShellColor"  (capital)
      *   BlackTransponderSnailItem     → "shell_color" (lowercase)
+     *   BlackDenDenMushiItem          → "shell_color" (lowercase)
      *   BabyBlackTransponderSnailItem → "shell_color" (lowercase)
      *   TransponderSnailItem     → "shell_color" (lowercase)
      */
@@ -163,6 +165,10 @@ public class ShellDyeRecipe extends CustomRecipe {
         }
         // Black Transponder Snail — lowercase key to match SHELL_COLOR_TAG
         else if (item instanceof BlackTransponderSnailItem) {
+            stack.getOrCreateTag().putInt("shell_color", colorId);
+        }
+        // Black Den Den Mushi (the item) — the same lowercase key, so the Black Transponder Snail crafted from it keeps the shell
+        else if (item instanceof net.eclipce.transpondersnails.item.BlackDenDenMushiItem) {
             stack.getOrCreateTag().putInt("shell_color", colorId);
         }
         // Baby Black Transponder Snail — lowercase key to match SHELL_COLOR_TAG

@@ -34,8 +34,8 @@ public class ModEntities {
                             .build("horned_den_den_mushi"));
 
     // Baby Black Transponder Snail Entity
-    public static final RegistryObject<EntityType<BabyBlackTransponderSnailEntity>> BABY_BLACK_TRANSPONDER_SNAIL =
-            ENTITY_TYPES.register("baby_black_transponder_snail",
+    public static final RegistryObject<EntityType<BabyBlackTransponderSnailEntity>> BABY_BLACK_DEN_DEN_MUSHI =
+            ENTITY_TYPES.register("baby_black_den_den_mushi",
                     () -> EntityType.Builder.<BabyBlackTransponderSnailEntity>of(
                                     BabyBlackTransponderSnailEntity::new,
                                     MobCategory.CREATURE
@@ -43,12 +43,12 @@ public class ModEntities {
                             .sized(0.16F, 0.12F) // Width and Height (hitbox size)
                             .clientTrackingRange(8) // How far away clients can see this entity
                             .updateInterval(3) // Update every 3 ticks
-                            .build("baby_black_transponder_snail")
+                            .build("baby_black_den_den_mushi")
             );
 
     // Black Transponder Snail Entity
-    public static final RegistryObject<EntityType<BlackTransponderSnailEntity>> BLACK_TRANSPONDER_SNAIL =
-            ENTITY_TYPES.register("black_transponder_snail",
+    public static final RegistryObject<EntityType<BlackTransponderSnailEntity>> BLACK_DEN_DEN_MUSHI =
+            ENTITY_TYPES.register("black_den_den_mushi",
                     () -> EntityType.Builder.<BlackTransponderSnailEntity>of(
                                     BlackTransponderSnailEntity::new,
                                     MobCategory.CREATURE
@@ -56,7 +56,7 @@ public class ModEntities {
                             .sized(0.75F, 0.35F) // Width and Height (hitbox size)
                             .clientTrackingRange(10) // How far away clients can see this entity
                             .updateInterval(3) // Update every 3 ticks
-                            .build("black_transponder_snail")
+                            .build("black_den_den_mushi")
             );
 
     // White Den Den Mushi (FIXED: uses WhiteDenDenMushiEntity type)
@@ -74,8 +74,8 @@ public class ModEntities {
     public static void onAttributeCreate(EntityAttributeCreationEvent event) {
         event.put(ModEntities.DEN_DEN_MUSHI.get(), DenDenMushiEntity.createAttributes().build());
         event.put(ModEntities.HORNED_DEN_DEN_MUSHI.get(), HornedDenDenMushiEntity.createAttributes().build());
-        event.put(ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
-        event.put(ModEntities.BLACK_TRANSPONDER_SNAIL.get(), BlackTransponderSnailEntity.createAttributes().build());
+        event.put(ModEntities.BABY_BLACK_DEN_DEN_MUSHI.get(), BabyBlackTransponderSnailEntity.createAttributes().build());
+        event.put(ModEntities.BLACK_DEN_DEN_MUSHI.get(), BlackTransponderSnailEntity.createAttributes().build());
         event.put(ModEntities.WHITE_DEN_DEN_MUSHI.get(), WhiteDenDenMushiEntity.createAttributes().build());
     }
 
@@ -105,7 +105,7 @@ public class ModEntities {
 
         // Black Transponder Snail - spawns underwater
         event.register(
-                ModEntities.BLACK_TRANSPONDER_SNAIL.get(),
+                ModEntities.BLACK_DEN_DEN_MUSHI.get(),
                 SpawnPlacements.Type.IN_WATER,
                 Heightmap.Types.OCEAN_FLOOR,
                 BlackTransponderSnailSpawnConditions::checkBlackTransponderSnailSpawnRules,
@@ -114,7 +114,7 @@ public class ModEntities {
 
         // Baby Black Transponder Snail - spawns underwater
         event.register(
-                ModEntities.BABY_BLACK_TRANSPONDER_SNAIL.get(),
+                ModEntities.BABY_BLACK_DEN_DEN_MUSHI.get(),
                 SpawnPlacements.Type.IN_WATER,
                 Heightmap.Types.OCEAN_FLOOR,
                 BlackTransponderSnailSpawnConditions::checkBabyBlackTransponderSnailSpawnRules,

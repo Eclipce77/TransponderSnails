@@ -1,7 +1,7 @@
 package net.eclipce.transpondersnails.entity.custom;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
-import net.eclipce.transpondersnails.item.BlackTransponderSnailItem;
+import net.eclipce.transpondersnails.item.BlackDenDenMushiItem;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -55,8 +55,12 @@ public class BlackTransponderSnailEntity extends Animal {
     public final AnimationState idleAnimationState = new AnimationState();
     private int idleAnimationTimeout = 0;
 
+    /** Client-side countdown to the next little burst of bubbles (see {@link BubbleSchedule}). */
+    private int bubbleCountdown;
+
     public BlackTransponderSnailEntity(EntityType<? extends Animal> type, Level level) {
         super(type, level);
+        this.bubbleCountdown = BubbleSchedule.nextDelay(this.random::nextInt);
     }
 
     @Override
@@ -111,6 +115,25 @@ public class BlackTransponderSnailEntity extends Animal {
 
         if (this.level().isClientSide()) {
             setupAnimationStates();
+            tickBubbles();
+        }
+    }
+
+    /**
+     * Every once in a while, a few bubbles rise from the snail. Only while it is in water, and only drawn on the client (a purely visual effect, so
+     * nothing is sent over the network and each player sees their own random bubbles).
+     */
+    private void tickBubbles() {
+        boolean due = BubbleSchedule.isDue(this.bubbleCountdown);
+        this.bubbleCountdown = BubbleSchedule.tick(this.bubbleCountdown, this.random::nextInt);
+        if (!due || !this.isInWater()) return;
+
+        int bubbles = BubbleSchedule.burstSize(this.random::nextInt);
+        for (int i = 0; i < bubbles; i++) {
+            double x = this.getX() + (this.random.nextDouble() - 0.5D) * 0.5D;
+            double y = this.getY() + 0.2D + this.random.nextDouble() * 0.2D;
+            double z = this.getZ() + (this.random.nextDouble() - 0.5D) * 0.5D;
+            this.level().addParticle(net.minecraft.core.particles.ParticleTypes.BUBBLE, x, y, z, 0.0D, 0.05D + this.random.nextDouble() * 0.05D, 0.0D);
         }
     }
 
@@ -222,17 +245,17 @@ public class BlackTransponderSnailEntity extends Animal {
         if (itemStack.isEmpty()) {
             if (!this.level().isClientSide) {
 
-                // Create item with this entity's shell color
-                ItemStack snailItem = BlackTransponderSnailItem.createFromEntity(this);
+                // Picking it up gives the Black Den Den Mushi item (the crafting ingredient) with this entity's shell color;
+                // the Black Transponder Snail itself is crafted from that item
+                ItemStack snailItem = BlackDenDenMushiItem.createFromEntity(this);
 
                 // Give item to player or drop it
                 if (!player.getInventory().add(snailItem)) {
                     player.drop(snailItem, false);
                 }
 
-                // Play pickup sound
-                this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.3F, 0.8F);
+                // Pickup sound: the standard Den Den Mushi's
+                DenDenMushiPickup.playSound(this);
 
                 // Remove entity
                 this.discard();

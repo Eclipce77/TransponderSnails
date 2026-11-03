@@ -1,7 +1,7 @@
 package net.eclipce.transpondersnails.entity.custom;
 
 import net.eclipce.transpondersnails.entity.ModEntities;
-import net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem;
+import net.eclipce.transpondersnails.item.BabyBlackDenDenMushiItem;
 import net.eclipce.transpondersnails.item.ModItems;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -211,17 +211,17 @@ public class BabyBlackTransponderSnailEntity extends Animal {
         if (itemStack.isEmpty()) {
             if (!this.level().isClientSide) {
 
-                // Create item with this entity's shell color
-                ItemStack snailItem = BabyBlackTransponderSnailItem.createFromEntity(this);
+                // Picking it up gives the Baby Black Den Den Mushi item (the crafting ingredient) with this entity's shell color;
+                // the Baby Black Transponder Snail itself is crafted from that item
+                ItemStack snailItem = BabyBlackDenDenMushiItem.createFromEntity(this);
 
                 // Give item to player or drop it
                 if (!player.getInventory().add(snailItem)) {
                     player.drop(snailItem, false);
                 }
 
-                // Play pickup sound
-                this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2F, 0.2F);
+                // Pickup sound: the standard Den Den Mushi's
+                DenDenMushiPickup.playSound(this);
 
                 // Remove entity
                 this.discard();

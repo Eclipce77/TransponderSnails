@@ -169,6 +169,18 @@ public class DenDenMushiStonecutterRecipe extends StonecutterRecipe {
             }
         }
 
+        // Black Transponder Snail -> Black Den Den Mushi (shell colour only - the Black snails have no body colour)
+        if (!input.isEmpty() && input.getItem() == ModItems.BLACK_TRANSPONDER_SNAIL.get()) {
+            result = net.eclipce.transpondersnails.item.BlackDenDenMushiItem.create(
+                    net.eclipce.transpondersnails.item.BlackTransponderSnailItem.getShellColorId(input));
+        }
+
+        // Baby Black Transponder Snail -> Baby Black Den Den Mushi (shell colour only)
+        if (!input.isEmpty() && input.getItem() == ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get()) {
+            result = net.eclipce.transpondersnails.item.BabyBlackDenDenMushiItem.createBaby(
+                    net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem.getShellColorId(input));
+        }
+
         if (!input.isEmpty() && input.getItem() == net.eclipce.transpondersnails.item.ModItems.WHITE_TRANSPONDER_SNAIL.get()) {
             // Override result to be WHITE_DEN_DEN_MUSHI
             result = new ItemStack(net.eclipce.transpondersnails.item.ModItems.WHITE_DEN_DEN_MUSHI.get());

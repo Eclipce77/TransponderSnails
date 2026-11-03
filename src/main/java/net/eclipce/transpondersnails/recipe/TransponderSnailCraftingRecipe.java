@@ -59,6 +59,30 @@ public class TransponderSnailCraftingRecipe extends ShapedRecipe {
             nbt.put("BlockEntityTag", blockEntityTag);
         }
 
+        // A Black Transponder Snail made from a Black Den Den Mushi: it has only a shell (no body colour), and it keeps the one the creature had
+        if (result.getItem() == ModItems.BLACK_TRANSPONDER_SNAIL.get()) {
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                ItemStack stack = container.getItem(i);
+                if (stack.getItem() == ModItems.BLACK_DEN_DEN_MUSHI.get()) {
+                    net.eclipce.transpondersnails.item.BlackTransponderSnailItem.setShellColor(result,
+                            net.minecraft.world.item.DyeColor.byId(net.eclipce.transpondersnails.item.BlackDenDenMushiItem.getShellColorId(stack)));
+                    break;
+                }
+            }
+        }
+
+        // The same for the Baby Black Transponder Snail made from a Baby Black Den Den Mushi
+        if (result.getItem() == ModItems.BABY_BLACK_TRANSPONDER_SNAIL.get()) {
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                ItemStack stack = container.getItem(i);
+                if (stack.getItem() == ModItems.BABY_BLACK_DEN_DEN_MUSHI.get()) {
+                    net.eclipce.transpondersnails.item.BabyBlackTransponderSnailItem.setShellColor(result,
+                            net.minecraft.world.item.DyeColor.byId(net.eclipce.transpondersnails.item.BabyBlackDenDenMushiItem.getShellColorId(stack)));
+                    break;
+                }
+            }
+        }
+
         // An UPGRADE of a snail that is made from no Den Den Mushi (a Transponder Snail + a Transmitter): the new snail IS the old one with a transmitter,
         // so it keeps the old one's colours - body and shell - instead of coming out colourless (it used to, and was given a new random body when placed).
         if (denDenMushi.isEmpty() || !DenDenMushiItem.isCaptured(denDenMushi)) {

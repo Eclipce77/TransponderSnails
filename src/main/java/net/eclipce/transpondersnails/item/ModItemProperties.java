@@ -18,6 +18,7 @@ public class ModItemProperties {
         registerDenDenMushiProperties();
         registerPortableBlackProperties();
         registerBlackTransponderSnailProperties();
+        registerBlackDenDenMushiProperties();
         registerBabyBlackTransponderSnailProperties();
 
     }
@@ -122,6 +123,22 @@ public class ModItemProperties {
                 PortableBlackSnailItemProperties::calculateCallState
         );
 
+    }
+
+    /**
+     * Register the shell colour predicate of the Black Den Den Mushi item (the same 0.00-0.15 scale as the Black Transponder Snail it is made into).
+     */
+    private static void registerBlackDenDenMushiProperties() {
+        ItemProperties.register(
+                ModItems.BLACK_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, level, entity, seed) -> BlackDenDenMushiItem.getShellColorId(stack) / 100.0f   // division, not * 0.01f (float error pushes some ids below their thresholds)
+        );
+        ItemProperties.register(
+                ModItems.BABY_BLACK_DEN_DEN_MUSHI.get(),
+                new ResourceLocation(TransponderSnails.MOD_ID, "shell_color"),
+                (stack, level, entity, seed) -> BabyBlackDenDenMushiItem.getShellColorId(stack) / 100.0f
+        );
     }
 
     /**
