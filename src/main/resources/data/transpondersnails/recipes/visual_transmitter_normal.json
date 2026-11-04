@@ -3,7 +3,7 @@
   "category": "misc",
   "pattern": [
     " L ",
-    "ICI",
+    "ITI",
     "ICW"
   ],
   "key": {
@@ -15,6 +15,9 @@
     },
     "W": {
       "item": "transpondersnails:wire"
+    },
+    "T": {
+      "item": "transpondersnails:transmitter"
     },
     "C": {
       "item": "transpondersnails:copper_nugget"
