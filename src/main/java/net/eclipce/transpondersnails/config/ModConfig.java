@@ -381,6 +381,7 @@ public class ModConfig {
         public final ForgeConfigSpec.IntValue babyBlackTransponderSnailMaxGroup;
 
         // White Den Den Mushi (land snail - white body variant)
+        public final ForgeConfigSpec.DoubleValue hornedDenDenMushiSpawnRate;
         public final ForgeConfigSpec.DoubleValue whiteDenDenMushiSpawnRate;
         public final ForgeConfigSpec.IntValue whiteDenDenMushiMinGroup;
         public final ForgeConfigSpec.IntValue whiteDenDenMushiMaxGroup;
@@ -440,10 +441,10 @@ public class ModConfig {
                     .push("den_den_mushi");
 
             denDenMushiSpawnRate = builder
-                    .comment("Spawn rate percentage (0-100, decimals allowed)")
-                    .comment("100 = normal spawn rate, 50 = half as common, 0 = disabled")
-                    .comment("This multiplies the spawn weight in biome modifiers")
-                    .defineInRange("spawn_rate", 100.0, 0.0, 100.0);
+                    .comment("Chance (percent, 0-100, decimals allowed) that a spawn attempt for this snail goes ahead")
+                    .comment("Default: 70. The snails share one pool, so these chances set how common each one is compared with the others.")
+                    .comment("0 = disabled. Changing the default does not update an existing config file: edit or delete it.")
+                    .defineInRange("spawn_rate", DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
 
             denDenMushiMinGroup = builder
                     .comment("Minimum group size when spawning")
@@ -463,9 +464,9 @@ public class ModConfig {
                     .push("black_den_den_mushi");
 
             blackTransponderSnailSpawnRate = builder
-                    .comment("Spawn rate percentage (0-100, decimals allowed)")
-                    .comment("100 = normal spawn rate, 50 = half as common, 0 = disabled")
-                    .defineInRange("spawn_rate", 100.0, 0.0, 100.0);
+                    .comment("Chance (percent, 0-100, decimals allowed) that a spawn attempt for this snail goes ahead")
+                    .comment("Default: 2. 0 = disabled.")
+                    .defineInRange("spawn_rate", DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE, 0.0, 100.0);
 
             blackTransponderSnailMinGroup = builder
                     .comment("Minimum group size when spawning")
@@ -485,9 +486,9 @@ public class ModConfig {
                     .push("baby_black_den_den_mushi");
 
             babyBlackTransponderSnailSpawnRate = builder
-                    .comment("Spawn rate percentage (0-100, decimals allowed)")
-                    .comment("100 = normal spawn rate, 50 = half as common, 0 = disabled")
-                    .defineInRange("spawn_rate", 100.0, 0.0, 100.0);
+                    .comment("Chance (percent, 0-100, decimals allowed) that a spawn attempt for this snail goes ahead")
+                    .comment("Default: 2. 0 = disabled.")
+                    .defineInRange("spawn_rate", DEFAULT_BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE, 0.0, 100.0);
 
             babyBlackTransponderSnailMinGroup = builder
                     .comment("Minimum group size when spawning")
@@ -499,6 +500,20 @@ public class ModConfig {
 
             builder.pop(); // baby_black_den_den_mushi
 
+            // Horned Den Den Mushi Configuration
+            builder.comment("")
+                    .comment("Horned Den Den Mushi")
+                    .comment("-".repeat(60))
+                    .comment("Spawns on land like regular Den Den Mushi")
+                    .push("horned_den_den_mushi");
+
+            hornedDenDenMushiSpawnRate = builder
+                    .comment("Chance (percent, 0-100, decimals allowed) that a spawn attempt for this snail goes ahead")
+                    .comment("Default: 5. 0 = disabled.")
+                    .defineInRange("spawn_rate", DEFAULT_HORNED_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
+
+            builder.pop(); // horned_den_den_mushi
+
             // White Den Den Mushi Configuration
             builder.comment("")
                     .comment("White Den Den Mushi")
@@ -507,9 +522,9 @@ public class ModConfig {
                     .push("white_den_den_mushi");
 
             whiteDenDenMushiSpawnRate = builder
-                    .comment("Spawn rate percentage (0-100, decimals allowed)")
-                    .comment("100 = normal spawn rate, 50 = half as common, 0 = disabled")
-                    .defineInRange("spawn_rate", 100.0, 0.0, 100.0);
+                    .comment("Chance (percent, 0-100, decimals allowed) that a spawn attempt for this snail goes ahead")
+                    .comment("Default: 0.5. 0 = disabled.")
+                    .defineInRange("spawn_rate", DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
 
             whiteDenDenMushiMinGroup = builder
                     .comment("Minimum group size when spawning")
@@ -560,10 +575,11 @@ public class ModConfig {
     private static final int DEFAULT_VISUAL_MAX_SCREEN_SIZE = 20;
 
     // Spawn defaults
-    private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
-    private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
-    private static final double DEFAULT_BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 100.0;
-    private static final double DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE = 100.0;
+    private static final double DEFAULT_DEN_DEN_MUSHI_SPAWN_RATE = 70.0;
+    private static final double DEFAULT_HORNED_DEN_DEN_MUSHI_SPAWN_RATE = 5.0;
+    private static final double DEFAULT_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 2.0;
+    private static final double DEFAULT_BABY_BLACK_TRANSPONDER_SNAIL_SPAWN_RATE = 2.0;
+    private static final double DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE = 0.5;
 
     // Cache for client values
     private static boolean cachedEnableNumpad = DEFAULT_ENABLE_NUMPAD;
@@ -628,6 +644,7 @@ public class ModConfig {
     private static int cachedBabyBlackTransponderSnailMinGroup = 1;
     private static int cachedBabyBlackTransponderSnailMaxGroup = 2;
 
+    private static double cachedHornedDenDenMushiSpawnRate = DEFAULT_HORNED_DEN_DEN_MUSHI_SPAWN_RATE;
     private static double cachedWhiteDenDenMushiSpawnRate = DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE;
     private static int cachedWhiteDenDenMushiMinGroup = 1;
     private static int cachedWhiteDenDenMushiMaxGroup = 2;
@@ -692,6 +709,7 @@ public class ModConfig {
             cachedBabyBlackTransponderSnailMinGroup = SERVER.spawning.babyBlackTransponderSnailMinGroup.get();
             cachedBabyBlackTransponderSnailMaxGroup = SERVER.spawning.babyBlackTransponderSnailMaxGroup.get();
 
+            cachedHornedDenDenMushiSpawnRate = getValidatedValue(SERVER.spawning.hornedDenDenMushiSpawnRate.get(), DEFAULT_HORNED_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
             cachedWhiteDenDenMushiSpawnRate = getValidatedValue(SERVER.spawning.whiteDenDenMushiSpawnRate.get(), DEFAULT_WHITE_DEN_DEN_MUSHI_SPAWN_RATE, 0.0, 100.0);
             cachedWhiteDenDenMushiMinGroup = SERVER.spawning.whiteDenDenMushiMinGroup.get();
             cachedWhiteDenDenMushiMaxGroup = SERVER.spawning.whiteDenDenMushiMaxGroup.get();
@@ -842,6 +860,16 @@ public class ModConfig {
 
     public static int getBabyBlackTransponderSnailMaxGroup() {
         return cachedBabyBlackTransponderSnailMaxGroup;
+    }
+
+    // Horned Den Den Mushi spawn getter
+    public static double getHornedDenDenMushiSpawnRate() {
+        return cachedHornedDenDenMushiSpawnRate;
+    }
+
+    /** Whether snails may spawn in this dimension (e.g. "minecraft:overworld"): the allowed_dimensions setting. */
+    public static boolean isSpawnDimensionAllowed(String dimensionId) {
+        return cachedAllowedDimensions.contains(dimensionId);
     }
 
     // White Den Den Mushi spawn getters

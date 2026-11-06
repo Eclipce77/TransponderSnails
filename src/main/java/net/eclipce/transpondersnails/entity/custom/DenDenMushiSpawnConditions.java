@@ -28,6 +28,11 @@ public class DenDenMushiSpawnConditions {
                                                      BlockPos pos,
                                                      RandomSource random) {
 
+        // Only in the dimensions the server allows (allowed_dimensions)
+        if (level.getLevel() != null && !ModConfig.isSpawnDimensionAllowed(level.getLevel().dimension().location().toString())) {
+            return false;
+        }
+
         // 1. Check if Den Den Mushi spawning is enabled in config
         if (!ModConfig.isSnailSpawnEnabled("den_den_mushi")) {
             return false;

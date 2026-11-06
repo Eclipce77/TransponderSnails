@@ -18,6 +18,11 @@ public class WhiteDenDenMushiSpawnConditions {
                                                           BlockPos pos,
                                                           RandomSource random) {
 
+        // Only in the dimensions the server allows (allowed_dimensions)
+        if (level.getLevel() != null && !ModConfig.isSpawnDimensionAllowed(level.getLevel().dimension().location().toString())) {
+            return false;
+        }
+
         if (!ModConfig.isSnailSpawnEnabled("white_den_den_mushi")) {
             return false;
         }

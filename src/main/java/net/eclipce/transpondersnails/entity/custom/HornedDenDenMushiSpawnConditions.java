@@ -26,13 +26,18 @@ public class HornedDenDenMushiSpawnConditions {
                                                            RandomSource random) {
 
 
+        // Only in the dimensions the server allows (allowed_dimensions)
+        if (level.getLevel() != null && !ModConfig.isSpawnDimensionAllowed(level.getLevel().dimension().location().toString())) {
+            return false;
+        }
+
         // 1. Config-gated enable/disable
         if (!ModConfig.isSnailSpawnEnabled("horned_den_den_mushi")) {
             return false;
         }
 
         // 2. Spawn rate check
-        double spawnRate = ModConfig.getDenDenMushiSpawnRate(); // reuse same rate as regular DDM
+        double spawnRate = ModConfig.getHornedDenDenMushiSpawnRate();
         if (spawnRate <= 0) {
             return false;
         }

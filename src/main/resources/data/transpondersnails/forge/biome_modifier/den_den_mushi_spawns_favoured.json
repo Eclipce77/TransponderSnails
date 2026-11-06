@@ -1,0 +1,24 @@
+{
+  "type": "forge:add_spawns",
+  "biomes": "#transpondersnails:favoured_land_snail_biomes",
+  "spawners": [
+    {
+      "type": "transpondersnails:den_den_mushi",
+      "weight": 85,
+      "minCount": 2,
+      "maxCount": 4
+    },
+    {
+      "type": "transpondersnails:horned_den_den_mushi",
+      "weight": 85,
+      "minCount": 1,
+      "maxCount": 2
+    },
+    {
+      "type": "transpondersnails:white_den_den_mushi",
+      "weight": 85,
+      "minCount": 1,
+      "maxCount": 2
+    }
+  ]
+}

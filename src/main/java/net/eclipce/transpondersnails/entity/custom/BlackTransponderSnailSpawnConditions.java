@@ -38,6 +38,11 @@ public class BlackTransponderSnailSpawnConditions {
                                                                RandomSource random) {
 
 
+        // Only in the dimensions the server allows (allowed_dimensions)
+        if (level.getLevel() != null && !ModConfig.isSpawnDimensionAllowed(level.getLevel().dimension().location().toString())) {
+            return false;
+        }
+
         // 1. Check if this snail type is enabled in config
         String snailId = entityType == net.eclipce.transpondersnails.entity.ModEntities.BLACK_DEN_DEN_MUSHI.get()
                 ? "black_den_den_mushi"
