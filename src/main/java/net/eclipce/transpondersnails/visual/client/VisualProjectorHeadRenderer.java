@@ -47,6 +47,10 @@ public class VisualProjectorHeadRenderer implements BlockEntityRenderer<Transpon
         if (!snail.isVisualSnail()) {
             return;
         }
+        if (VisualFeedManager.isAtCaptureCamera(snail.getBlockPos())) {
+            FeedDiagnostics.headHidden();
+            return; // the camera sits at this snail's eyes: its own head is not in its own picture (it was a giant golden shape across the view)
+        }
         Level level = snail.getLevel();
         if (level == null) {
             return;

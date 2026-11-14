@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
+import net.eclipce.transpondersnails.visual.FeedEntityRules;
 import net.eclipce.transpondersnails.visual.ScreenLayout;
 import net.eclipce.transpondersnails.visual.FrameGovernor;
 import net.eclipce.transpondersnails.visual.ProjectorEffects;
@@ -80,7 +81,19 @@ public final class VisualFeedManager {
     private static final Map<BlockPos, VisualFeed> FEEDS = new HashMap<>();
 
     private static boolean capturing = false;
+    // What the capture in progress can really see (see feedMayShowEntity / isCaptureCamera); only meaningful while capturing.
+    private static Vec3 captureEye = null;
+    private static BlockPos captureCamera = null;
+    private static double captureRadiusSq = 0.0;
+    private static int capturePlayerChunkX = 0;
+    private static int capturePlayerChunkZ = 0;
+    private static int captureViewDistance = 0;
     private static int feedCounter = 0;
+    /** Did the level renderer itself draw the local player during the capture in progress? (Normally not: vanilla skips a LocalPlayer that is not the camera.) */
+    private static boolean playerDrawnByLevel = false;
+    private static boolean compatLogged = false;
+    /** Set while VisualScreenRenderer draws the player by hand, so that draw is not mistaken for the level renderer's. */
+    private static boolean manualPlayerDraw = false;
     private static long lastPruneMs = 0L;
     private static long lastRemoteCheckMs = 0L;
     private static Boolean sodiumLike = null;
@@ -189,6 +202,70 @@ public final class VisualFeedManager {
      *  LevelRendererMixin skips its own section setup. */
     public static boolean isCapturing() {
         return capturing;
+    }
+
+    /** Called for every entity the dispatcher draws (EntityRenderDispatcherMixin). */
+    public static void noteEntityRendered(Entity entity) {
+        if (capturing && !manualPlayerDraw && entity == Minecraft.getInstance().player) {
+            playerDrawnByLevel = true;
+        }
+    }
+
+    public static boolean playerDrawnByLevel() {
+        return playerDrawnByLevel;
+    }
+
+    static void setManualPlayerDraw(boolean value) {
+        manualPlayerDraw = value;
+    }
+
+    /** Is this the snail whose view is being captured right now? (Its own head must not be in its own picture.) */
+    public static boolean isCaptureCamera(BlockPos pos) {
+        return capturing && captureCamera != null && captureCamera.equals(pos);
+    }
+
+    /** Is this snail at the camera of the capture in progress (its own, or one close enough to be drawn across the lens)? Its projector head is not drawn then. */
+    public static boolean isAtCaptureCamera(BlockPos pos) {
+        if (!capturing || captureEye == null) return false;
+        if (captureCamera != null && captureCamera.equals(pos)) return true;
+        return pos.distToCenterSqr(captureEye.x, captureEye.y, captureEye.z) < 1.5 * 1.5;
+    }
+
+    /** A short description of the screens and the cameras they show, for the diagnostics. */
+    private static String describeLinks() {
+        StringBuilder sb = new StringBuilder();
+        for (ScreenLink link : LINKS.values()) {
+            if (sb.length() > 0) sb.append("; ");
+            sb.append("screen ").append(link.screenPos.toShortString()).append(" shows camera ").append(link.cameraPos.toShortString());
+            if (link.cameraPos2 != null) sb.append(" + ").append(link.cameraPos2.toShortString());
+            if (link.stream) sb.append(" (stream)");
+        }
+        return sb.length() == 0 ? "none" : sb.toString();
+    }
+
+    /**
+     * Should the capture in progress draw this entity? A camera shows what it can see: the picture only has terrain where this client has built it
+     * (inside the feed's view radius, and only as far as the player's own render distance), but entities are tracked much further out, so they
+     * were drawn floating over the empty sky beyond it - "entities everywhere, even out of view". Only entities that stand where there is terrain
+     * to show are drawn; the frustum of the camera and the depth buffer do the rest, as for any view.
+     */
+    public static boolean feedMayShowEntity(Entity entity) {
+        if (!capturing || captureEye == null) return true;
+        boolean allowed = FeedEntityRules.mayShow(entity.getX() - captureEye.x, entity.getY() - captureEye.y, entity.getZ() - captureEye.z, captureRadiusSq,
+                SectionPos.blockToSectionCoord(entity.getX()), SectionPos.blockToSectionCoord(entity.getZ()),
+                capturePlayerChunkX, capturePlayerChunkZ, captureViewDistance);
+        FeedDiagnostics.entity(entity, allowed, captureEye);
+        return allowed;
+    }
+
+    /** How far (chunks) a feed sees: its own radius, never more than this client has loaded, the server's limit and what the frame governor allows. */
+    private static int feedRadiusChunks(VisualFeed feed, int viewDistance) {
+        int radius = Math.min(Math.min(feed.viewChunks, viewDistance), VisualSettings.maxFeedViewChunks());
+        if (VisualSettings.adaptive()) {
+            radius = Math.min(radius, GOVERNOR.maxViewChunks(feed.viewChunks));
+            radius = Math.min(radius, VisualQuality.viewRadiusFor(feed.resolution, feed.viewChunks));
+        }
+        return Math.max(2, radius);
     }
 
     /** Embeddium / Rubidium / Sodium replace the vanilla chunk visibility code, so the vanilla-only shortcuts are off. */
@@ -307,6 +384,8 @@ public final class VisualFeedManager {
 
     public static void clearAll() {
         LINKS.clear();
+        FeedDiagnostics.forget();
+        ShaderCompat.reset();
         VisualRelayClient.clear();
         for (VisualFeed feed : FEEDS.values()) {
             try {
@@ -350,6 +429,8 @@ public final class VisualFeedManager {
         long nowNs = System.nanoTime();
         long nowMs = System.currentTimeMillis();
 
+        ShaderCompat.report();   // tells the server when a shader pack is on: no capture then (it would break the player's own view)
+
         // frame time -> governor (the gap after a pause / idle period is not a frame time)
         if (lastFrameNs != 0L) {
             double frameMs = (nowNs - lastFrameNs) / 1_000_000.0;
@@ -384,6 +465,7 @@ public final class VisualFeedManager {
         // The nearest feeds render, the rest keep their last picture. A feed whose screen has not reported "ready" yet (the
         // call is still connecting) always renders, otherwise the call could never finish connecting.
         CANDIDATES.clear();
+        if (ShaderCompat.isShaderPackActive()) return;   // never draw a second world inside a shader pack's frame
         for (VisualFeed feed : FEEDS.values()) {
             if (!feed.failed && !feed.remote && isWanted(feed, nowMs)) {   // a remote feed is not drawn here: its frames arrive over the network
                 CANDIDATES.add(feed);
@@ -395,8 +477,11 @@ public final class VisualFeedManager {
         VisualFeed due = null;
         for (int i = 0; i < CANDIDATES.size(); i++) {
             VisualFeed feed = CANDIDATES.get(i);
-            if (i >= maxActive && !isHandshakePending(feed)) continue;
-            feed.fps = effectiveFps(feed, adaptive);
+            // Beyond the number of feeds the governor allows at full rate a feed is not frozen: it is still drawn when it has waited
+            // FEED_MAX_STALE_MS (a far screen updates slowly instead of never). A camera drawn for far viewers keeps the rate the server asked for.
+            if (i >= maxActive && !isHandshakePending(feed) && !VisualRelayClient.isExporting(feed.cameraPos, nowMs)
+                    && nowNs - feed.lastCaptureNs < VisualCallConstants.FEED_MAX_STALE_MS * 1_000_000L) continue;
+            feed.fps = i >= maxActive ? Math.max(1, 1000 / (int) VisualCallConstants.FEED_MAX_STALE_MS) : effectiveFps(feed, adaptive);
             int exportFps = VisualRelayClient.exportFps(feed.cameraPos, nowMs);
             if (exportFps > 0) feed.fps = Math.max(feed.fps, exportFps); // far viewers get the rate the server asked for, however far the screens are
             if (nowNs - feed.lastCaptureNs < 1_000_000_000L / Math.max(1, feed.fps)) continue; // each feed has its own frame rate
@@ -568,6 +653,7 @@ public final class VisualFeedManager {
         // ---- remember everything the capture touches ----
         Entity oldCameraEntity = mc.cameraEntity;
         RenderTarget oldMainTarget = mc.getMainRenderTarget();
+        RenderTarget oldEntityTarget = levelRenderer.entityTarget;
         RenderTarget oldTranslucent = levelRenderer.translucentTarget;
         RenderTarget oldItemEntity = levelRenderer.itemEntityTarget;
         RenderTarget oldWeather = levelRenderer.weatherTarget;
@@ -599,13 +685,24 @@ public final class VisualFeedManager {
         boolean ok = false;
         String error = null;
 
+        captureEye = eyePos;
+        captureCamera = camPos;
+        int radiusChunks = feedRadiusChunks(feed, mc.options.getEffectiveRenderDistance());
+        double radiusBlocks = FeedEntityRules.radiusBlocks(radiusChunks);
+        captureRadiusSq = radiusBlocks * radiusBlocks;
+        capturePlayerChunkX = SectionPos.blockToSectionCoord(player.getX());
+        capturePlayerChunkZ = SectionPos.blockToSectionCoord(player.getZ());
+        captureViewDistance = Math.max(1, mc.options.getEffectiveRenderDistance() - 1);
+
+        FeedDiagnostics.begin();
+        playerDrawnByLevel = false;
         capturing = true;
         try {
             mc.renderBuffers().bufferSource().endBatch(); // make sure earlier world rendering is flushed
 
             eyeEntity.setPos(eyePos.x, eyePos.y, eyePos.z);
             eyeEntity.setYRot(lookDir.toYRot());
-            eyeEntity.setXRot(0.0F);
+            eyeEntity.setXRot(0.0F);   // a plain camera: level, looking the way the snail faces
 
             mc.cameraEntity = eyeEntity; // field, not Minecraft#setCameraEntity: that would touch the entity post effect
             camera.eyeHeight = 0.0F;      // the Marker is placed exactly at the eye point
@@ -619,6 +716,17 @@ public final class VisualFeedManager {
             mc.options.setCameraType(CameraType.FIRST_PERSON);
 
             // Fabulous graphics use extra targets sized for the main window; not supported inside a feed
+            // Mine Mine no Mi compatibility (only when that mod is installed, see MineMineNoMiCompat). The entity outline target (glowing entities) is sized for the main
+            // window. Vanilla leaves the outline step off in panoramic mode, but that mod forces LevelRenderer#shouldShowEntityOutlines on whenever the target exists; the step
+            // then clears it, which resets the GL viewport to the window's size, and everything drawn after the terrain came out magnified into one corner of the picture.
+            // With no target there is nothing to force.
+            if (MineMineNoMiCompat.present()) {
+                if (!compatLogged) {
+                    compatLogged = true;
+                    LOGGER.info("VisualFeedManager: Mine Mine no Mi detected - its compatibility for snail pictures is on");
+                }
+                levelRenderer.entityTarget = null;
+            }
             levelRenderer.translucentTarget = null;
             levelRenderer.itemEntityTarget = null;
             levelRenderer.weatherTarget = null;
@@ -676,6 +784,7 @@ public final class VisualFeedManager {
             mc.mainRenderTarget = oldMainTarget;
             oldMainTarget.bindWrite(true);
 
+            levelRenderer.entityTarget = oldEntityTarget;
             levelRenderer.translucentTarget = oldTranslucent;
             levelRenderer.itemEntityTarget = oldItemEntity;
             levelRenderer.weatherTarget = oldWeather;
@@ -700,6 +809,8 @@ public final class VisualFeedManager {
             camera.setup(level, restoreEntity, !oldCameraType.isFirstPerson(), oldCameraType.isMirrored(), partialTick);
 
             capturing = false;
+            captureEye = null;
+            captureCamera = null;
         }
 
         if (!ok) {
@@ -709,6 +820,7 @@ public final class VisualFeedManager {
 
         feed.okFrames++;
         long nowMs = System.currentTimeMillis();
+        FeedDiagnostics.finish(mc, feed, eyePos, facing, sodium, describeLinks());
         for (ScreenLink link : LINKS.values()) {
             if (link.usesCamera(feed.cameraPos) && link.pictureStartMs < 0L && !link.isEnding()) {
                 link.pictureStartMs = nowMs; // the fade-in of this screen starts now
@@ -755,12 +867,7 @@ public final class VisualFeedManager {
 
         // View radius: the feed's own, never more than this client has loaded (its render distance). With adaptive quality it
         // is also shorter for low resolutions (they cannot show distant detail anyway) and when the frame governor asks for it.
-        int radius = Math.min(Math.min(feed.viewChunks, viewDistance), VisualSettings.maxFeedViewChunks()); // ... and the server's limit
-        if (VisualSettings.adaptive()) {
-            radius = Math.min(radius, GOVERNOR.maxViewChunks(feed.viewChunks));
-            radius = Math.min(radius, VisualQuality.viewRadiusFor(feed.resolution, feed.viewChunks));
-        }
-        radius = Math.max(2, radius);
+        int radius = feedRadiusChunks(feed, viewDistance);
 
         // The sections are the player's own ViewArea slots; they are re-assigned when the PLAYER moves to another section, so
         // the list is rebuilt at once then (and when the radius changes), and otherwise only now and then.
@@ -842,8 +949,8 @@ public final class VisualFeedManager {
      */
     private static void updateRemoteModes(ClientLevel level, long nowMs) {
         for (VisualFeed feed : FEEDS.values()) {
-            boolean wantRemote = !feed.failed && hasRunningLink(feed) && RelayFrames.chooseRemote(feed.remote,
-                    loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_WIDE), loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_NARROW));
+            boolean wantRemote = !feed.failed && hasRunningLink(feed) && (ShaderCompat.isShaderPackActive() || RelayFrames.chooseRemote(feed.remote,
+                    loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_WIDE), loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_NARROW)));
             if (wantRemote && !feed.remote) {
                 feed.remote = true;
                 ackPendingLinks(feed);              // a call must not wait for a picture that comes over the network: its sound can start

@@ -150,6 +150,17 @@ public final class VisualCallConstants {
     public static final int FEED_SECTION_REFRESH_CAPTURES = 60; // also refreshed at once when the viewer changes section
     /** A feed is only re-rendered while a screen asked for it within this window (ms). */
     public static final long FEED_WANTED_WINDOW_MS = 1500L;
+    /**
+     * A feed that is wanted is drawn at least this often (ms), even when the frame-rate governor allows fewer feeds: a farther screen
+     * then updates slowly instead of never. (250 ms = 4 pictures a second at the very least.)
+     */
+    public static final long FEED_MAX_STALE_MS = 250L;
+    /**
+     * Nearest distance (blocks) a snail's camera can see (vanilla's near plane is 0.05). It was 0.45 for one test round, to hide the snail's own head - that was never the
+     * cause (the snail's head is skipped on its own), and it cut away any player standing right next to the snail, leaving only the parts further than 0.45 blocks (the feet).
+     */
+    public static final float FEED_NEAR_PLANE = 0.1F;
+
     /** Feeds that nobody asked for during this long (ms) and have no link are freed. */
     public static final long FEED_IDLE_RELEASE_MS = 5000L;
 

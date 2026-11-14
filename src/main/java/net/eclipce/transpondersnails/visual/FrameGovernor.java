@@ -32,10 +32,14 @@ public final class FrameGovernor {
     public static final long UP_AFTER_MS = 6000L;
     /** After stepping down, do not step back up for at least this long (stops it flapping). */
     public static final long HOLD_AFTER_DOWN_MS = 10000L;
-    /** The video may take this share of the player's time (0..1) before it is turned down: 12%. */
-    public static final double OVERHEAD_HIGH = 0.12;
-    /** Below this share (6%) it is comfortable and the quality may go back up. */
-    public static final double OVERHEAD_LOW = 0.06;
+    /**
+     * The video may take this share of the player's time (0..1) before it is turned down: 40%. (It was 12%: one capture of a snail's view costs
+     * 10-17 ms on a typical computer whatever its size, so 12% allowed only 4-6 pictures a second - the screens looked frozen and the second
+     * screen not at all. 40% is about 10-12 pictures a second at that cost; a player who is really in trouble is still caught by SLOW_MS.)
+     */
+    public static final double OVERHEAD_HIGH = 0.40;
+    /** Below this share (25%) it is comfortable and the quality may go back up. */
+    public static final double OVERHEAD_LOW = 0.25;
 
     private static final double ALPHA = 0.1;
     private static final double ALPHA_BASELINE = 0.05;
@@ -161,22 +165,25 @@ public final class FrameGovernor {
     public double fpsScale() {
         switch (level) {
             case 0: return 1.0;
-            case 1: return 0.75;
-            case 2: return 0.5;
-            default: return 0.34;
+            case 1: return 0.85;
+            case 2: return 0.7;
+            default: return 0.55;   // never lower: below about half the rate the picture looks frozen
         }
     }
 
-    /** How many feeds may be rendered at once (never fewer than 1, never more than {@code configured}). */
+    /**
+     * How many feeds may be rendered at full rate at once (never fewer than 2 if {@code configured} allows it - a call with two screens must
+     * show both -, never more than {@code configured}). Feeds beyond this are not frozen: VisualFeedManager still renders them now and then.
+     */
     public int maxActiveFeeds(int configured) {
         int n;
         switch (level) {
             case 0: n = configured; break;
             case 1: n = configured - 1; break;
             case 2: n = configured / 2; break;
-            default: n = 1; break;
+            default: n = 2; break;
         }
-        return Math.max(1, Math.min(configured, n));
+        return Math.max(Math.min(2, configured), Math.min(configured, n));
     }
 
     /** Highest view radius (chunks) allowed at the current level. */

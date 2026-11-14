@@ -29,6 +29,9 @@ public final class TileCodec {
     public static final int FLAG_KEY_START = 1;
     /** Set on the last packet of a key frame: from here on the picture is whole. */
     public static final int FLAG_KEY_END = 2;
+    /** Set on the last packet of EVERY frame (key or delta): the viewer shows a frame only when all of it has arrived, so no picture is ever half old, half new. */
+    public static final int FLAG_FRAME_END = 4;
+    public static final int ALL_FLAGS = FLAG_KEY_START | FLAG_KEY_END | FLAG_FRAME_END;
 
     public static final int MIN_SIZE = 64;
     public static final int MAX_SIZE = 2048;
@@ -80,10 +83,17 @@ public final class TileCodec {
     public static final class Encoder {
 
         private static final float[] TILE_QUALITIES = {0.85f, 0.70f, 0.55f, 0.40f, 0.25f};
-        /** A tile is "changed" when its sampled mean difference (0..255) reaches this, or several single pixels differ a lot (a spark, a particle). */
-        private static final double CHANGE_MEAN = 1.5;
-        private static final int BIG_PIXEL = 48;
-        private static final int BIG_PIXELS_NEEDED = 3;
+        /**
+         * A tile is "changed" when its mean difference (0..255) reaches this, or a few single pixels differ a lot (a spark, a particle, the edge of
+         * something that moved). Every pixel is looked at: looking at every other one let thin edges of a moving thing slip under the threshold,
+         * and what was left of it stayed on the screen as a smear.
+         */
+        private static final double CHANGE_MEAN = 0.6;
+        private static final int BIG_PIXEL = 36;
+        private static final int BIG_PIXELS_NEEDED = 2;
+        /** A tile that differs only a little (below the limits above) is still sent once it has differed this long: nothing stays stale for good. */
+        private static final long STALE_MS = 1000L;
+        private static final double STALE_MEAN = 0.05;
         /** The bucket never holds more than this many seconds of budget (so a long quiet spell does not allow a huge burst). */
         private static final double BURST_SECONDS = 0.5;
 
@@ -93,6 +103,8 @@ public final class TileCodec {
         private double tokens = 0.0;
         private long lastTokenMs = -1L;
         private double bytesPerTile = 250.0;   // a running estimate, to know how many tiles fit
+        private long[] differingSince;         // per tile: since when it has differed a little from what the viewers have (0 = it has not)
+        private long nowForScore;
 
         /** Tiles that differed in the last call (before the budget), tiles sent, bytes sent, and whether it was a key frame: for statistics and pacing. */
         public int lastChangedTiles;
@@ -123,6 +135,7 @@ public final class TileCodec {
             if (this.size != size || reference == null) {
                 this.size = size;
                 this.reference = new int[size * size];
+                this.differingSince = new long[(size / TILE) * (size / TILE)];
                 tokens = 0.0;
                 lastTokenMs = -1L;
             }
@@ -141,6 +154,7 @@ public final class TileCodec {
                 selectedCount = totalTiles;
                 lastChangedTiles = totalTiles;
             } else {
+                nowForScore = nowMs;
                 long[] changed = new long[totalTiles];
                 int changedCount = 0;
                 for (int ty = 0; ty < tilesPerRow; ty++) {
@@ -153,6 +167,10 @@ public final class TileCodec {
                 if (changedCount == 0) return List.of();
                 int canSend = (int) (tokens / Math.max(64.0, bytesPerTile));
                 if (canSend <= 0) return List.of();                 // over budget: wait, the tiles stay changed
+                // A frame is sent whole or not yet: sending only the most changed tiles of it makes the picture a patchwork of moments (tearing).
+                // So it waits until the budget covers every changed tile - unless that can never happen (the bucket is smaller than the frame), then it sends what fits.
+                int bucketTiles = (int) (rate * BURST_SECONDS / Math.max(64.0, bytesPerTile));
+                if (canSend < changedCount && changedCount <= bucketTiles) return List.of();
                 int take = Math.min(canSend, changedCount);
                 Arrays.sort(changed, 0, changedCount);              // by score, the most changed last
                 selected = new int[take];
@@ -172,11 +190,15 @@ public final class TileCodec {
                 int flags = 0;
                 if (key && i == 0) flags |= FLAG_KEY_START;
                 if (key && i == payloads.size() - 1) flags |= FLAG_KEY_END;
+                if (i == payloads.size() - 1) flags |= FLAG_FRAME_END;
                 packets.add(new Packet(flags, payloads.get(i)));
                 bytes += payloads.get(i).length;
             }
             // the viewers have these tiles now
-            for (int i = 0; i < selectedCount; i++) copyTile(argb, reference, size, selected[i] % tilesPerRow, selected[i] / tilesPerRow);
+            for (int i = 0; i < selectedCount; i++) {
+                copyTile(argb, reference, size, selected[i] % tilesPerRow, selected[i] / tilesPerRow);
+                differingSince[selected[i]] = 0L;
+            }
 
             tokens -= bytes;
             if (selectedCount > 0) bytesPerTile = 0.8 * bytesPerTile + 0.2 * ((double) bytes / selectedCount);
@@ -187,16 +209,16 @@ public final class TileCodec {
             return packets;
         }
 
-        /** 0 if the tile is as the viewers have it, otherwise 16 * its mean difference (at least 1). Looks at every other pixel each way. */
+        /** 0 if the tile is as the viewers have it (or differs so little that it can wait), otherwise 16 * its mean difference (at least 1). */
         private int changeScore(int[] argb, int size, int tx, int ty) {
             int x0 = tx * TILE;
             int y0 = ty * TILE;
             long sum = 0;
             int big = 0;
             int samples = 0;
-            for (int y = y0; y < y0 + TILE; y += 2) {
+            for (int y = y0; y < y0 + TILE; y++) {
                 int row = y * size;
-                for (int x = x0; x < x0 + TILE; x += 2) {
+                for (int x = x0; x < x0 + TILE; x++) {
                     int a = argb[row + x];
                     int b = reference[row + x];
                     int d = Math.abs(((a >> 16) & 255) - ((b >> 16) & 255)) + Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)) + Math.abs((a & 255) - (b & 255));
@@ -207,6 +229,14 @@ public final class TileCodec {
             }
             double mean = sum / (3.0 * samples);
             if (mean >= CHANGE_MEAN || big >= BIG_PIXELS_NEEDED) return Math.max(1, (int) Math.round(mean * 16.0));
+            int index = ty * (size / TILE) + tx;
+            if (mean >= STALE_MEAN || big >= 1) {
+                // a little different: wait, but not for ever (a ghost of something that moved away would otherwise stay)
+                if (differingSince[index] == 0L) differingSince[index] = nowForScore;
+                else if (nowForScore - differingSince[index] >= STALE_MS) return 1;
+            } else {
+                differingSince[index] = 0L;
+            }
             return 0;
         }
 
@@ -268,6 +298,9 @@ public final class TileCodec {
         private int[] image;
         private boolean ready = false;   // a whole key frame has arrived: the picture is whole
         private boolean inKey = false;
+        // the payloads of the frame that is arriving (not shown until its last payload is in)
+        private int[] pendingTiles = new int[0];
+        private int[] pendingPixels = new int[0];
 
         public boolean isReady() {
             return ready;
@@ -282,6 +315,8 @@ public final class TileCodec {
             image = null;
             ready = false;
             inKey = false;
+            pendingTiles = new int[0];
+            pendingPixels = new int[0];
         }
 
         /**
@@ -314,6 +349,8 @@ public final class TileCodec {
             boolean keyStart = (flags & FLAG_KEY_START) != 0;
             if (keyStart) {
                 inKey = true;
+                pendingTiles = new int[0];
+                pendingPixels = new int[0];
                 if (n != size) {                                   // a new size: start again (the old picture stays on the screen until this one is whole)
                     size = n;
                     image = new int[n * n];
@@ -342,7 +379,20 @@ public final class TileCodec {
                     return new Update(n, true, new int[0], Arrays.copyOf(image, image.length));   // the first whole picture
                 }
             }
-            return ready ? new Update(n, false, tiles, pixels) : null;
+            if (!ready) return null;
+            // keep this payload until the frame is complete, then give back all of it at once
+            int[] allTiles = Arrays.copyOf(pendingTiles, pendingTiles.length + tiles.length);
+            System.arraycopy(tiles, 0, allTiles, pendingTiles.length, tiles.length);
+            int[] allPixels = Arrays.copyOf(pendingPixels, pendingPixels.length + pixels.length);
+            System.arraycopy(pixels, 0, allPixels, pendingPixels.length, pixels.length);
+            pendingTiles = allTiles;
+            pendingPixels = allPixels;
+            boolean frameEnd = (flags & FLAG_FRAME_END) != 0 || (flags & FLAG_KEY_END) != 0;
+            if (!frameEnd && pendingTiles.length <= 2 * tilesPerRow * tilesPerRow) return null;   // (a frame this long never ends: show it rather than hoard it)
+            Update update = new Update(n, false, pendingTiles, pendingPixels);
+            pendingTiles = new int[0];
+            pendingPixels = new int[0];
+            return update;
         }
 
         private static int readVarInt(byte[] b, int[] pos) {

@@ -14,7 +14,7 @@ import java.util.Optional;
  */
 public final class VisualNetwork {
 
-    private static final String PROTOCOL = "7"; // 2: streams; 3: relayed video; 4: tile video; 5: split screens (taps); 6: private streams; 7: jamming
+    private static final String PROTOCOL = "8"; // 2: streams; 3: relayed video; 4: tile video; 5: split screens (taps); 6: private streams; 7: jamming; 8: shader pack state
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TransponderSnails.MOD_ID, "visual_video"),
@@ -69,5 +69,9 @@ public final class VisualNetwork {
         CHANNEL.registerMessage(id++, VisualFrameRelayPacket.class,
                 VisualFrameRelayPacket::encode, VisualFrameRelayPacket::decode, VisualFrameRelayPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        // a client with a shader pack on cannot draw cameras for others
+        CHANNEL.registerMessage(id++, VisualShaderStatePacket.class,
+                VisualShaderStatePacket::encode, VisualShaderStatePacket::decode, VisualShaderStatePacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

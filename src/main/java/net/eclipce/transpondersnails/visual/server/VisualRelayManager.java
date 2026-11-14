@@ -115,7 +115,7 @@ public final class VisualRelayManager {
         GlobalPos gp = GlobalPos.of(uploader.level().dimension(), camera);
         Stream stream = STREAMS.get(gp);
         if (stream == null || stream.uploader == null || !stream.uploader.equals(uploader.getUUID())) return;   // only the one that was asked
-        if (data == null || data.length < 8 || data.length > RelayFrames.MAX_FRAME_BYTES || (flags & ~(TileCodec.FLAG_KEY_START | TileCodec.FLAG_KEY_END)) != 0) return;
+        if (data == null || data.length < 8 || data.length > RelayFrames.MAX_FRAME_BYTES || (flags & ~TileCodec.ALL_FLAGS) != 0) return;
 
         long now = System.currentTimeMillis();
         if (now - stream.windowStartMs >= 1000L) {
@@ -146,6 +146,26 @@ public final class VisualRelayManager {
         if (!targets.isEmpty()) {
             VisualNetwork.CHANNEL.send(PacketDistributor.NMLIST.with(() -> targets), new VisualFrameRelayPacket(camera, flags, data));
         }
+    }
+
+    /** How long "this client has a shader pack on" holds without being renewed (the client says it every few seconds). */
+    public static final long SHADER_CLIENT_TTL_MS = 15000L;
+    private static final java.util.Map<UUID, Long> SHADER_CLIENTS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** A client says whether it has a shader pack on: such a client is not asked to render cameras for others. */
+    public static void setShaderClient(UUID player, boolean shaders) {
+        if (shaders) SHADER_CLIENTS.put(player, System.currentTimeMillis() + SHADER_CLIENT_TTL_MS);
+        else SHADER_CLIENTS.remove(player);
+    }
+
+    private static boolean hasShaders(UUID player, long now) {
+        Long until = SHADER_CLIENTS.get(player);
+        if (until == null) return false;
+        if (until <= now) {
+            SHADER_CLIENTS.remove(player);
+            return false;
+        }
+        return true;
     }
 
     public static void onPlayerLeft(UUID player) {
@@ -191,6 +211,8 @@ public final class VisualRelayManager {
             if (current != null && !current.level().dimension().equals(camera.dimension())) current = null;
             BlockPos at = camera.pos();
             List<ServerPlayer> candidates = new ArrayList<>(level.players());
+            candidates.removeIf(p -> hasShaders(p.getUUID(), now));      // a client with a shader pack on cannot draw the view
+            if (current != null && !candidates.contains(current)) current = null;
             ServerPlayer chosen = UploaderSelection.choose(candidates,
                     p -> p.distanceToSqr(at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5), UPLOAD_RANGE, current, STICKY_EXTRA);
 

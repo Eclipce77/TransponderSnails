@@ -57,13 +57,13 @@ final class VisualStaticTexture {
 
         return RenderType.create(
                 "transpondersnails_projector_static",
-                DefaultVertexFormat.POSITION_COLOR_TEX,
+                DefaultVertexFormat.POSITION_TEX_COLOR,
                 VertexFormat.Mode.QUADS,
                 256,
                 false,
                 false,
                 RenderType.CompositeState.builder()
-                        .setShaderState(new RenderStateShard.ShaderStateShard(GameRenderer::getPositionColorTexShader))
+                        .setShaderState(new RenderStateShard.ShaderStateShard(GameRenderer::getPositionTexColorShader))
                         .setTextureState(new RenderStateShard.TextureStateShard(location, false, false))
                         .setTransparencyState(VisualFeed.PROJECTOR_TRANSPARENCY)
                         .createCompositeState(false));

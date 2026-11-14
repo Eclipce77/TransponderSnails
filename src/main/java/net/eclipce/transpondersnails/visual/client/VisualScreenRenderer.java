@@ -1,11 +1,14 @@
 package net.eclipce.transpondersnails.visual.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import com.mojang.math.Axis;
+import net.minecraft.client.Camera;
 import net.eclipce.transpondersnails.block.custom.TransponderSnailBlock;
 import net.eclipce.transpondersnails.block.entity.TransponderSnailBlockEntity;
 import net.eclipce.transpondersnails.visual.ProjectorEffects;
@@ -23,12 +26,22 @@ import net.eclipce.transpondersnails.visual.VisualQuality;
 import net.eclipce.transpondersnails.visual.VisualRoles;
 import net.eclipce.transpondersnails.visual.VisualSettings;
 import net.eclipce.transpondersnails.visual.VisualSnailRole;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.util.Mth;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
+import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -39,6 +52,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.entity.Marker;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -80,11 +94,64 @@ public final class VisualScreenRenderer {
     private static boolean glowErrorLogged = false;
     private static final Set<String> MISSING_GLOW_MODELS = new HashSet<>();
 
+    /**
+     * The screens, the glow and the settings preview are drawn through this buffer source of their own, never through
+     * {@code mc.renderBuffers().bufferSource()}. With Oculus installed (even with no shader pack) that shared source is replaced, while the level
+     * renders, by a "fully buffered" one whose {@code endBatch(RenderType)} does nothing: everything drawn through it waits for the next full
+     * flush. Our vertices (in the player's camera space) then sat there until the NEXT level render - the nested render of a feed - flushed
+     * them with the feed's camera: a giant snail head, eyes and copies of the screen in the picture. A source of our own is flushed exactly
+     * when we say so, whatever any other mod does with the shared one.
+     */
+    private static MultiBufferSource.BufferSource ownBuffers;
+
+    private static MultiBufferSource.BufferSource ownBuffers() {
+        if (ownBuffers == null) ownBuffers = MultiBufferSource.immediate(new BufferBuilder(262144));
+        return ownBuffers;
+    }
+
+    private static MultiBufferSource.BufferSource playerBuffers;
+
+    /**
+     * The buffer source the player is drawn through: a plain vanilla one of our own, with the same "fixed" glint buffers vanilla's has (an enchanted
+     * armour piece writes to the glint buffer and the model buffer at the same time). With Oculus the shared {@code mc.renderBuffers().bufferSource()} is
+     * replaced by a batching source that only draws what was submitted inside its own per-entity groups, so a draw made from outside came out missing or as
+     * stray parts. A source that only this class uses is not changed by any other mod.
+     */
+    private static MultiBufferSource.BufferSource playerBuffers() {
+        if (playerBuffers == null) {
+            Map<RenderType, BufferBuilder> fixed = new java.util.LinkedHashMap<>();
+            for (RenderType type : new RenderType[] {RenderType.armorGlint(), RenderType.armorEntityGlint(), RenderType.glint(), RenderType.glintTranslucent(),
+                    RenderType.glintDirect(), RenderType.entityGlint(), RenderType.entityGlintDirect(), RenderType.waterMask()}) {
+                fixed.put(type, new BufferBuilder(type.bufferSize()));
+            }
+            playerBuffers = MultiBufferSource.immediateWithBuffers(fixed, new BufferBuilder(262144));
+        }
+        return playerBuffers;
+    }
+
+    /** The stand-in for the player of this client (see FeedAvatar); null until first needed, replaced when the world or the player changes. */
+    private static FeedAvatar avatar;
+
+    private static FeedAvatar avatarFor(Minecraft mc, LocalPlayer player) {
+        if (avatar == null || avatar.level() != mc.level || !avatar.getUUID().equals(player.getUUID())) {
+            avatar = new FeedAvatar(mc.level, player.getGameProfile());
+        }
+        return avatar;
+    }
+
     private VisualScreenRenderer() {}
 
     static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_ENTITIES && VisualFeedManager.isCapturing()) {
+            drawLocalPlayerInFeed(event);
+            return;
+        }
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
         if (VisualFeedManager.isCapturing()) return; // no screen-in-screen while a feed is being rendered
+        if (event.getCamera().getEntity() instanceof Marker) { // the camera of a feed, whatever the flag says: the glow of the snails is for the player's own view only
+            FeedDiagnostics.glowGuard();
+            return;
+        }
 
         java.util.Collection<VisualFeedManager.ScreenLink> links = VisualFeedManager.activeLinks();
         VisualSettingsPanel editing = VisualSettingsPanel.active(); // the projector settings (on their own or next to the dialer), if open
@@ -96,41 +163,241 @@ public final class VisualScreenRenderer {
 
         Vec3 cam = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource buffers = ownBuffers();
         double maxDistSq = VisualCallConstants.SCREEN_RENDER_DISTANCE * VisualCallConstants.SCREEN_RENDER_DISTANCE;
 
-        // The glowing eyes / projector parts of the snails first: they are solid, the translucent picture and light come after them.
         try {
-            drawGlows(mc, level, links, cam, pose, buffers, maxDistSq);
-        } catch (Exception e) {
-            if (!glowErrorLogged) {
-                glowErrorLogged = true;
-                LOGGER.error("VisualScreenRenderer: drawing the glow of the snails failed (further errors are not logged)", e);
-            }
-        }
-
-        for (VisualFeedManager.ScreenLink link : links) {
+            // The glowing eyes / projector parts of the snails first: they are solid, the translucent picture and light come after them.
             try {
-                drawScreen(mc, level, link, cam, pose, buffers, maxDistSq);
+                drawGlows(mc, level, links, cam, pose, buffers, maxDistSq);
             } catch (Exception e) {
-                if (!errorLogged) {
-                    errorLogged = true;
-                    LOGGER.error("VisualScreenRenderer: drawing the screen at {} failed (further errors are not logged)", link.screenPos(), e);
+                if (!glowErrorLogged) {
+                    glowErrorLogged = true;
+                    LOGGER.error("VisualScreenRenderer: drawing the glow of the snails failed (further errors are not logged)", e);
                 }
             }
-        }
 
-        if (editing != null) {
-            try {
-                drawPreview(level, editing, cam, pose, buffers);
-            } catch (Exception e) {
-                if (!previewErrorLogged) {
-                    previewErrorLogged = true;
-                    LOGGER.error("VisualScreenRenderer: drawing the settings preview failed (further errors are not logged)", e);
+            for (VisualFeedManager.ScreenLink link : links) {
+                try {
+                    drawScreen(mc, level, link, cam, pose, buffers, maxDistSq);
+                } catch (Exception e) {
+                    if (!errorLogged) {
+                        errorLogged = true;
+                        LOGGER.error("VisualScreenRenderer: drawing the screen at {} failed (further errors are not logged)", link.screenPos(), e);
+                    }
                 }
+            }
+
+            if (editing != null) {
+                try {
+                    drawPreview(level, editing, cam, pose, buffers);
+                } catch (Exception e) {
+                    if (!previewErrorLogged) {
+                        previewErrorLogged = true;
+                        LOGGER.error("VisualScreenRenderer: drawing the settings preview failed (further errors are not logged)", e);
+                    }
+                }
+            }
+        } finally {
+            try {
+                buffers.endBatch(); // nothing of ours may stay queued past this event
+            } catch (Exception e) {
+                LOGGER.error("VisualScreenRenderer: flushing the screen buffers failed", e);
             }
         }
     }
+
+    /**
+     * Vanilla never draws the player of this client when the camera is any other entity (LevelRenderer skips every LocalPlayer that is not the camera entity),
+     * and a snail's feed IS another camera: the person standing in front of a snail would be invisible in its picture. So the player is drawn here, the way the
+     * level renderer draws any other entity, while the feed is captured.
+     *
+     * The real player is drawn (his morph, animations, armour and abilities are state of the real player). A stand-in avatar (FeedAvatar) is only used with
+     * -Dtranspondersnails.feeddiag.avatar=true. Nothing here depends on any other mod; mod-specific workarounds live in MineMineNoMiCompat's guarded places.
+     */
+    private static void drawLocalPlayerInFeed(RenderLevelStageEvent event) {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer player = mc.player;
+            if (player == null || player.isRemoved() || mc.level == null) return;
+            Camera camera = event.getCamera();
+            Vec3 cam = camera.getPosition();
+            EntityRenderDispatcher dispatcher = mc.getEntityRenderDispatcher();
+            float partial = event.getPartialTick();
+            // The real player by default: his morph, animations, armour and abilities are state of the real player. The stand-in avatar (no such state) is only for -Dtranspondersnails.feeddiag.avatar=true.
+            FeedAvatar standIn = USE_AVATAR ? avatarFor(mc, player) : null;
+            AbstractClientPlayer stand = USE_AVATAR ? standIn : player;
+            double playerDistance = Math.sqrt(player.distanceToSqr(cam.x, cam.y, cam.z));
+            if (standIn != null) standIn.copyFrom(player, partial);
+            boolean visible = dispatcher.shouldRender(stand, event.getFrustum(), cam.x, cam.y, cam.z);
+            FeedDiagnostics.player(visible, playerDistance, false);
+            if (VisualFeedManager.playerDrawnByLevel()) {
+                FeedDiagnostics.playerExtra("the level renderer already drew the player (no second draw)");
+                return;
+            }
+            // Safety net: whatever ran before this point in the nested render, the viewport must be the size of the feed's own target.
+            String glAtStage = FeedPlayerProbe.glState();
+            com.mojang.blaze3d.pipeline.RenderTarget feedTarget = mc.getMainRenderTarget(); // the feed's target while a capture runs
+            RenderSystem.viewport(0, 0, feedTarget.viewWidth, feedTarget.viewHeight);
+            if (!visible) return;   // out of this camera's view, or too far
+            double x = Mth.lerp(partial, player.xOld, player.getX());
+            double y = Mth.lerp(partial, player.yOld, player.getY());
+            double z = Mth.lerp(partial, player.zOld, player.getZ());
+            double offX = x - cam.x, offY = y - cam.y, offZ = z - cam.z;
+            Vec3 look = Vec3.directionFromRotation(0.0F, camera.getYRot());
+            double yawOff = Math.toDegrees(Math.acos(Mth.clamp((look.x * offX + look.z * offZ) / Math.max(1.0E-6, Math.sqrt(offX * offX + offZ * offZ)), -1.0, 1.0)));
+            FeedDiagnostics.playerOffset(offX, offY, offZ, yawOff);
+            FeedDiagnostics.playerMarks(cam, camera.getXRot(), camera.getYRot(), x, y, z);
+            if (BOXES && playerDistance < 3.0) drawDiagnosticBoxes(event, mc, player, cam, x, y, z, partial);
+
+            MultiBufferSource.BufferSource buffers = playerBuffers();
+            FeedPlayerProbe probe = new FeedPlayerProbe(buffers);
+            // The capture runs with the camera type "first person" (a fixed 90 degree view). Many mods hide the player's body, or draw only parts of it, in first
+            // person. For this one draw it is third person, as for any other player that is seen from outside.
+            CameraType oldType = mc.options.getCameraType();
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+            // The matrix stack is built here from the camera's own angles, exactly as GameRenderer builds the one it hands to the level renderer.
+            PoseStack cleanPose = new PoseStack();
+            cleanPose.mulPose(Axis.XP.rotationDegrees(camera.getXRot()));
+            cleanPose.mulPose(Axis.YP.rotationDegrees(camera.getYRot() + 180.0F));
+            String how = "dispatcher";
+            try {
+                int light = dispatcher.getPackedLightCoords(stand, partial);
+                EntityRenderer<? super AbstractClientPlayer> renderer = dispatcher.getRenderer(stand);
+                if (USE_DIRECT && renderer instanceof PlayerRenderer playerRenderer) {
+                    // The player's model drawn straight from its renderer, bypassing EntityRenderDispatcher#render, LivingEntityRenderer#render, the
+                    // render events and the layers: nothing another mod hooks around the drawing of an entity runs. No armour, held items or cape.
+                    how = "direct";
+                    drawDirect(stand, playerRenderer, x - cam.x, y - cam.y, z - cam.z, partial, cleanPose, probe, light);
+                } else {
+                    VisualFeedManager.setManualPlayerDraw(true);
+                    try {
+                        dispatcher.render(stand, x - cam.x, y - cam.y, z - cam.z, Mth.lerp(partial, player.yRotO, player.getYRot()), partial, cleanPose, probe, light);
+                    } finally {
+                        VisualFeedManager.setManualPlayerDraw(false);
+                    }
+                }
+                String glBefore = FeedPlayerProbe.glState();
+                buffers.endBatch();
+                FeedDiagnostics.player(true, playerDistance, true);
+                org.joml.Matrix4f m = cleanPose.last().pose();
+                org.joml.Vector3f feet = m.transformPosition((float) (x - cam.x), (float) (y - cam.y), (float) (z - cam.z), new org.joml.Vector3f());
+                org.joml.Vector3f head = m.transformPosition((float) (x - cam.x), (float) (y - cam.y + 1.8), (float) (z - cam.z), new org.joml.Vector3f());
+                FeedDiagnostics.playerExtra("path=" + how + " renderer=" + (renderer == null ? "null" : renderer.getClass().getName())
+                        + " | expected view-space feet=(" + r2(feet.x) + "," + r2(feet.y) + "," + r2(feet.z) + ") head(+1.8)=(" + r2(head.x) + "," + r2(head.y) + "," + r2(head.z) + ")"
+                        + " | drawn: " + probe.summary() + " | gl at stage start: " + glAtStage + " | gl at flush: " + glBefore + " | feed target " + feedTarget.viewWidth + "x" + feedTarget.viewHeight + " fb=" + feedTarget.frameBufferId + " | stand: invisible=" + stand.isInvisible() + " pose=" + stand.getPose()
+                        + " bbHeight=" + stand.getBbHeight() + " skin=" + stand.getSkinTextureLocation());
+            } finally {
+                mc.options.setCameraType(oldType);
+                try {
+                    buffers.endBatch(); // a draw that failed half way must not leave a started builder behind
+                } catch (Exception ignored) {
+                    playerBuffers = null; // start over with fresh builders next time
+                }
+            }
+        } catch (Exception e) {
+            if (!playerErrorLogged) {
+                playerErrorLogged = true;
+                LOGGER.error("VisualScreenRenderer: drawing the player into a snail's picture failed (further errors are not logged)", e);
+            }
+        }
+    }
+
+    /** -Dtranspondersnails.feeddiag.direct=true draws the player's bare model straight from its renderer (no armour, items, events) instead of through the entity render dispatcher. */
+    /** -Dtranspondersnails.feeddiag.avatar=true draws the stand-in avatar (r13-r15) instead of the real player. */
+    private static final boolean USE_AVATAR = Boolean.getBoolean("transpondersnails.feeddiag.avatar");
+
+    private static final boolean USE_DIRECT = Boolean.getBoolean("transpondersnails.feeddiag.direct");
+
+    private static String r2(double v) {
+        return String.valueOf(Math.round(v * 100.0) / 100.0);
+    }
+
+    /** The player's model, posed and drawn the way LivingEntityRenderer does it, minus everything around it (no layers, events or shadow). */
+    private static void drawDirect(AbstractClientPlayer stand, PlayerRenderer renderer, double ox, double oy, double oz, float partial, PoseStack pose, MultiBufferSource buffers, int light) {
+        PlayerModel<AbstractClientPlayer> model = renderer.getModel();
+        model.young = false;
+        model.riding = false;
+        model.crouching = stand.isCrouching();
+        model.attackTime = stand.getAttackAnim(partial);
+        model.leftArmPose = HumanoidModel.ArmPose.EMPTY;
+        model.rightArmPose = HumanoidModel.ArmPose.EMPTY;
+        model.head.visible = true;
+        model.hat.visible = stand.isModelPartShown(PlayerModelPart.HAT);
+        model.jacket.visible = stand.isModelPartShown(PlayerModelPart.JACKET);
+        model.leftSleeve.visible = stand.isModelPartShown(PlayerModelPart.LEFT_SLEEVE);
+        model.rightSleeve.visible = stand.isModelPartShown(PlayerModelPart.RIGHT_SLEEVE);
+        model.leftPants.visible = stand.isModelPartShown(PlayerModelPart.LEFT_PANTS_LEG);
+        model.rightPants.visible = stand.isModelPartShown(PlayerModelPart.RIGHT_PANTS_LEG);
+
+        float bodyYaw = Mth.rotLerp(partial, stand.yBodyRotO, stand.yBodyRot);
+        float headYaw = Mth.rotLerp(partial, stand.yHeadRotO, stand.yHeadRot);
+        float netHeadYaw = Mth.wrapDegrees(headYaw - bodyYaw);
+        float headPitch = Mth.lerp(partial, stand.xRotO, stand.getXRot());
+        float ageInTicks = stand.tickCount + partial;
+        float limbSwingAmount = Math.min(1.0F, stand.walkAnimation.speed(partial));
+        float limbSwing = stand.walkAnimation.position(partial);
+        model.setupAnim(stand, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);
+
+        pose.pushPose();
+        pose.translate(ox, oy, oz);
+        pose.mulPose(Axis.YP.rotationDegrees(180.0F - bodyYaw));
+        pose.scale(-1.0F, -1.0F, 1.0F);
+        pose.scale(0.9375F, 0.9375F, 0.9375F);
+        pose.translate(0.0F, -1.501F, 0.0F);
+        VertexConsumer consumer = buffers.getBuffer(RenderType.entityCutoutNoCull(stand.getSkinTextureLocation()));
+        model.renderToBuffer(pose, consumer, light, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+        pose.popPose();
+    }
+
+    /** Reference boxes are only drawn into the pictures with -Dtranspondersnails.feeddiag.boxes=true (they would show on the screens). */
+    private static final boolean BOXES = Boolean.getBoolean("transpondersnails.feeddiag.boxes");
+
+    /**
+     * Diagnostics, only while the player is within 3 blocks of the lens (the case being investigated): draws plain wireframe boxes with the game's own line renderer, through the same
+     * matrices as the entities, so the saved picture shows where those matrices put KNOWN places: a GREEN box around the player's true bounding box, a CYAN 1x1x1 box exactly 2 blocks
+     * straight ahead of the lens (it must sit dead centre and a quarter of the picture wide) and a RED box at the player's eyes. Also records the state the game draws the player in.
+     */
+    private static void drawDiagnosticBoxes(RenderLevelStageEvent event, Minecraft mc, LocalPlayer player, Vec3 cam, double x, double y, double z, float partial) {
+        Camera camera = event.getCamera();
+        try {
+            PoseStack ps = event.getPoseStack();
+            MultiBufferSource.BufferSource buffers = ownBuffers();
+            ps.pushPose();
+            try {
+                ps.translate(-cam.x, -cam.y, -cam.z);
+                VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+                LevelRenderer.renderLineBox(ps, lines, new AABB(x - 0.3, y, z - 0.3, x + 0.3, y + player.getBbHeight(), z + 0.3), 0.0F, 1.0F, 0.0F, 1.0F);
+                Vec3 ahead = cam.add(Vec3.directionFromRotation(camera.getXRot(), camera.getYRot()).scale(2.0));
+                LevelRenderer.renderLineBox(ps, lines, new AABB(ahead.x - 0.5, ahead.y - 0.5, ahead.z - 0.5, ahead.x + 0.5, ahead.y + 0.5, ahead.z + 0.5), 0.0F, 1.0F, 1.0F, 1.0F);
+                double ey = y + player.getEyeHeight();
+                LevelRenderer.renderLineBox(ps, lines, new AABB(x - 0.1, ey - 0.1, z - 0.1, x + 0.1, ey + 0.1, z + 0.1), 1.0F, 0.0F, 0.0F, 1.0F);
+            } finally {
+                ps.popPose();
+            }
+            buffers.endBatch(RenderType.lines());
+
+            Matrix4f proj = RenderSystem.getProjectionMatrix();
+            Matrix4f eventProj = event.getProjectionMatrix();
+            Matrix4f mv = RenderSystem.getModelViewMatrix();
+            Matrix4f eventPose = event.getPoseStack().last().pose();
+            FeedDiagnostics.playerExtra("pose=" + player.getPose() + " bb=" + FeedDiagnostics.round2(player.getBbWidth()) + "x" + FeedDiagnostics.round2(player.getBbHeight())
+                    + " xRot=" + FeedDiagnostics.round2(player.getXRot()) + " yRot=" + FeedDiagnostics.round2(player.getYRot()) + " yBody=" + FeedDiagnostics.round2(player.yBodyRot)
+                    + " swim=" + FeedDiagnostics.round2(player.getSwimAmount(partial)) + " flying=" + player.getAbilities().flying + " fallFlying=" + player.isFallFlying()
+                    + " | camera yaw=" + FeedDiagnostics.round2(camera.getYRot()) + " pitch=" + FeedDiagnostics.round2(camera.getXRot()) + " detached=" + camera.isDetached()
+                    + " entity=" + (camera.getEntity() == null ? "null" : camera.getEntity().getClass().getSimpleName()) + " type=" + mc.options.getCameraType()
+                    + " | projection m00=" + FeedDiagnostics.round2(proj.m00()) + " m11=" + FeedDiagnostics.round2(proj.m11()) + " eventM00=" + FeedDiagnostics.round2(eventProj.m00())
+                    + " eventM11=" + FeedDiagnostics.round2(eventProj.m11()) + " | modelView diag=" + FeedDiagnostics.round2(mv.m00()) + "," + FeedDiagnostics.round2(mv.m11()) + ","
+                    + FeedDiagnostics.round2(mv.m22()) + " trans=" + FeedDiagnostics.round2(mv.m30()) + "," + FeedDiagnostics.round2(mv.m31()) + "," + FeedDiagnostics.round2(mv.m32())
+                    + " | eventPose diag=" + FeedDiagnostics.round2(eventPose.m00()) + "," + FeedDiagnostics.round2(eventPose.m11()) + "," + FeedDiagnostics.round2(eventPose.m22())
+                    + " trans=" + FeedDiagnostics.round2(eventPose.m30()) + "," + FeedDiagnostics.round2(eventPose.m31()) + "," + FeedDiagnostics.round2(eventPose.m32())
+                    + " | window=" + mc.getWindow().getWidth() + "x" + mc.getWindow().getHeight() + " target=" + mc.getMainRenderTarget().width + "x" + mc.getMainRenderTarget().height);
+        } catch (Exception e) {
+            FeedDiagnostics.playerExtra("diagnostic boxes failed: " + e);
+        }
+    }
+
+    private static boolean playerErrorLogged = false;
 
     private static void drawScreen(Minecraft mc, ClientLevel level, VisualFeedManager.ScreenLink link,
                                    Vec3 cam, PoseStack pose, MultiBufferSource.BufferSource buffers, double maxDistSq) {
@@ -318,8 +585,8 @@ public final class VisualScreenRenderer {
         double shade = ProjectorEffects.vignette(u, v);          // brightest in the middle
         double fade = ProjectorEffects.edgeAlpha(u, v, feather);  // fading out at the edge
         vc.vertex(m, (float) bilinear(c, 0, u, v), (float) bilinear(c, 1, u, v), (float) bilinear(c, 2, u, v))
-                .color(to255(r * shade), to255(g * shade), to255(b * shade), to255(a * fade))
                 .uv(uOff + u * uvScale, vOff + v * uvScale) // the render target's v = 0 is the BOTTOM of the image, like the corners' order
+                .color(to255(r * shade), to255(g * shade), to255(b * shade), to255(a * fade))
                 .endVertex();
     }
 
@@ -394,8 +661,8 @@ public final class VisualScreenRenderer {
         double su = where.u0() + lu * where.width();
         double sv = where.v0() + lv * where.height();
         vc.vertex(m, (float) bilinear(c, 0, su, sv), (float) bilinear(c, 1, su, sv), (float) bilinear(c, 2, su, sv))
-                .color(to255(r * shade), to255(g * shade), to255(b * shade), to255(a * fade))
                 .uv((float) (tu0 + lu * (tu1 - tu0)), (float) (tv0 + lv * (tv1 - tv0)))
+                .color(to255(r * shade), to255(g * shade), to255(b * shade), to255(a * fade))
                 .endVertex();
     }
 
@@ -637,8 +904,12 @@ public final class VisualScreenRenderer {
             String snail = role == VisualSnailRole.DUPLEX ? VisualGlowModels.projectorSnail() : VisualGlowModels.cameraSnail();
             int ambient = LevelRenderer.getLightColor(level, pos);
 
+            // The eye glow lies 0.06 model pixels in front of the painted eye: at a distance that is less than the depth buffer can tell apart, and it
+            // flickered. So it is held a little further out the further away the snail is (still far less than a pixel on the screen).
+            double eyeDistance = Math.sqrt(pos.distToCenterSqr(cam.x, cam.y, cam.z));
+            float eyeLift = (float) Math.min(0.05, 0.002 + 0.0009 * eyeDistance);
             drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, VisualGlowModels.eyes(snail, hasSound, inCall),
-                    VisualGlow.eyes(role, flags), VisualCallConstants.GLOW_EYES_LIGHT);
+                    VisualGlow.eyes(role, flags), VisualCallConstants.GLOW_EYES_LIGHT, null, eyeLift);
             if (role == VisualSnailRole.DUPLEX) {
                 float projecting = VisualGlow.projector(role, flags);
                 drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, VisualGlowModels.projector(snail),
@@ -689,6 +960,13 @@ public final class VisualScreenRenderer {
      */
     private static void drawGlowPart(ClientLevel level, PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, BlockPos pos,
                                      Direction facing, int ambient, String modelName, float ease, int fullLevel, @Nullable ProjectorHeadAim.Pose head) {
+        drawGlowPart(level, pose, buffers, cam, pos, facing, ambient, modelName, ease, fullLevel, head, 0.0F);
+    }
+
+    /** {@code lift}: blocks to move the whole part towards the front of the snail (the model's north), see the eyes. */
+    private static void drawGlowPart(ClientLevel level, PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, BlockPos pos,
+                                     Direction facing, int ambient, String modelName, float ease, int fullLevel, @Nullable ProjectorHeadAim.Pose head,
+                                     float lift) {
         if (ease <= 0.0F) return;
         BakedModel model = VisualGlowModels.get(modelName);
         if (model == null) {
@@ -708,6 +986,7 @@ public final class VisualScreenRenderer {
             pose.translate(0.5, 0.5, 0.5);
             pose.mulPose(Axis.YP.rotationDegrees(-yRotation(facing))); // the same turn the blockstate gives the snail
             pose.translate(-0.5, -0.5, -0.5);
+            if (lift != 0.0F) pose.translate(0.0F, 0.0F, -lift);   // the front of a snail model is its north (-Z)
             if (head != null) {
                 VisualProjectorHead.turn(pose, head);
             }

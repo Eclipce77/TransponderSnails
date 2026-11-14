@@ -8,7 +8,9 @@
   "client": [
     "LevelRendererAccessor",
     "ViewAreaAccessor",
-    "LevelRendererMixin"
+    "LevelRendererMixin",
+    "EntityRenderDispatcherMixin",
+    "GameRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

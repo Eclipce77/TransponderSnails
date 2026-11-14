@@ -4,8 +4,10 @@ import net.eclipce.transpondersnails.TransponderSnails;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -28,6 +30,19 @@ public final class VisualClientEvents {
         @SubscribeEvent
         public static void onRenderLevelStage(RenderLevelStageEvent event) {
             VisualScreenRenderer.onRenderLevelStage(event);
+        }
+
+        /**
+         * Mine Mine no Mi compatibility (only when that mod is installed): it tweaks the camera from the LOCAL PLAYER's state (dizzy roll, camera lock,
+         * morph offsets). Those handlers also fire for our nested feed render, where the camera is the snail's marker.
+         * Running last, this puts the marker camera's own angles back so the feed is always a plain, level camera.
+         */
+        @SubscribeEvent(priority = EventPriority.LOWEST)
+        public static void onFeedCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+            if (!VisualFeedManager.isCapturing() || !MineMineNoMiCompat.present()) return;
+            event.setYaw(event.getCamera().getYRot());
+            event.setPitch(event.getCamera().getXRot());
+            event.setRoll(0.0F);
         }
 
         @SubscribeEvent
