@@ -80,6 +80,21 @@ final class VisualFeed {
     boolean remote = false;
     /** When this client last asked the server to relay the picture. */
     long lastRelayRequestMs = 0L;
+    /**
+     * With a shader pack on and "plain video" chosen: the feed is relayed ({@link #remote}) although its camera could be drawn here, in the
+     * hope that a player without shaders sends the plain picture. See VisualFeedManager.updateRemoteModes.
+     */
+    boolean plainRemote = false;
+    /** When the server was last asked to (re)send the whole picture, to find out whether anybody is still sending one. */
+    long plainProbeMs = 0L;
+    /** When a relayed frame last arrived. */
+    volatile long lastRemoteFrameMs = 0L;
+    /**
+     * Nobody sent a plain picture, so the feed is drawn through this client's own pack - but the relay request is kept, and the moment a
+     * frame arrives the feed switches to it (the frames are only counted, not shown, until then).
+     */
+    volatile boolean plainWatch = false;
+    long plainWatchSinceMs = 0L;
 
     /** Sections rendered for this camera (vanilla renderer path only). Rebuilt periodically. */
     List<LevelRenderer.RenderChunkInfo> sections = new ArrayList<>();

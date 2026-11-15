@@ -47,6 +47,7 @@ public class ModConfig {
 
         // Video call performance (per player)
         public final ForgeConfigSpec.BooleanValue adaptiveVideoQuality;
+        public final ForgeConfigSpec.BooleanValue plainFeedWithShaders;
         public final ForgeConfigSpec.IntValue maxVideoResolution;
         public final ForgeConfigSpec.IntValue maxActiveVideoFeeds;
 
@@ -86,6 +87,12 @@ public class ModConfig {
                     .comment("Automatically lower the resolution of distant / small screens, and lower the video quality")
                     .comment("whenever your frame rate drops while video is playing. Recommended.")
                     .define("adaptive_quality", true);
+
+            plainFeedWithShaders = builder
+                    .comment("Only matters while a shader pack is on. false: video feeds are drawn through YOUR shader pack (experimental, slow).")
+                    .comment("true: a feed shows the normal, un-shaded picture sent by another player who has no shader pack on; when no such")
+                    .comment("player is near the camera it is drawn through your shader pack after all, so there is never a blank screen.")
+                    .define("plain_feed_with_shaders", false);
 
             maxVideoResolution = builder
                     .comment("Highest resolution (pixels, square) a video feed may use on your computer.")
@@ -562,6 +569,7 @@ public class ModConfig {
 
     // Visual snail (video call) defaults
     private static final boolean DEFAULT_ADAPTIVE_VIDEO_QUALITY = true;
+    private static final boolean DEFAULT_PLAIN_FEED_WITH_SHADERS = false;
     private static final int DEFAULT_MAX_VIDEO_RESOLUTION = 1024;
     private static final int DEFAULT_MAX_ACTIVE_VIDEO_FEEDS = 4;
     private static final int DEFAULT_VISUAL_MAX_FEED_RESOLUTION = 1024;
@@ -605,6 +613,7 @@ public class ModConfig {
 
     // Cache for visual snail (video call) values - read every frame / every packet, so they are plain primitives
     private static volatile boolean cachedAdaptiveVideoQuality = DEFAULT_ADAPTIVE_VIDEO_QUALITY;
+    private static volatile boolean cachedPlainFeedWithShaders = DEFAULT_PLAIN_FEED_WITH_SHADERS;
     private static volatile int cachedMaxVideoResolution = DEFAULT_MAX_VIDEO_RESOLUTION;
     private static volatile int cachedMaxActiveVideoFeeds = DEFAULT_MAX_ACTIVE_VIDEO_FEEDS;
     private static volatile int cachedVisualMaxFeedResolution = DEFAULT_VISUAL_MAX_FEED_RESOLUTION;
@@ -658,6 +667,7 @@ public class ModConfig {
             // Client config changed
             cachedEnableNumpad = CLIENT.enableNumpadSupport.get();
             cachedAdaptiveVideoQuality = CLIENT.adaptiveVideoQuality.get();
+            cachedPlainFeedWithShaders = CLIENT.plainFeedWithShaders.get();
             cachedMaxVideoResolution = (int) getValidatedValue((long) CLIENT.maxVideoResolution.get(), (long) DEFAULT_MAX_VIDEO_RESOLUTION, 256L, 2048L);
             cachedMaxActiveVideoFeeds = (int) getValidatedValue((long) CLIENT.maxActiveVideoFeeds.get(), (long) DEFAULT_MAX_ACTIVE_VIDEO_FEEDS, 1L, 16L);
         } else if (event.getConfig().getSpec() == SERVER_SPEC) {
@@ -948,6 +958,11 @@ public class ModConfig {
         return cachedAdaptiveVideoQuality;
     }
 
+    /** Client: with a shader pack on, show the plain relayed picture (true) or draw the feed through the pack (false). */
+    public static boolean isPlainFeedWithShaders() {
+        return cachedPlainFeedWithShaders;
+    }
+
     /** Client: highest feed resolution this player allows. */
     public static int getMaxVideoResolution() {
         return cachedMaxVideoResolution;
@@ -963,6 +978,12 @@ public class ModConfig {
     public static void setAdaptiveVideoQuality(boolean enabled) {
         CLIENT.adaptiveVideoQuality.set(enabled);
         cachedAdaptiveVideoQuality = enabled;
+        CLIENT_SPEC.save();
+    }
+
+    public static void setPlainFeedWithShaders(boolean plain) {
+        CLIENT.plainFeedWithShaders.set(plain);
+        cachedPlainFeedWithShaders = plain;
         CLIENT_SPEC.save();
     }
 

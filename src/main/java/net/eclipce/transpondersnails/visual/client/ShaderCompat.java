@@ -14,9 +14,12 @@ import java.lang.reflect.Method;
  * another render target; a shader pack owns the whole frame (shadow pass, g-buffers, composite passes, all sized for the main window), so a
  * second world render breaks it: the player's own view goes black or dark and hard to see for as long as a feed is drawn.
  *
- * So while a shader pack is on, this client never draws a feed, neither for its own screens nor for others. Its screens show the picture the
- * relay brings (drawn by another player's client), and it tells the server not to pick it as the one that draws. Nothing here depends on Iris:
- * it is looked up by name, and a missing or different version just means "no shader pack".
+ * So a client with a shader pack on never draws the normal way. What it shows on its own screens: a view drawn through its own pack
+ * (ShaderCapture, experimental) when the camera is loaded here; when that is switched off or has failed, or the camera is too far, the picture
+ * the relay brings (drawn by another player's client). It tells the server whether a pack is on and whether it can draw through it, so the server
+ * asks a player WITHOUT a pack to draw a camera for others first, and a player with a pack (a picture with the look of that pack) only when
+ * nobody else can: a shaded picture is better than a frozen one. Nothing here depends on Iris: it is looked up by name, and a missing or different
+ * version just means "no shader pack".
  */
 @OnlyIn(Dist.CLIENT)
 public final class ShaderCompat {
@@ -37,7 +40,7 @@ public final class ShaderCompat {
 
     private static boolean active = false;
     private static long lastCheckMs = 0L;
-    private static boolean reportedState = false;
+    private static int reportedMode = VisualShaderStatePacket.NO_PACK;
     private static long lastReportMs = 0L;
 
     private ShaderCompat() {}
@@ -51,7 +54,8 @@ public final class ShaderCompat {
         if (now2 != active) {
             active = now2;
             LOGGER.info("ShaderCompat: shader pack {} - video feeds are {} on this client", active ? "on" : "off",
-                    active ? "not drawn (the relay is used)" : "drawn here again");
+                    !active ? "drawn the normal way again"
+                            : ShaderCapture.enabled() ? "drawn through the pack (experimental, only shown on this client)" : "not drawn here (the relay is used)");
         }
         return active;
     }
@@ -81,12 +85,14 @@ public final class ShaderCompat {
     /** Keeps the server informed (called every frame; sends a packet only when the state changes, and now and then while a shader pack is on). */
     public static void report() {
         boolean state = isShaderPackActive();
+        int mode = !state ? VisualShaderStatePacket.NO_PACK
+                : ShaderCapture.enabled() ? VisualShaderStatePacket.PACK_CAN_DRAW : VisualShaderStatePacket.PACK_CANNOT_DRAW;
         long now = System.currentTimeMillis();
-        if (state != reportedState || (state && now - lastReportMs >= REPORT_INTERVAL_MS)) {
-            reportedState = state;
+        if (mode != reportedMode || (state && now - lastReportMs >= REPORT_INTERVAL_MS)) {
+            reportedMode = mode;
             lastReportMs = now;
             try {
-                VisualNetwork.CHANNEL.sendToServer(new VisualShaderStatePacket(state));
+                VisualNetwork.CHANNEL.sendToServer(new VisualShaderStatePacket(mode));
             } catch (Throwable ignored) {
                 // not connected (yet): the next change or report sends it
             }
@@ -95,7 +101,7 @@ public final class ShaderCompat {
 
     /** A new world: tell the server again. */
     static void reset() {
-        reportedState = false;
+        reportedMode = VisualShaderStatePacket.NO_PACK;
         lastReportMs = 0L;
     }
 }

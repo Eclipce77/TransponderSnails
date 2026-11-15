@@ -31,32 +31,39 @@ public class ClientConfigScreen extends Screen {
     private static final int ROW_NUMPAD_BUTTON = 11;
     private static final int ROW_ADAPTIVE_LABEL = 38;
     private static final int ROW_ADAPTIVE_BUTTON = 49;
-    private static final int ROW_RESOLUTION = 78;
-    private static final int ROW_FEEDS = 102;
-    private static final int ROW_BACK = 134;
+    private static final int ROW_SHADER_LABEL = 76;
+    private static final int ROW_SHADER_BUTTON = 87;
+    private static final int ROW_RESOLUTION = 116;
+    private static final int ROW_FEEDS = 140;
+    private static final int ROW_BACK = 172;
     private static final int BLOCK_HEIGHT = ROW_BACK + ROW_HEIGHT;
 
     // The options that have a tooltip, in the order of TOOLTIPS.
     private static final int OPTION_NUMPAD = 0;
     private static final int OPTION_ADAPTIVE = 1;
-    private static final int OPTION_RESOLUTION = 2;
-    private static final int OPTION_FEEDS = 3;
+    private static final int OPTION_SHADER = 2;
+    private static final int OPTION_RESOLUTION = 3;
+    private static final int OPTION_FEEDS = 4;
     /** Kept short: vanilla tooltips wrap at about 170 pixels, so every one of these is only two or three short lines. */
     private static final String[] TOOLTIPS = {
             "Also use the numpad keys (0-9) when dialing.",
             "Lowers the quality of far or small video screens, and of all video while your frame rate is low.",
+            "Only with a shader pack on. True: video shows the normal picture sent by a player without shaders (your pack is used if there is none). False: video is drawn through your pack (slow).",
             "The highest resolution a video feed may use here. The server may set a lower limit.",
             "How many video feeds are drawn at once (the nearest ones). The rest keep their last picture."
     };
 
     private static final String NUMPAD_LABEL = "Enable Numpad for Dialing:";
     private static final String ADAPTIVE_LABEL = "Adaptive Video Quality:";
+    private static final String SHADER_LABEL = "Plain Video With Shaders:";
 
     private final Screen parent;
     private Button numpadButton;
     private boolean currentNumpadState;
     private Button adaptiveButton;
     private boolean currentAdaptiveState;
+    private Button shaderButton;
+    private boolean currentShaderState;
     private StepSlider resolutionSlider;
     private StepSlider feedsSlider;
     private final TooltipTimer tooltipTimer = new TooltipTimer();
@@ -66,6 +73,7 @@ public class ClientConfigScreen extends Screen {
         this.parent = parent;
         this.currentNumpadState = ModConfig.isNumpadEnabled();
         this.currentAdaptiveState = ModConfig.isAdaptiveVideoQuality();
+        this.currentShaderState = ModConfig.isPlainFeedWithShaders();
     }
 
     /** On a short window (e.g. GUI scale 4 at 720p) the description is dropped and the title moves up, so the list still fits. */
@@ -111,6 +119,12 @@ public class ClientConfigScreen extends Screen {
                 .build();
         this.addRenderableWidget(adaptiveButton);
 
+        // Plain video while a shader pack is on (True/False box)
+        shaderButton = Button.builder(stateText(currentShaderState), this::toggleShader)
+                .bounds(centerX - 40, top + ROW_SHADER_BUTTON, 80, ROW_HEIGHT)
+                .build();
+        this.addRenderableWidget(shaderButton);
+
         // Highest video resolution (slider through the resolutions), saved when the slider is released
         resolutionSlider = this.addRenderableWidget(new StepSlider(centerX - 100, top + ROW_RESOLUTION, 200, ROW_HEIGHT,
                 RESOLUTIONS, ModConfig.getMaxVideoResolution(),
@@ -148,6 +162,12 @@ public class ClientConfigScreen extends Screen {
         button.setMessage(stateText(currentAdaptiveState));
     }
 
+    private void toggleShader(Button button) {
+        currentShaderState = !currentShaderState;
+        ModConfig.setPlainFeedWithShaders(currentShaderState); // auto-saves
+        button.setMessage(stateText(currentShaderState));
+    }
+
     /** Saves a slider change that has not been saved yet (sliders save when released, not on every step while dragging). */
     private void commitSliders() {
         if (resolutionSlider != null) resolutionSlider.commit();
@@ -179,6 +199,7 @@ public class ClientConfigScreen extends Screen {
         // Labels of the True/False options (the sliders carry their name in their own text)
         drawLabel(guiGraphics, NUMPAD_LABEL, centerX, top + ROW_NUMPAD_LABEL);
         drawLabel(guiGraphics, ADAPTIVE_LABEL, centerX, top + ROW_ADAPTIVE_LABEL);
+        drawLabel(guiGraphics, SHADER_LABEL, centerX, top + ROW_SHADER_LABEL);
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
@@ -194,6 +215,7 @@ public class ClientConfigScreen extends Screen {
     private int optionUnderMouse(int mouseX, int mouseY, int centerX, int top) {
         if (overLabel(NUMPAD_LABEL, centerX, top + ROW_NUMPAD_LABEL, mouseX, mouseY)) return OPTION_NUMPAD;
         if (overLabel(ADAPTIVE_LABEL, centerX, top + ROW_ADAPTIVE_LABEL, mouseX, mouseY)) return OPTION_ADAPTIVE;
+        if (overLabel(SHADER_LABEL, centerX, top + ROW_SHADER_LABEL, mouseX, mouseY)) return OPTION_SHADER;
         if (resolutionSlider.isMouseOver(mouseX, mouseY)) return OPTION_RESOLUTION;
         if (feedsSlider.isMouseOver(mouseX, mouseY)) return OPTION_FEEDS;
         return -1;

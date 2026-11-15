@@ -50,6 +50,11 @@ public final class VisualSettings {
         return ModConfig.isAdaptiveVideoQuality();
     }
 
+    /** With a shader pack on: show the plain picture relayed from a player without shaders (true) or draw through the pack (false). Player setting. */
+    public static boolean plainFeedWithShaders() {
+        return ModConfig.isPlainFeedWithShaders();
+    }
+
     /** How many feeds this client renders at once (player setting). */
     public static int maxActiveFeeds() {
         return ModConfig.getMaxActiveVideoFeeds();

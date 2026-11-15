@@ -24,6 +24,7 @@ import net.eclipce.transpondersnails.visual.mixin.ViewAreaAccessor;
 import net.eclipce.transpondersnails.visual.network.VisualFeedStatusPacket;
 import net.eclipce.transpondersnails.visual.network.VisualRelayRequestPacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
+import net.minecraft.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
@@ -92,6 +93,7 @@ public final class VisualFeedManager {
     /** Did the level renderer itself draw the local player during the capture in progress? (Normally not: vanilla skips a LocalPlayer that is not the camera.) */
     private static boolean playerDrawnByLevel = false;
     private static boolean compatLogged = false;
+    private static boolean packLogged = false;
     /** Set while VisualScreenRenderer draws the player by hand, so that draw is not mistaken for the level renderer's. */
     private static boolean manualPlayerDraw = false;
     private static long lastPruneMs = 0L;
@@ -386,6 +388,7 @@ public final class VisualFeedManager {
         LINKS.clear();
         FeedDiagnostics.forget();
         ShaderCompat.reset();
+        ShaderCapture.release();
         VisualRelayClient.clear();
         for (VisualFeed feed : FEEDS.values()) {
             try {
@@ -429,7 +432,7 @@ public final class VisualFeedManager {
         long nowNs = System.nanoTime();
         long nowMs = System.currentTimeMillis();
 
-        ShaderCompat.report();   // tells the server when a shader pack is on: no capture then (it would break the player's own view)
+        ShaderCompat.report();   // tells the server whether a shader pack is on (and whether this client can draw through it): it decides who draws a camera for far viewers
 
         // frame time -> governor (the gap after a pause / idle period is not a frame time)
         if (lastFrameNs != 0L) {
@@ -462,10 +465,17 @@ public final class VisualFeedManager {
         boolean adaptive = VisualSettings.adaptive();
         int maxActive = adaptive ? GOVERNOR.maxActiveFeeds(VisualSettings.maxActiveFeeds()) : VisualSettings.maxActiveFeeds();
 
+        // With a shader pack on, a view is drawn through the pack (ShaderCapture, experimental) or not at all (then the relayed picture is
+        // used, see updateRemoteModes). A capture through a pack costs a whole frame: one feed at full rate, a low frame rate.
+        boolean packCapture = ShaderCompat.isShaderPackActive();
+        if (packCapture) {
+            if (!ShaderCapture.enabled()) return;   // not drawn here: a second world must not go through a pack that cannot take it
+            maxActive = Math.min(maxActive, ShaderCapture.MAX_FEEDS);
+        }
+
         // The nearest feeds render, the rest keep their last picture. A feed whose screen has not reported "ready" yet (the
         // call is still connecting) always renders, otherwise the call could never finish connecting.
         CANDIDATES.clear();
-        if (ShaderCompat.isShaderPackActive()) return;   // never draw a second world inside a shader pack's frame
         for (VisualFeed feed : FEEDS.values()) {
             if (!feed.failed && !feed.remote && isWanted(feed, nowMs)) {   // a remote feed is not drawn here: its frames arrive over the network
                 CANDIDATES.add(feed);
@@ -484,6 +494,7 @@ public final class VisualFeedManager {
             feed.fps = i >= maxActive ? Math.max(1, 1000 / (int) VisualCallConstants.FEED_MAX_STALE_MS) : effectiveFps(feed, adaptive);
             int exportFps = VisualRelayClient.exportFps(feed.cameraPos, nowMs);
             if (exportFps > 0) feed.fps = Math.max(feed.fps, exportFps); // far viewers get the rate the server asked for, however far the screens are
+            if (packCapture) feed.fps = Math.min(feed.fps, ShaderCapture.MAX_FPS);   // a capture through a pack costs a whole frame, whoever it is for
             if (nowNs - feed.lastCaptureNs < 1_000_000_000L / Math.max(1, feed.fps)) continue; // each feed has its own frame rate
             if (due == null || feed.lastCaptureNs < due.lastCaptureNs) {
                 due = feed;
@@ -649,6 +660,10 @@ public final class VisualFeedManager {
         Camera camera = gameRenderer.getMainCamera();
         Window window = mc.getWindow();
         boolean sodium = isSodiumLike();
+        // With a shader pack on, the view is drawn into the real main target and copied into the feed (see ShaderCapture); otherwise into the feed's own target.
+        boolean packPath = ShaderCapture.active();
+        boolean packSaved = false;
+        long packStartNs = 0L;
 
         // ---- remember everything the capture touches ----
         Entity oldCameraEntity = mc.cameraEntity;
@@ -700,6 +715,12 @@ public final class VisualFeedManager {
         try {
             mc.renderBuffers().bufferSource().endBatch(); // make sure earlier world rendering is flushed
 
+            if (packPath) {
+                packSaved = ShaderCapture.begin(oldMainTarget);   // the player's finished frame is put back in the finally block
+                if (!packSaved) throw new IllegalStateException("could not save the player's frame");
+                packStartNs = System.nanoTime();
+            }
+
             eyeEntity.setPos(eyePos.x, eyePos.y, eyePos.z);
             eyeEntity.setYRot(lookDir.toYRot());
             eyeEntity.setXRot(0.0F);   // a plain camera: level, looking the way the snail faces
@@ -711,8 +732,10 @@ public final class VisualFeedManager {
             gameRenderer.setRenderBlockOutline(false);
             gameRenderer.setRenderHand(false);
             gameRenderer.setPanoramicMode(true); // fixed 90 degree fov
-            window.setWidth(100);                 // 1:1 aspect ratio for the projection matrix
-            window.setHeight(100);
+            if (!packPath) {
+                window.setWidth(100);             // 1:1 aspect ratio for the projection matrix
+                window.setHeight(100);
+            }                                     // (through a pack the window keeps its size: the centre square of the picture is the 1:1 view)
             mc.options.setCameraType(CameraType.FIRST_PERSON);
 
             // Fabulous graphics use extra targets sized for the main window; not supported inside a feed
@@ -737,9 +760,13 @@ public final class VisualFeedManager {
                 levelRenderer.renderChunksInFrustum.addAll(feed.sections);
             }
 
-            feed.target.clear(Minecraft.ON_OSX);
-            feed.target.bindWrite(true);
-            mc.mainRenderTarget = feed.target;
+            if (packPath) {
+                oldMainTarget.bindWrite(true);   // nothing is swapped: same target, same size, same depth buffer as the player's own view
+            } else {
+                feed.target.clear(Minecraft.ON_OSX);
+                feed.target.bindWrite(true);
+                mc.mainRenderTarget = feed.target;
+            }
 
             if (exposure > playerBrightness) {
                 exposed = true; // from here on the finally block puts the player's setting back, whatever happens below
@@ -748,7 +775,20 @@ public final class VisualFeedManager {
                 lightTexture.updateLightTexture(partialTick);  // the light map the world is rendered with now has the camera's exposure
             }
 
-            gameRenderer.renderLevel(1.0F, 0L, new PoseStack());
+            // The second argument is the frame's start time. Vanilla ignores it, but a shader pack does not: Oculus works out the pack's "frameTime" uniform from the
+            // difference to the previous frame's start time (SystemTimeUniforms.Timer#beginFrame). A 0 here made that difference hugely negative for the capture and hugely
+            // positive for the next real frame, which the pack's exposure and temporal effects turned into a black world. A real time keeps it a few milliseconds.
+            gameRenderer.renderLevel(1.0F, Util.getNanos(), new PoseStack());
+
+            if (packPath) {
+                ShaderCapture.copyView(oldMainTarget, feed.target);   // the centre square of what the pack drew, scaled down into the feed
+                ShaderCapture.noteCost(System.nanoTime() - packStartNs, oldMainTarget.width, oldMainTarget.height, feed.target.width);
+                if (!packLogged) {
+                    packLogged = true;
+                    LOGGER.info("VisualFeedManager: a shader pack is on - views are drawn through it (experimental, this client only): {}x{} frame -> {} px picture, at most {} fps, {} feed(s) at full rate",
+                            oldMainTarget.width, oldMainTarget.height, feed.target.width, ShaderCapture.MAX_FPS, ShaderCapture.MAX_FEEDS);
+                }
+            }
 
             // renderLevel clears the target with alpha 0 and many passes never write alpha, but the picture is later
             // drawn through a shader that discards transparent pixels: force the whole alpha channel to 1.
@@ -782,6 +822,7 @@ public final class VisualFeedManager {
             window.setWidth(oldWidth);
             window.setHeight(oldHeight);
             mc.mainRenderTarget = oldMainTarget;
+            if (packSaved) ShaderCapture.end(oldMainTarget);   // the player's finished frame goes back before it is shown
             oldMainTarget.bindWrite(true);
 
             levelRenderer.entityTarget = oldEntityTarget;
@@ -814,6 +855,11 @@ public final class VisualFeedManager {
         }
 
         if (!ok) {
+            if (packPath) {
+                // not the call's fault: no more views through the pack, the screens go back to the relayed picture (see updateRemoteModes)
+                ShaderCapture.fail(error == null ? "render error" : error, null);
+                return;
+            }
             fail(feed, error == null ? "render error" : error);
             return;
         }
@@ -838,6 +884,7 @@ public final class VisualFeedManager {
         }
 
         // somebody far away is watching this camera and this client is the one drawing it for them: send the picture up
+        // (through a shader pack this is a picture with the look of this player's pack: the server only asks for it when nobody without a pack can)
         if (VisualRelayClient.isExporting(feed.cameraPos, nowMs)) VisualRelayClient.exportFrame(feed);
 
         // handshake: tell the server this screen has a working picture
@@ -948,19 +995,23 @@ public final class VisualFeedManager {
      * walking towards or away from a camera switches smoothly between the two.
      */
     private static void updateRemoteModes(ClientLevel level, long nowMs) {
+        // A shader pack on and no drawing through it (switched off, or it failed): every picture is relayed. Otherwise a camera is drawn here when its chunks are loaded.
+        boolean packBlocksDrawing = ShaderCompat.isShaderPackActive() && !ShaderCapture.enabled();
         for (VisualFeed feed : FEEDS.values()) {
-            boolean wantRemote = !feed.failed && hasRunningLink(feed) && (ShaderCompat.isShaderPackActive() || RelayFrames.chooseRemote(feed.remote,
+            boolean wantRemote = !feed.failed && hasRunningLink(feed) && (packBlocksDrawing || RelayFrames.chooseRemote(feed.remote,
                     loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_WIDE), loadedAround(level, feed.cameraPos, RelayFrames.LOADED_MARGIN_NARROW)));
             if (wantRemote && !feed.remote) {
                 feed.remote = true;
                 ackPendingLinks(feed);              // a call must not wait for a picture that comes over the network: its sound can start
                 sendRelayRequest(feed, true, nowMs);
-                LOGGER.info("VisualFeedManager: the camera at {} is not loaded here - its picture is relayed", feed.cameraPos);
+                LOGGER.info("VisualFeedManager: the camera at {} {} - its picture is relayed", feed.cameraPos,
+                        packBlocksDrawing ? "cannot be drawn here (a shader pack is on)" : "is not loaded here");
             } else if (!wantRemote && feed.remote) {
                 feed.remote = false;
                 sendRelayRequest(feed, false, nowMs);
                 VisualRelayClient.forget(feed.cameraPos);
-                LOGGER.info("VisualFeedManager: the camera at {} can be drawn here - no relay needed", feed.cameraPos);
+                LOGGER.info("VisualFeedManager: the camera at {} {}", feed.cameraPos,
+                        ShaderCompat.isShaderPackActive() ? "is loaded here - drawn here through the shader pack, no relay needed" : "can be drawn here - no relay needed");
             } else if (feed.remote && nowMs - feed.lastRelayRequestMs >= RelayFrames.REQUEST_RENEW_MS) {
                 sendRelayRequest(feed, true, nowMs);   // the server forgets a request that is not renewed
             }

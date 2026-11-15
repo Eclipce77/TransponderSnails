@@ -8,6 +8,7 @@ import net.eclipce.transpondersnails.visual.VisualSettings;
 import net.eclipce.transpondersnails.visual.network.VisualFeedRequestPacket;
 import net.eclipce.transpondersnails.visual.network.VisualFrameRelayPacket;
 import net.eclipce.transpondersnails.visual.network.VisualNetwork;
+import net.eclipce.transpondersnails.visual.network.VisualShaderStatePacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.network.Connection;
@@ -150,22 +151,29 @@ public final class VisualRelayManager {
 
     /** How long "this client has a shader pack on" holds without being renewed (the client says it every few seconds). */
     public static final long SHADER_CLIENT_TTL_MS = 15000L;
-    private static final java.util.Map<UUID, Long> SHADER_CLIENTS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<UUID, ShaderState> SHADER_CLIENTS = new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** A client says whether it has a shader pack on: such a client is not asked to render cameras for others. */
-    public static void setShaderClient(UUID player, boolean shaders) {
-        if (shaders) SHADER_CLIENTS.put(player, System.currentTimeMillis() + SHADER_CLIENT_TTL_MS);
+    private record ShaderState(int mode, long until) { }
+
+    /**
+     * A client says whether it has a shader pack on and whether it can draw a camera through it (VisualShaderStatePacket.NO_PACK / PACK_CAN_DRAW /
+     * PACK_CANNOT_DRAW). A client without a pack is asked to render a camera for far viewers first; one with a pack (a picture with the look of its
+     * pack) only when nobody else can; one that cannot draw at all never.
+     */
+    public static void setShaderClient(UUID player, int mode) {
+        if (mode != VisualShaderStatePacket.NO_PACK) SHADER_CLIENTS.put(player, new ShaderState(mode, System.currentTimeMillis() + SHADER_CLIENT_TTL_MS));
         else SHADER_CLIENTS.remove(player);
     }
 
-    private static boolean hasShaders(UUID player, long now) {
-        Long until = SHADER_CLIENTS.get(player);
-        if (until == null) return false;
-        if (until <= now) {
+    /** What a client last said about its shader pack (NO_PACK when it said nothing, or not recently enough). */
+    private static int shaderMode(UUID player, long now) {
+        ShaderState state = SHADER_CLIENTS.get(player);
+        if (state == null) return VisualShaderStatePacket.NO_PACK;
+        if (state.until() <= now) {
             SHADER_CLIENTS.remove(player);
-            return false;
+            return VisualShaderStatePacket.NO_PACK;
         }
-        return true;
+        return state.mode();
     }
 
     public static void onPlayerLeft(UUID player) {
@@ -211,10 +219,17 @@ public final class VisualRelayManager {
             if (current != null && !current.level().dimension().equals(camera.dimension())) current = null;
             BlockPos at = camera.pos();
             List<ServerPlayer> candidates = new ArrayList<>(level.players());
-            candidates.removeIf(p -> hasShaders(p.getUUID(), now));      // a client with a shader pack on cannot draw the view
+            candidates.removeIf(p -> shaderMode(p.getUUID(), now) == VisualShaderStatePacket.PACK_CANNOT_DRAW);   // a pack is on and it cannot draw through it
             if (current != null && !candidates.contains(current)) current = null;
-            ServerPlayer chosen = UploaderSelection.choose(candidates,
-                    p -> p.distanceToSqr(at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5), UPLOAD_RANGE, current, STICKY_EXTRA);
+            // A player without a shader pack draws the normal picture. A player with one draws it through the pack: only when nobody without one is near,
+            // so that a viewer who cannot draw the camera itself gets a shaded picture instead of a frozen one.
+            List<ServerPlayer> plain = new ArrayList<>(candidates);
+            plain.removeIf(p -> shaderMode(p.getUUID(), now) != VisualShaderStatePacket.NO_PACK);
+            List<ServerPlayer> shaded = new ArrayList<>(candidates);
+            shaded.removeAll(plain);
+            java.util.function.ToDoubleFunction<ServerPlayer> distanceSq = p -> p.distanceToSqr(at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5);
+            ServerPlayer chosen = UploaderSelection.choose(plain, distanceSq, UPLOAD_RANGE, current, STICKY_EXTRA);
+            if (chosen == null) chosen = UploaderSelection.choose(shaded, distanceSq, UPLOAD_RANGE, current, STICKY_EXTRA);
 
             if (chosen == null) {                       // nobody near enough: nobody to draw it; the viewers keep the last picture
                 releaseUploader(server, camera, stream);
